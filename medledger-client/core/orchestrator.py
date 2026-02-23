@@ -75,7 +75,7 @@ class Orchestrator:
             return
         self.user_id         = session.get("user_id")
         self.token           = session.get("token")
-        self.role            = session.get("role")
+        self.role            = (session.get("role") or "").lower() or None
         self.username        = session.get("username")
         self.full_name       = session.get("full_name")
         self.email           = session.get("email")
@@ -165,7 +165,7 @@ class Orchestrator:
                 self._private_key_pem = keypair.private_key_pem  # hold in memory
                 self.user_id         = user_id
                 self.token           = result.get("access_token")
-                self.role            = role
+                self.role            = role.lower()
                 self.username        = username
                 self.full_name       = full_name
                 self.email           = email
@@ -231,7 +231,7 @@ class Orchestrator:
 
         self.user_id         = user_id
         self.token           = result["access_token"]
-        self.role            = result["role"]
+        self.role            = result["role"].lower()
         self.username        = result["username"]
         self.full_name       = result.get("full_name", "")
         self.email           = email
