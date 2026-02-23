@@ -69,6 +69,8 @@ class PermissionService:
         permission_level: str,
         signature_hex: str,          # ECDSA signature produced CLIENT-SIDE by the patient
         doctor_encrypted_dek: str,   # ECIES bundle: DEK re-encrypted for the doctor
+        valid_from: str = None,      # ISO timestamp the client signed (must match signature)
+        valid_until: str = None,     # ISO timestamp the client signed (must match signature)
     ) -> Dict:
         """
         Record a patient's access grant for a doctor on a specific record.
@@ -100,16 +102,26 @@ class PermissionService:
                 raise PermissionError(f"Doctor {doctor_id} not found")
 
             # 3. Build the canonical payload the patient should have signed.
-            #    This MUST match the exact JSON the client serialised before signing.
-            valid_from  = datetime.utcnow()
-            valid_until = valid_from + timedelta(hours=time_window_hours)
+            #    Use client-supplied timestamps if provided so the reconstructed payload
+            #    matches exactly what the client signed.  Fall back to utcnow() only if
+            #    the client sent neither (legacy / tests).
+            if valid_from and valid_until:
+                valid_from_dt  = datetime.fromisoformat(valid_from)
+                valid_until_dt = datetime.fromisoformat(valid_until)
+            else:
+                valid_from_dt  = datetime.utcnow()
+                valid_until_dt = valid_from_dt + timedelta(hours=time_window_hours)
+
+            # Canonical string form — strip timezone info to match client isoformat()
+            valid_from_str  = valid_from  if valid_from  else valid_from_dt.isoformat()
+            valid_until_str = valid_until if valid_until else valid_until_dt.isoformat()
 
             permission_payload = {
                 "patient_id": patient_id,
                 "grantee_public_key_hash": doctor.public_key_hash,
                 "record_id": record_id,
-                "valid_from":  valid_from.isoformat(),
-                "valid_until": valid_until.isoformat(),
+                "valid_from":  valid_from_str,
+                "valid_until": valid_until_str,
                 "permission_level": permission_level,
             }
             permission_data_str = json.dumps(permission_payload, sort_keys=True)
@@ -139,8 +151,8 @@ class PermissionService:
                 can_write=can_write,
                 can_audit=False,
                 can_delegate=False,
-                valid_from=valid_from,
-                valid_until=valid_until,
+                valid_from=valid_from_dt,
+                valid_until=valid_until_dt,
                 conditions=permission_data_str,
                 patient_signature=signature_hex,
                 signature_timestamp=datetime.utcnow(),

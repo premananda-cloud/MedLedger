@@ -19,7 +19,7 @@ class UploadScreen(ttk.Frame):
     def __init__(self, parent, orchestrator, on_uploaded):
         super().__init__(parent)
         self.orch        = orchestrator
-        self.on_uploaded = on_uploaded   # callback() to refresh records list
+        self.on_uploaded = on_uploaded   # callback(result_dict) → navigate to records
         self._selected_path = None
         self._build()
 
@@ -55,8 +55,7 @@ class UploadScreen(ttk.Frame):
 
         fc_inner = ttk.Frame(file_card, style="Card.TFrame")
         fc_inner.pack(fill="x", padx=16, pady=12)
-        ttk.Label(fc_inner, text="Selected file:", style="Subtitle.TLabel").pack(
-            anchor="w")
+        ttk.Label(fc_inner, text="Selected file:", style="Subtitle.TLabel").pack(anchor="w")
         ttk.Label(fc_inner, textvariable=self._file_var,
                   style="Card.TLabel", font=("Segoe UI", 10, "bold"),
                   wraplength=600).pack(anchor="w", pady=(2, 0))
@@ -87,11 +86,11 @@ class UploadScreen(ttk.Frame):
             ttk.Label(row, text=desc, style="Card.TLabel",
                       font=("Segoe UI", 9)).pack(side="left")
 
-        # ── Upload button ─────────────────────────────────────────────────────
+        # ── Upload button — always rendered, toggled via .configure(state=) ──
         self._upload_btn = primary_button(
             self, "🔐  Encrypt & Upload", self._upload)
         self._upload_btn.pack(fill="x")
-        self._upload_btn.state(["disabled"])
+        self._upload_btn.configure(state="disabled")   # disabled until file chosen
 
     def _pick_file(self):
         path = filedialog.askopenfilename(
@@ -103,11 +102,14 @@ class UploadScreen(ttk.Frame):
             p = Path(path)
             size_kb = p.stat().st_size / 1024
             self._file_var.set(f"{p.name}  ({size_kb:.1f} KB)  —  {p.parent}")
-            self._upload_btn.state(["!disabled"])
+            self._upload_btn.configure(state="normal")   # enable upload button
 
     def _upload(self):
         if not self._selected_path:
             return
+
+        # Store the original filename NOW before the thread clears it
+        original_name = Path(self._selected_path).name
 
         dlg = ProgressDialog(self.winfo_toplevel(), "Encrypting & Uploading")
 
@@ -117,12 +119,28 @@ class UploadScreen(ttk.Frame):
                     file_path=self._selected_path,
                     on_progress=dlg.update_status,
                 )
+                # Attach the human-readable filename to the result so the records
+                # list can display it (server stores a hash-based name by default)
+                result["original_filename"] = original_name
+
                 status = "Queued (offline)" if result.get("offline") else "Uploaded ✓"
                 dlg.finish(True, f"{status}\nRecord ID: {result.get('record_id', 'N/A')}")
+
                 self._selected_path = None
                 self._file_var.set("No file selected")
-                self._upload_btn.state(["disabled"])
-                self.after(1500, lambda: [dlg.destroy(), self.on_uploaded()])
+                self._upload_btn.configure(state="disabled")
+
+                # Navigate to records after a short pause.
+                # Guard: dialog may already be closed by the user clicking "Close".
+                def _go():
+                    try:
+                        dlg.destroy()
+                    except Exception:
+                        pass
+                    self.on_uploaded(result)   # pass result so records screen can cache it
+
+                self.after(1500, _go)
+
             except Exception as exc:
                 dlg.finish(False, str(exc))
 

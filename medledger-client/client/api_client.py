@@ -175,13 +175,16 @@ class APIClient:
         record_id: str,
         time_window_hours: int,
         permission_level: str,
-        signature_hex: str,        # ECDSA signature produced CLIENT-SIDE
+        signature_hex: str,                # ECDSA signature produced CLIENT-SIDE
         doctor_encrypted_dek: dict,
+        valid_from: Optional[str] = None,  # ISO timestamp the client signed
+        valid_until: Optional[str] = None, # ISO timestamp the client signed
     ) -> dict:
         """
         Submit a permission grant.
         Private key NEVER sent — only the signature over the canonical payload.
         patient_id is determined server-side from the JWT token.
+        valid_from / valid_until must match exactly what the client signed.
         """
         payload = {
             "doctor_id":           str(doctor_id),
@@ -191,6 +194,10 @@ class APIClient:
             "signature_hex":       signature_hex,
             "doctor_encrypted_dek": json.dumps(doctor_encrypted_dek),
         }
+        if valid_from:
+            payload["valid_from"] = valid_from
+        if valid_until:
+            payload["valid_until"] = valid_until
         r = self.session.post(
             f"{self.base}/permissions/grant",
             json=payload,

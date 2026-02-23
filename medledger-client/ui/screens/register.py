@@ -1,143 +1,373 @@
 """
-ui/screens/register.py - User registration screen (simplified — no passphrase).
+ui/screens/records.py - Patient records list with download and grant-access actions.
+
+Demo mode: if the server can't be reached, shows the offline queue AND injects
+any records that were successfully uploaded this session (stored in _session_uploads).
 """
 
 import threading
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, filedialog, messagebox
+from pathlib import Path
+from datetime import datetime
 
 from ui.components.widgets import (
-    apply_dark_theme, ProgressDialog, card_frame,
-    primary_button,
-    BG_DARK, BG_CARD, TEXT_WHITE, TEXT_GRAY, ACCENT, BORDER
+    ProgressDialog, card_frame, primary_button, danger_button,
+    BG_CARD, TEXT_GRAY, TEXT_WHITE, SUCCESS, WARNING
 )
 
+# ── Module-level demo cache — survives screen rebuilds within one session ─────
+# Populated by UploadScreen via RecordsScreen.add_session_record()
+_session_uploads: list = []
 
-class RegisterScreen(ttk.Frame):
 
-    def __init__(self, parent, orchestrator, on_success, on_back):
+class RecordsScreen(ttk.Frame):
+
+    def __init__(self, parent, orchestrator):
         super().__init__(parent)
-        self.orch       = orchestrator
-        self.on_success = on_success
-        self.on_back    = on_back
+        self.orch     = orchestrator
+        self._records = []
         self._build()
+        self.refresh()
+
+    # ── Public helper called by UploadScreen after a successful upload ────────
+    @staticmethod
+    def add_session_record(record: dict):
+        """Cache an uploaded record so it shows even before a server refresh."""
+        # Avoid duplicates
+        ids = {r.get("record_id") or r.get("local_id") for r in _session_uploads}
+        rid = record.get("record_id") or record.get("local_id")
+        if rid and rid not in ids:
+            _session_uploads.append(record)
 
     def _build(self):
-        # ── Left panel ────────────────────────────────────────────────────────
-        left = ttk.Frame(self, style="Panel.TFrame", width=300)
-        left.pack(side="left", fill="y")
-        left.pack_propagate(False)
+        # ── Header ────────────────────────────────────────────────────────────
+        header = ttk.Frame(self)
+        header.pack(fill="x", pady=(0, 16))
 
-        ttk.Label(left, text="🏥", font=("Segoe UI", 48),
-                  style="TLabel").pack(pady=(80, 12))
-        ttk.Label(left, text="MedLedger",
-                  font=("Segoe UI", 22, "bold"), style="TLabel").pack()
-        ttk.Label(left, text="Zero-trust medical\nrecord storage",
-                  font=("Segoe UI", 11), style="Subtitle.TLabel",
-                  justify="center").pack(pady=8)
+        ttk.Label(header, text="My Medical Records",
+                  font=("Segoe UI", 18, "bold"), style="TLabel").pack(side="left")
+        ttk.Button(header, text="⟳  Refresh",
+                   style="Ghost.TButton", command=self.refresh).pack(side="right")
 
-        ttk.Separator(left, orient="horizontal").pack(fill="x", padx=40, pady=20)
+        # ── Records table ─────────────────────────────────────────────────────
+        table_frame = ttk.Frame(self)
+        table_frame.pack(fill="both", expand=True)
 
-        for line in [
-            "🔐  Keys generated locally",
-            "💾  Private key saved to this device",
-            "📄  Files encrypted before upload",
-            "🚫  Server never sees plaintext",
-        ]:
-            ttk.Label(left, text=line, style="Subtitle.TLabel",
-                      font=("Segoe UI", 10)).pack(anchor="w", padx=28, pady=3)
+        cols = ("filename", "content_type", "hash_preview", "created_at", "status")
+        self._tree = ttk.Treeview(table_frame, columns=cols,
+                                  show="headings", selectmode="browse")
 
-        # ── Right form ────────────────────────────────────────────────────────
-        right = ttk.Frame(self)
-        right.pack(side="left", fill="both", expand=True)
+        headers = {
+            "filename":      ("File Name",         220),
+            "content_type":  ("Type",               100),
+            "hash_preview":  ("SHA-256 (preview)",  150),
+            "created_at":    ("Uploaded",            140),
+            "status":        ("Status",               80),
+        }
+        for col, (heading, width) in headers.items():
+            self._tree.heading(col, text=heading)
+            self._tree.column(col, width=width, anchor="w")
 
-        form = ttk.Frame(right)
-        form.place(relx=0.5, rely=0.5, anchor="center")
+        vsb = ttk.Scrollbar(table_frame, orient="vertical",
+                            command=self._tree.yview)
+        self._tree.configure(yscrollcommand=vsb.set)
+        self._tree.pack(side="left", fill="both", expand=True)
+        vsb.pack(side="right", fill="y")
 
-        ttk.Label(form, text="Create Account",
-                  font=("Segoe UI", 20, "bold"), style="TLabel").grid(
-                  row=0, column=0, columnspan=2, pady=(0, 4), sticky="w")
-        ttk.Label(form,
-                  text="Your private key is generated here and saved to this device.",
-                  style="Subtitle.TLabel", wraplength=400).grid(
-                  row=1, column=0, columnspan=2, pady=(0, 18), sticky="w")
+        # ── Action buttons ────────────────────────────────────────────────────
+        actions = ttk.Frame(self)
+        actions.pack(fill="x", pady=(12, 0))
 
-        fields = [
-            ("Full Name",  "full_name",  False),
-            ("Username",   "username",   False),
-            ("Email",      "email",      False),
-            ("Password",   "password",   True),
-        ]
-        self._vars = {}
-        for i, (label, key, secret) in enumerate(fields):
-            lr = 2 + i * 2
-            ttk.Label(form, text=label, style="Subtitle.TLabel").grid(
-                row=lr, column=0, columnspan=2, sticky="w", pady=(8, 1))
-            var = tk.StringVar()
-            self._vars[key] = var
-            e = ttk.Entry(form, textvariable=var,
-                          show="●" if secret else "", width=36)
-            e.grid(row=lr + 1, column=0, columnspan=2, sticky="ew")
-            if i == 0:
-                e.focus()
+        primary_button(actions, "⬇  Download & Decrypt",
+                       self._download).pack(side="left", padx=(0, 8))
+        ttk.Button(actions, text="🔓  Grant Doctor Access",
+                   style="Ghost.TButton",
+                   command=self._grant_access).pack(side="left", padx=(0, 8))
+        ttk.Button(actions, text="📋  View Permissions",
+                   style="Ghost.TButton",
+                   command=self._view_permissions).pack(side="left")
 
-        # Role selector
-        row = 2 + len(fields) * 2
-        ttk.Label(form, text="Role", style="Subtitle.TLabel").grid(
-            row=row, column=0, columnspan=2, sticky="w", pady=(8, 1))
-        self._role_var = tk.StringVar(value="patient")
-        rf = ttk.Frame(form)
-        rf.grid(row=row + 1, column=0, columnspan=2, sticky="ew")
-        for val, label in [("patient", "👤  Patient"), ("doctor", "⚕️  Doctor")]:
-            ttk.Radiobutton(rf, text=label, value=val,
-                            variable=self._role_var).pack(side="left", padx=(0, 20))
+        self._status_lbl = ttk.Label(actions, text="", style="Subtitle.TLabel")
+        self._status_lbl.pack(side="right")
 
-        # Key notice
-        notice = ttk.Frame(form, style="Card.TFrame")
-        notice.grid(row=row + 2, column=0, columnspan=2,
-                    sticky="ew", pady=(14, 0))
-        ttk.Label(notice,
-                  text="🔑  A unique encryption key will be generated and saved\n"
-                       "    to this device. Keep medledger.db safe — it holds your key.",
-                  style="Subtitle.TLabel", font=("Segoe UI", 9),
-                  justify="left").pack(padx=12, pady=8)
+    def refresh(self):
+        self._status_lbl.configure(text="Loading…")
+        self._tree.delete(*self._tree.get_children())
 
-        # Buttons
-        btn_frame = ttk.Frame(form)
-        btn_frame.grid(row=row + 3, column=0, columnspan=2,
-                       pady=(14, 0), sticky="ew")
-        primary_button(btn_frame, "Create Account & Generate Key",
-                       self._submit).pack(fill="x", pady=(0, 8))
-        ttk.Button(btn_frame, text="← Back to Login",
-                   style="Ghost.TButton", command=self.on_back).pack(fill="x")
+        def run():
+            records = []
+            try:
+                records = self.orch.list_records()
+            except Exception:
+                pass   # server offline — fall through to session cache below
 
-    def _submit(self):
-        v = {k: var.get().strip() for k, var in self._vars.items()}
+            # Merge in any session-cached uploads that aren't already in the list
+            server_ids = {r.get("record_id") for r in records}
+            for r in _session_uploads:
+                if r.get("record_id") not in server_ids:
+                    records.append(r)
 
-        if not all([v["full_name"], v["username"], v["email"], v["password"]]):
-            messagebox.showerror("Validation Error",
-                                 "Full name, username, email, and password are required.")
+            self._records = records
+            self.after(0, self._populate)
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _populate(self):
+        self._tree.delete(*self._tree.get_children())
+        for rec in self._records:
+            # Prefer the human-readable name stored at upload time
+            filename  = (rec.get("original_filename")
+                         or rec.get("filename")
+                         or "—")
+            ctype     = rec.get("content_type", "—")
+            chash     = rec.get("content_hash", "")
+            preview   = chash[:16] + "…" if chash else "—"
+            created   = str(rec.get("created_at", ""))[:16]
+            status    = "⚠ offline" if rec.get("offline") else "✓ synced"
+            iid       = str(rec.get("record_id") or rec.get("local_id", ""))
+            if iid:
+                self._tree.insert("", "end", iid=iid,
+                                  values=(filename, ctype, preview, created, status))
+        count = len(self._records)
+        self._status_lbl.configure(text=f"{count} record{'s' if count != 1 else ''}")
+
+    def _selected_record(self):
+        sel = self._tree.selection()
+        if not sel:
+            messagebox.showinfo("Select a record", "Please select a record first.")
+            return None
+        record_id = sel[0]
+        return next(
+            (r for r in self._records
+             if str(r.get("record_id") or r.get("local_id")) == record_id),
+            None,
+        )
+
+    # ── Download ──────────────────────────────────────────────────────────────
+
+    def _download(self):
+        rec = self._selected_record()
+        if not rec:
+            return
+        if rec.get("offline"):
+            messagebox.showinfo("Offline record",
+                                "This record hasn't synced yet. "
+                                "Connect to the server and refresh.")
             return
 
-        dlg = ProgressDialog(self.winfo_toplevel(), "Creating Account")
+        filename  = rec.get("original_filename") or rec.get("filename") or "record"
+        save_path = filedialog.asksaveasfilename(
+            title="Save decrypted file as",
+            initialfile=filename,
+        )
+        if not save_path:
+            return
+
+        dlg = ProgressDialog(self.winfo_toplevel(), "Downloading & Decrypting")
 
         def run():
             try:
-                result = self.orch.register(
-                    username=v["username"],
-                    email=v["email"],
-                    full_name=v["full_name"],
-                    role=self._role_var.get(),
-                    password=v["password"],
+                result_path = self.orch.download_and_decrypt(
+                    record_id=rec["record_id"],
+                    save_path=save_path,
                     on_progress=dlg.update_status,
                 )
-                dlg.finish(True,
-                           f"Account created!\n"
-                           f"User ID: {result['user_id']}\n\n"
-                           f"Your private key is stored in:\n"
-                           f"medledger-client/keys/medledger.db")
-                self.after(1800, lambda: [dlg.destroy(), self.on_success(result)])
+                dlg.finish(True, f"Saved to:\n{result_path}")
             except Exception as exc:
                 dlg.finish(False, str(exc))
 
         threading.Thread(target=run, daemon=True).start()
+
+    # ── Grant doctor access ───────────────────────────────────────────────────
+
+    def _grant_access(self):
+        rec = self._selected_record()
+        if not rec:
+            return
+        if rec.get("offline"):
+            messagebox.showinfo("Offline", "Cannot grant access to unsynced records.")
+            return
+
+        dlg = _GrantAccessDialog(self.winfo_toplevel(), self.orch, rec)
+        self.wait_window(dlg)
+
+    # ── View permissions ──────────────────────────────────────────────────────
+
+    def _view_permissions(self):
+        rec = self._selected_record()
+        if not rec:
+            return
+        _PermissionsDialog(self.winfo_toplevel(), self.orch, rec)
+
+
+# ── Grant Access Dialog ───────────────────────────────────────────────────────
+
+class _GrantAccessDialog(tk.Toplevel):
+
+    def __init__(self, parent, orchestrator, record):
+        super().__init__(parent)
+        self.orch   = orchestrator
+        self.record = record
+        self.title("Grant Doctor Access")
+        self.configure(bg="#1e2330")
+        self.resizable(False, False)
+        self.grab_set()
+
+        w, h = 460, 340
+        px = parent.winfo_rootx() + (parent.winfo_width()  - w) // 2
+        py = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
+        self.geometry(f"{w}x{h}+{px}+{py}")
+
+        self._build()
+
+    def _build(self):
+        ttk.Label(self, text="Grant Doctor Access",
+                  font=("Segoe UI", 16, "bold"), style="TLabel").pack(
+                  pady=(20, 4), padx=24, anchor="w")
+
+        filename = (self.record.get("original_filename")
+                    or self.record.get("filename")
+                    or self.record.get("record_id", "")[:16] + "…")
+        ttk.Label(self, text=f"Record: {filename}",
+                  style="Subtitle.TLabel").pack(padx=24, anchor="w")
+        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=24, pady=12)
+
+        form = ttk.Frame(self)
+        form.pack(fill="x", padx=24)
+
+        ttk.Label(form, text="Doctor's User ID", style="Subtitle.TLabel").pack(anchor="w")
+        self._doctor_id_var = tk.StringVar()
+        ttk.Entry(form, textvariable=self._doctor_id_var, width=36).pack(
+            fill="x", pady=(2, 10))
+
+        ttk.Label(form, text="Access duration (hours)",
+                  style="Subtitle.TLabel").pack(anchor="w")
+        self._hours_var = tk.StringVar(value="24")
+        ttk.Entry(form, textvariable=self._hours_var, width=12).pack(
+            anchor="w", pady=(2, 10))
+
+        ttk.Label(form, text="Permission level", style="Subtitle.TLabel").pack(anchor="w")
+        self._level_var = tk.StringVar(value="view_only")
+        frame = ttk.Frame(form)
+        frame.pack(anchor="w", pady=(2, 16))
+        for val, label in [("view_only", "View only"), ("view_download", "View & download")]:
+            ttk.Radiobutton(frame, text=label, value=val,
+                            variable=self._level_var).pack(side="left", padx=(0, 16))
+
+        btn_row = ttk.Frame(self)
+        btn_row.pack(fill="x", padx=24, pady=(0, 16))
+        primary_button(btn_row, "Grant Access", self._submit).pack(
+            side="left", padx=(0, 8))
+        ttk.Button(btn_row, text="Cancel", style="Ghost.TButton",
+                   command=self.destroy).pack(side="left")
+
+    def _submit(self):
+        try:
+            doctor_id = int(self._doctor_id_var.get().strip())
+            hours     = int(self._hours_var.get().strip())
+        except ValueError:
+            messagebox.showerror("Error",
+                                 "Doctor ID must be a number and hours must be an integer.")
+            return
+
+        dlg = ProgressDialog(self.winfo_toplevel(), "Granting Access")
+
+        def run():
+            try:
+                result = self.orch.grant_doctor_access(
+                    record_id=self.record["record_id"],
+                    doctor_id=doctor_id,
+                    time_window_hours=hours,
+                    permission_level=self._level_var.get(),
+                    on_progress=dlg.update_status,
+                )
+                dlg.finish(True,
+                           f"Access granted ✓\nPermission ID: {result.get('permission_id')}")
+                self.after(1500, lambda: [dlg.destroy(), self.destroy()])
+            except Exception as exc:
+                dlg.finish(False, str(exc))
+
+        threading.Thread(target=run, daemon=True).start()
+
+
+# ── Permissions Dialog ────────────────────────────────────────────────────────
+
+class _PermissionsDialog(tk.Toplevel):
+
+    def __init__(self, parent, orchestrator, record):
+        super().__init__(parent)
+        self.orch   = orchestrator
+        self.record = record
+        self.title("Active Permissions")
+        self.configure(bg="#1e2330")
+        self.grab_set()
+
+        w, h = 680, 380
+        px = parent.winfo_rootx() + (parent.winfo_width()  - w) // 2
+        py = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
+        self.geometry(f"{w}x{h}+{px}+{py}")
+
+        self._build()
+        self._load()
+
+    def _build(self):
+        ttk.Label(self, text="Active Permissions",
+                  font=("Segoe UI", 16, "bold"), style="TLabel").pack(
+                  pady=(20, 4), padx=24, anchor="w")
+        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=24, pady=8)
+
+        cols = ("perm_id", "grantee_hash", "valid_until", "active")
+        self._tree = ttk.Treeview(self, columns=cols, show="headings",
+                                  selectmode="browse")
+        self._tree.heading("perm_id",      text="Permission ID")
+        self._tree.heading("grantee_hash", text="Grantee Key Hash")
+        self._tree.heading("valid_until",  text="Expires")
+        self._tree.heading("active",       text="Status")
+        self._tree.column("perm_id",      width=280)
+        self._tree.column("grantee_hash", width=140)
+        self._tree.column("valid_until",  width=140)
+        self._tree.column("active",       width=80)
+        self._tree.pack(fill="both", expand=True, padx=24)
+
+        btn_row = ttk.Frame(self)
+        btn_row.pack(fill="x", padx=24, pady=12)
+        danger_button(btn_row, "🚫  Revoke Selected", self._revoke).pack(side="left")
+        ttk.Button(btn_row, text="Close", style="Ghost.TButton",
+                   command=self.destroy).pack(side="right")
+
+    def _load(self):
+        self._tree.delete(*self._tree.get_children())
+        try:
+            perms = self.orch.list_my_permissions()
+        except Exception:
+            perms = []
+        for p in perms:
+            if p.get("record_id") != self.record.get("record_id"):
+                continue
+            status = ("revoked" if p.get("is_revoked")
+                      else ("active" if p.get("is_active") else "inactive"))
+            self._tree.insert("", "end", iid=p["permission_id"],
+                              values=(
+                                  p["permission_id"],
+                                  p.get("grantee_public_key_hash", "")[:20] + "…",
+                                  str(p.get("valid_until", ""))[:16],
+                                  status,
+                              ))
+
+    def _revoke(self):
+        sel = self._tree.selection()
+        if not sel:
+            messagebox.showinfo("Select", "Select a permission to revoke.")
+            return
+        perm_id = sel[0]
+        if not messagebox.askyesno("Confirm Revoke",
+                                   f"Revoke permission:\n{perm_id}\n\n"
+                                   "The doctor will immediately lose access."):
+            return
+        try:
+            self.orch.revoke_permission(perm_id)
+            messagebox.showinfo("Revoked", "Permission revoked successfully.")
+            self._load()
+        except Exception as exc:
+            messagebox.showerror("Error", str(exc))

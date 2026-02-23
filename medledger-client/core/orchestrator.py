@@ -476,6 +476,8 @@ class Orchestrator:
             permission_level=permission_level,
             signature_hex=sig_hex,
             doctor_encrypted_dek=doctor_dek,
+            valid_from=payload["valid_from"],    # send the exact timestamps that were signed
+            valid_until=payload["valid_until"],
         )
         progress("Access granted ✓")
         return result

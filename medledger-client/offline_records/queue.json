@@ -14,5 +14,21 @@
       "temp_id": "offline_be4ce5d9"
     },
     "queued_at": "2026-02-23T11:18:20.102457"
+  },
+  {
+    "id": "cce50d1b-ad2d-4ecc-b827-5fcd3f7f8f5d",
+    "operation": "register",
+    "payload": {
+      "username": "alluarjun",
+      "email": "alluarjun@gmail.com",
+      "full_name": "alluarjun",
+      "role": "patient",
+      "password": "alluarjun#p",
+      "public_key_hex": "04c4259d7e24b661a96cf83715d556c4b91aaa2dac6697ed425dcb9775834919e1e7a8249b049b750baa46ee4cdfda7c1f67cc4e203b9bca15b6ec30cb1d6dcb5f",
+      "public_key_compressed": "03c4259d7e24b661a96cf83715d556c4b91aaa2dac6697ed425dcb9775834919e1",
+      "public_key_hash": "08f841f23f50bc3402a1f8fc9174fc48e3fc05f185416401d0f21e67ce6e3567",
+      "temp_id": "offline_d9cf995b"
+    },
+    "queued_at": "2026-02-23T13:30:01.906266"
   }
 ]

@@ -45,6 +45,17 @@ class GrantPermissionRequest(BaseModel):
     record_id: str = Field(..., description="Record ID being shared")
     time_window_hours: int = Field(2, ge=1, le=168, description="Access window in hours (1–168)")
     permission_level: str = Field("view_only", description="'view_only' or 'view_download'")
+    # Client-signed timestamps — MUST match what was signed.  ISO-8601, no timezone suffix.
+    valid_from: Optional[str] = Field(
+        None,
+        description="ISO-8601 UTC timestamp the patient signed as valid_from (no tz suffix). "
+                    "If omitted the server falls back to utcnow().",
+    )
+    valid_until: Optional[str] = Field(
+        None,
+        description="ISO-8601 UTC timestamp the patient signed as valid_until (no tz suffix). "
+                    "If omitted the server derives it from time_window_hours.",
+    )
     # Client-side ECDSA signature over the canonical permission payload
     signature_hex: str = Field(
         ...,
@@ -176,6 +187,8 @@ async def grant_permission(
             permission_level=request.permission_level,
             signature_hex=request.signature_hex,          # client-produced signature
             doctor_encrypted_dek=request.doctor_encrypted_dek,
+            valid_from=request.valid_from,                # use client timestamps so signature matches
+            valid_until=request.valid_until,
         )
         return GrantPermissionResponse(**result)
 
