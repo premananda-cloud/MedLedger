@@ -1,186 +1,173 @@
 """
-core/keystore.py - Local key and session persistence.
+core/keystore.py - Local key and session storage using SQLite.
 
-Private key storage:
-  - keys/<user_id>.key  — AES-256-GCM encrypted, PBKDF2-HMAC-SHA256 derived key
-  - Legacy fallback: keys/<user_id>.pem  (plaintext, for existing dev keys)
+Design:
+  - One SQLite database: keys/medledger.db
+  - Table `users`   — stores account info + private key hex (plain text — demo only)
+  - Table `session` — stores the currently logged-in user id
 
-Session storage:
-  - keys/session.json  — user_id, token, role, public_key_hex, etc.
+Private key is stored as a 64-char hex string directly in the DB.
+No passphrase, no encryption of the key file — kept simple for demo purposes.
 
-Passphrase notes:
-  - The key passphrase is SEPARATE from the account password.
-  - It is never sent to the server — only used to decrypt the local key file.
-  - Wrong passphrase raises ValueError (AES-GCM tag mismatch).
+If you need production-grade security, replace the `private_key_hex` column
+with an AES-GCM encrypted blob and add a passphrase prompt at login time.
 """
 
 import json
-import os
-import hashlib
+import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
-from config import KEYS_DIR, SESSION_FILE
-from core.crypto import load_keypair_from_pem, KeyPair
+
+from config import KEYS_DIR
+
+DB_PATH = KEYS_DIR / "medledger.db"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Encrypted private key storage
-# ══════════════════════════════════════════════════════════════════════════════
+# ── DB bootstrap ──────────────────────────────────────────────────────────────
 
-_PBKDF2_ITERATIONS = 200_000
-_PBKDF2_HASH       = "sha256"
-_SALT_LEN          = 32
-_IV_LEN            = 12
-
-
-def save_private_key(user_id, pem_text: str, passphrase: str) -> Path:
-    """
-    Encrypt and save private key PEM to keys/<user_id>.key using:
-      PBKDF2-HMAC-SHA256 (200k iters, random 32-byte salt) → 32-byte AES key
-      AES-256-GCM (random 12-byte IV)
-
-    File format (JSON):
-      { "v": 1, "salt": hex, "iv": hex, "ct": hex, "tag": hex }
-
-    Returns the path written.
-    """
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-    salt    = os.urandom(_SALT_LEN)
-    iv      = os.urandom(_IV_LEN)
-    aes_key = _derive_key(passphrase, salt)
-
-    aesgcm     = AESGCM(aes_key)
-    ciphertext = aesgcm.encrypt(iv, pem_text.encode("utf-8"), None)  # last 16 bytes = tag
-    ct_body    = ciphertext[:-16]
-    tag        = ciphertext[-16:]
-
-    blob = {
-        "v":    1,
-        "salt": salt.hex(),
-        "iv":   iv.hex(),
-        "ct":   ct_body.hex(),
-        "tag":  tag.hex(),
-    }
-
-    path = KEYS_DIR / f"{user_id}.key"
-    path.write_text(json.dumps(blob), encoding="utf-8")
-    return path
+def _init_db():
+    with _conn() as cx:
+        cx.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id       TEXT PRIMARY KEY,   -- server int OR offline_xxx string
+                username      TEXT NOT NULL,
+                email         TEXT NOT NULL,
+                full_name     TEXT,
+                role          TEXT NOT NULL,
+                private_key_hex TEXT NOT NULL,    -- 64 hex chars (raw P-256 scalar)
+                public_key_hex  TEXT NOT NULL,    -- 130 hex chars (uncompressed)
+                public_key_hash TEXT NOT NULL,    -- 64 hex chars (SHA-256 of pub)
+                token         TEXT,               -- JWT (null if offline)
+                created_at    TEXT
+            )
+        """)
+        cx.execute("""
+            CREATE TABLE IF NOT EXISTS session (
+                id      INTEGER PRIMARY KEY CHECK (id = 1),  -- only one row
+                user_id TEXT
+            )
+        """)
+        cx.execute("INSERT OR IGNORE INTO session (id, user_id) VALUES (1, NULL)")
 
 
-def load_private_key_pem(user_id, passphrase: str) -> str:
-    """
-    Decrypt and return the PEM for user_id.
-    Raises FileNotFoundError if no key exists.
-    Raises ValueError on wrong passphrase (GCM tag mismatch).
-    Falls back to legacy plaintext .pem if no .key file found.
-    """
-    key_path = KEYS_DIR / f"{user_id}.key"
-    if key_path.exists():
-        return _decrypt_key_file(key_path, passphrase)
-
-    # Legacy plaintext fallback
-    pem_path = KEYS_DIR / f"{user_id}.pem"
-    if pem_path.exists():
-        return pem_path.read_text(encoding="utf-8")
-
-    raise FileNotFoundError(
-        f"No key file found for user {user_id}. "
-        f"Expected: {key_path} or {pem_path}"
-    )
-
-
-def _decrypt_key_file(path: Path, passphrase: str) -> str:
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-    blob    = json.loads(path.read_text(encoding="utf-8"))
-    salt    = bytes.fromhex(blob["salt"])
-    iv      = bytes.fromhex(blob["iv"])
-    ct_body = bytes.fromhex(blob["ct"])
-    tag     = bytes.fromhex(blob["tag"])
-
-    aes_key = _derive_key(passphrase, salt)
+@contextmanager
+def _conn():
+    KEYS_DIR.mkdir(exist_ok=True)
+    con = sqlite3.connect(str(DB_PATH))
+    con.row_factory = sqlite3.Row
     try:
-        plaintext = AESGCM(aes_key).decrypt(iv, ct_body + tag, None)
-        return plaintext.decode("utf-8")
-    except Exception:
-        raise ValueError(
-            "Wrong key passphrase (or corrupted key file). "
-            "Please enter the passphrase you chose when you registered."
-        )
+        yield con
+        con.commit()
+    finally:
+        con.close()
 
 
-def _derive_key(passphrase: str, salt: bytes) -> bytes:
-    return hashlib.pbkdf2_hmac(
-        _PBKDF2_HASH,
-        passphrase.encode("utf-8"),
-        salt,
-        _PBKDF2_ITERATIONS,
-        dklen=32,
-    )
+_init_db()
 
 
-def load_keypair(user_id, passphrase: str) -> KeyPair:
-    """Decrypt and reconstruct KeyPair. Raises on wrong passphrase."""
-    pem = load_private_key_pem(user_id, passphrase)
-    return load_keypair_from_pem(pem)
+# ── User storage ──────────────────────────────────────────────────────────────
+
+def save_user(
+    user_id: str,
+    username: str,
+    email: str,
+    full_name: str,
+    role: str,
+    private_key_hex: str,
+    public_key_hex: str,
+    public_key_hash: str,
+    token: Optional[str] = None,
+    created_at: Optional[str] = None,
+):
+    """Insert or update a user record in the local DB."""
+    with _conn() as cx:
+        cx.execute("""
+            INSERT INTO users
+              (user_id, username, email, full_name, role,
+               private_key_hex, public_key_hex, public_key_hash, token, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+              token      = excluded.token,
+              full_name  = excluded.full_name
+        """, (str(user_id), username, email, full_name, role,
+              private_key_hex, public_key_hex, public_key_hash,
+              token, created_at))
+
+
+def load_user(user_id: str) -> Optional[dict]:
+    """Return the user row as a dict, or None."""
+    with _conn() as cx:
+        row = cx.execute(
+            "SELECT * FROM users WHERE user_id = ?", (str(user_id),)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def find_user_by_email(email: str) -> Optional[dict]:
+    """Look up a local user by email (for offline login)."""
+    with _conn() as cx:
+        row = cx.execute(
+            "SELECT * FROM users WHERE email = ?", (email,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def update_token(user_id: str, token: Optional[str]):
+    with _conn() as cx:
+        cx.execute("UPDATE users SET token = ? WHERE user_id = ?",
+                   (token, str(user_id)))
 
 
 def key_exists(user_id) -> bool:
-    return (KEYS_DIR / f"{user_id}.key").exists() or (KEYS_DIR / f"{user_id}.pem").exists()
+    return load_user(str(user_id)) is not None
 
 
-def delete_private_key(user_id):
-    """Remove key from disk (logout / account deletion)."""
-    for suffix in (".key", ".pem"):
-        path = KEYS_DIR / f"{user_id}{suffix}"
-        if path.exists():
-            path.unlink()
+def load_private_key_hex(user_id) -> str:
+    """Return the private key hex for user_id. Raises if not found."""
+    row = load_user(str(user_id))
+    if not row:
+        raise FileNotFoundError(
+            f"No local key found for user {user_id}. "
+            "Did you register on this device?"
+        )
+    return row["private_key_hex"]
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Session persistence  (survives app restart)
-# ══════════════════════════════════════════════════════════════════════════════
+# ── Session (who is currently logged in) ─────────────────────────────────────
 
-def save_session(
-    user_id: int,
-    token: str,
-    role: str,
-    username: str,
-    full_name: str,
-    email: str,
-    public_key_hex: str,
-    public_key_hash: str,
-):
-    """Persist login session to disk so user stays logged in after restart."""
-    data = {
-        "user_id":         user_id,
-        "token":           token,
-        "role":            role,
-        "username":        username,
-        "full_name":       full_name,
-        "email":           email,
-        "public_key_hex":  public_key_hex,
-        "public_key_hash": public_key_hash,
-    }
-    SESSION_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+def set_active_session(user_id: Optional[str]):
+    with _conn() as cx:
+        cx.execute("UPDATE session SET user_id = ? WHERE id = 1",
+                   (str(user_id) if user_id else None,))
 
 
-def load_session() -> Optional[dict]:
-    """Load persisted session. Returns None if not found or corrupt."""
-    if not SESSION_FILE.exists():
-        return None
-    try:
-        return json.loads(SESSION_FILE.read_text(encoding="utf-8"))
-    except Exception:
-        return None
+def get_active_session() -> Optional[str]:
+    with _conn() as cx:
+        row = cx.execute("SELECT user_id FROM session WHERE id = 1").fetchone()
+    return row["user_id"] if row else None
 
 
 def clear_session():
-    """Remove session file (logout)."""
-    if SESSION_FILE.exists():
-        SESSION_FILE.unlink()
+    set_active_session(None)
+
+
+# ── Legacy shims (so old imports don't break) ─────────────────────────────────
+
+def save_session(user_id, token, role, username, full_name,
+                 email, public_key_hex, public_key_hash):
+    """Compat shim — actual data lives in the users table."""
+    update_token(str(user_id), token)
+    set_active_session(str(user_id))
+
+
+def load_session() -> Optional[dict]:
+    """Return a session-like dict for the currently active user, or None."""
+    uid = get_active_session()
+    if not uid:
+        return None
+    return load_user(uid)
 
 
 def has_session() -> bool:
-    return SESSION_FILE.exists()
+    return get_active_session() is not None
