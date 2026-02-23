@@ -188,6 +188,18 @@ class Orchestrator:
             keypair=keypair, key_passphrase=key_passphrase,
         )
         self._private_key_pem = keypair.private_key_pem
+
+        # Populate orchestrator state so the session is usable immediately
+        self.user_id         = result["user_id"]   # offline temp_id
+        self.token           = None
+        self.role            = role.lower()
+        self.username        = username
+        self.full_name       = full_name
+        self.email           = email
+        self.public_key_hex  = keypair.public_key_hex
+        self.public_key_hash = keypair.public_key_hash
+        self._persist_session()
+
         progress("Registration queued — will sync when online ✓")
         return result
 
