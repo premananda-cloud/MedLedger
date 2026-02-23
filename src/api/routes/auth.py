@@ -30,9 +30,16 @@ router = APIRouter(
 
 def get_registration_service(db: Session = Depends(get_db)) -> RegistrationService:
     """Dependency: create RegistrationService with validated JWT secret."""
+    from fastapi import HTTPException
     jwt_secret = os.getenv("JWT_SECRET")
-    # FIX #7: RegistrationService constructor now raises if secret is missing/insecure
-    return RegistrationService(db, jwt_secret)
+    try:
+        return RegistrationService(db, jwt_secret)
+    except ValueError as e:
+        # JWT_SECRET not set or insecure — return 500, not 422
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Server misconfiguration: {e}",
+        )
 
 
 async def get_current_user_id(request: Request, db: Session = Depends(get_db)) -> int:

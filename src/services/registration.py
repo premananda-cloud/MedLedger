@@ -60,11 +60,8 @@ class RegistrationService:
         """
         self._check_duplicate_users(request.email, request.username)
 
-        try:
-            keypair = self.key_manager.generate_keypair()
-        except Exception as e:
-            raise RegistrationError(f"Failed to generate keypair: {str(e)}")
-
+        # Use the client-generated public key (private key never leaves the client)
+        # No server-side keypair generation needed.
         try:
             password_hash = self._hash_password(request.password)
         except Exception as e:
@@ -76,9 +73,9 @@ class RegistrationService:
                 email=request.email,
                 full_name=request.full_name,
                 role=UserRole[request.role.value],
-                public_key_hex=keypair.public_key_hex,
-                public_key_compressed=keypair.public_key_compressed,
-                public_key_hash=keypair.public_key_hash,
+                public_key_hex=request.public_key_hex,
+                public_key_compressed=request.public_key_compressed,
+                public_key_hash=request.public_key_hash,
                 password_hash=password_hash,
                 is_active=True,
                 is_verified=False,
@@ -96,21 +93,16 @@ class RegistrationService:
         access_token = self._generate_jwt_token(user.id, user.email)
         self._log_user_registration(user.id, user.username, request.role)
 
-        try:
-            qr_code = self.key_manager.generate_key_qr_code(keypair.private_key_pem)
-        except Exception:
-            qr_code = ""
-
         return RegisterResponse(
             user_id=user.id,
             username=user.username,
             email=user.email,
             role=request.role,
             full_name=request.full_name,
-            public_key_hash=keypair.public_key_hash,
-            public_key_compressed=keypair.public_key_compressed,
-            private_key_pem=keypair.private_key_pem,
-            private_key_qr=qr_code,
+            public_key_hash=request.public_key_hash,
+            public_key_compressed=request.public_key_compressed,
+            private_key_pem="managed-client-side",
+            private_key_qr="",
             access_token=access_token,
             created_at=user.created_at,
         )

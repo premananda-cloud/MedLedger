@@ -43,7 +43,12 @@ class RegisterRequest(BaseModel):
     )
     full_name: str = Field(..., min_length=2, max_length=255)
     role: UserRoleEnum = Field(..., description="PATIENT or DOCTOR")
-    
+
+    # Client-generated public key (client holds the private key — server never sees it)
+    public_key_hex: str = Field(..., description="Uncompressed P-256 public key — 130 hex chars (04…)")
+    public_key_compressed: str = Field(..., description="Compressed public key — 66 hex chars")
+    public_key_hash: str = Field(..., description="SHA-256 of uncompressed public key bytes — 64 hex chars")
+
     @validator('password')
     def validate_password_strength(cls, v):
         """
