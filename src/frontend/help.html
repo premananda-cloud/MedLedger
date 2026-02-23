@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedLedger · help center</title>
+    <!-- normal font (Inter) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <!-- Font Awesome 6 (for exact icons) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Inter", sans-serif;
+        }
+
+        /* same background as original: deep purple to wine gradient */
+        body {
+            min-height: 100vh;
+            background: radial-gradient(circle at 30% 40%, #1e0033, #3f0d40);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            margin: 0;
+            position: relative;
+        }
+
+        /* subtle overlay for depth */
+        body::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at var(--x, 50%) var(--y, 50%), rgba(255,255,255,0.03) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        /* main card – minimal glass panel */
+        .button-panel {
+            position: relative;
+            max-width: 900px;
+            width: 100%;
+            background: rgba(40, 10, 40, 0.3);
+            backdrop-filter: blur(8px) saturate(140%);
+            -webkit-backdrop-filter: blur(8px) saturate(140%);
+            border-radius: 3.5rem;
+            border: 1px solid rgba(255, 200, 240, 0.25);
+            box-shadow: 0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(255, 160, 200, 0.2) inset;
+            padding: 3rem 2.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* back to home link – top left corner */
+        .home-link {
+            position: absolute;
+            top: 1.8rem;
+            left: 2.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 1.2rem;
+            background: rgba(255, 220, 240, 0.15);
+            border-radius: 40px;
+            color: #ffd9ec;
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 400;
+            border: 1px solid rgba(255, 200, 230, 0.4);
+            transition: all 0.2s;
+            backdrop-filter: blur(4px);
+            z-index: 10;
+        }
+
+        .home-link:hover {
+            background: rgba(255, 220, 240, 0.3);
+            color: #ffffff;
+            border-color: #ffa5c8;
+            transform: translateY(-2px);
+        }
+
+        .home-link i {
+            font-size: 1rem;
+        }
+
+        h1 {
+            font-weight: 500;
+            font-size: 2.2rem;
+            letter-spacing: -0.02em;
+            color: #ffecf0;
+            margin-bottom: 1rem;
+            text-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        .sub {
+            font-size: 1rem;
+            color: #ffd6e5;
+            margin-bottom: 2.5rem;
+            border-bottom: 1px solid rgba(255, 200, 220, 0.3);
+            padding-bottom: 0.8rem;
+            font-weight: 300;
+        }
+
+        /* button row – now using <a> tags */
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 2rem;
+            margin: 1.5rem 0 2rem;
+            width: 100%;
+        }
+
+        .role-btn {
+            flex: 0 1 240px;
+            min-width: 200px;
+            background: rgba(255, 240, 250, 0.15);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 200, 230, 0.5);
+            border-radius: 3rem;
+            padding: 2rem 0.5rem;
+            box-shadow: 0 15px 30px -12px rgba(90, 10, 60, 0.5), 0 0 0 1px rgba(255, 180, 210, 0.3) inset;
+            transition: all 0.25s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            color: #ffeef5;
+            font-weight: 500;
+            text-decoration: none;  /* remove underline */
+            cursor: pointer;
+        }
+
+        .role-btn:hover {
+            background: rgba(255, 220, 240, 0.3);
+            transform: translateY(-6px);
+            box-shadow: 0 25px 40px -14px #b03f8b, 0 0 0 1px #ffb0d0 inset;
+            border-color: #ffa5c8;
+        }
+
+        .icon {
+            font-size: 3.5rem;
+            filter: drop-shadow(0 6px 10px #b84c9b);
+            opacity: 0.95;
+            width: 1.5em;
+            text-align: center;
+        }
+
+        .btn-label {
+            font-size: 1.6rem;
+            font-weight: 500;
+            background: rgba(255, 220, 240, 0.2);
+            padding: 0.3rem 1.8rem;
+            border-radius: 40px;
+            letter-spacing: 0.5px;
+            color: #fff0f8;
+            border: 1px solid rgba(255, 200, 230, 0.5);
+        }
+
+        .quiet {
+            margin-top: 2rem;
+            color: #ffd5e7;
+            font-size: 0.9rem;
+            background: rgba(0,0,0,0.2);
+            padding: 0.4rem 2rem;
+            border-radius: 60px;
+            border: 1px solid rgba(255,200,220,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="button-panel">
+        <!-- back to home link at top left -->
+        <a href="index.html" class="home-link">
+            <i class="fas fa-arrow-left"></i> BACK
+        </a>
+
+        <h1>medledger · help</h1>
+        <div class="sub">choose your role</div>
+
+        <div class="button-row">
+            <!-- patient button linking to patient.html -->
+            <a href="patient.html" class="role-btn">
+                <span class="icon"><i class="fas fa-user"></i></span>
+                <span class="btn-label">Patient</span>
+            </a>
+            <!-- doctor button linking to doctor.html -->
+            <a href="doctor.html" class="role-btn">
+                <span class="icon"><i class="fas fa-stethoscope"></i></span>
+                <span class="btn-label">Doctor</span>
+            </a>
+            <!-- admin button linking to admin.html -->
+            <a href="admin.html" class="role-btn">
+                <span class="icon"><i class="fas fa-shield-alt"></i></span>
+                <span class="btn-label">Admin</span>
+            </a>
+        </div>
+
+        <div class="quiet">HELP ALERT</div>
+    </div>
+
+    <script>
+        (function() {
+            // subtle mouse follower for background (same as original)
+            const updateMouseCoords = (e) => {
+                const x = (e.clientX / window.innerWidth) * 100;
+                const y = (e.clientY / window.innerHeight) * 100;
+                document.documentElement.style.setProperty('--x', x + '%');
+                document.documentElement.style.setProperty('--y', y + '%');
+            };
+            window.addEventListener('mousemove', updateMouseCoords);
+            document.documentElement.style.setProperty('--x', '50%');
+            document.documentElement.style.setProperty('--y', '50%');
+        })();
+    </script>
+</body>
+</html>

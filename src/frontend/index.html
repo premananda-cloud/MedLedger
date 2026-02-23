@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedLedger · blockchain health data</title>
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            --bg-dark: #0b1120;
+            --bg-light: #f0f5ff;
+            --primary: #2b6ef0;
+            --primary-glow: rgba(43, 110, 240, 0.5);
+            --secondary: #a855f7;
+            --text-dark: #f8fafc;
+            --text-light: #0f172a;
+            --card-bg: rgba(255,255,255,0.07);
+            --card-border: rgba(255,255,255,0.1);
+            --shadow: 0 20px 40px -12px rgba(0,0,0,0.5);
+            transition: background-color 0.5s ease;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            background-color: var(--bg-dark);
+            color: var(--text-dark);
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body.light {
+            --bg-dark: #f0f5ff;
+            --bg-light: #0b1120;
+            --primary: #2563eb;
+            --primary-glow: rgba(37,99,235,0.3);
+            --secondary: #9333ea;
+            --text-dark: #0f172a;
+            --text-light: #f8fafc;
+            --card-bg: rgba(255,255,255,0.7);
+            --card-border: rgba(0,0,0,0.1);
+            --shadow: 0 20px 40px -12px rgba(0,0,0,0.2);
+        }
+
+        /* floating background orbs */
+        .orb {
+            position: fixed;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, var(--primary), transparent 70%);
+            opacity: 0.15;
+            filter: blur(60px);
+            pointer-events: none;
+            z-index: 0;
+            animation: float 20s infinite ease-in-out;
+        }
+
+        .orb:nth-child(1) { top: 10%; left: 5%; width: 400px; height: 400px; background: radial-gradient(circle at 30% 30%, #a855f7, transparent 70%); animation-duration: 25s; }
+        .orb:nth-child(2) { bottom: 5%; right: 5%; width: 500px; height: 500px; background: radial-gradient(circle at 70% 70%, #2b6ef0, transparent 70%); animation-duration: 30s; }
+        .orb:nth-child(3) { top: 40%; right: 20%; width: 350px; height: 350px; background: radial-gradient(circle at 40% 40%, #06b6d4, transparent 70%); animation-duration: 22s; }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(30px, -50px) scale(1.1); }
+            66% { transform: translate(-20px, 30px) scale(0.9); }
+            100% { transform: translate(0, 0) scale(1); }
+        }
+
+        /* main container with glass effect */
+        .app {
+            position: relative;
+            z-index: 10;
+            max-width: 1200px;
+            width: 100%;
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border);
+            border-radius: 3rem;
+            padding: 2.5rem 3rem;
+            box-shadow: var(--shadow);
+            transition: box-shadow 0.3s ease;
+            animation: fadeIn 1s ease;
+        }
+
+        @keyframes fadeIn {
+            0% { opacity: 0; transform: scale(0.95); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        /* header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo i {
+            font-size: 2.5rem;
+            color: var(--primary);
+            filter: drop-shadow(0 0 10px var(--primary-glow));
+            animation: pulse 3s infinite;
+        }
+
+        @keyframes pulse {
+            0% { filter: drop-shadow(0 0 5px var(--primary-glow)); }
+            50% { filter: drop-shadow(0 0 20px var(--primary-glow)); }
+            100% { filter: drop-shadow(0 0 5px var(--primary-glow)); }
+        }
+
+        .logo span {
+            font-weight: 800;
+            font-size: 2rem;
+            background: linear-gradient(135deg, #fff, var(--primary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .nav {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .btn {
+            border-radius: 2.5rem;
+            padding: 0.7rem 2rem;
+            font-weight: 600;
+            font-size: 1rem;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: transparent;
+            color: var(--text-dark);
+            border: 1px solid var(--card-border);
+        }
+
+        .btn-primary {
+            background: linear-gradient(145deg, var(--primary), #1a4bc4);
+            color: white;
+            border: none;
+            box-shadow: 0 8px 20px var(--primary-glow);
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.05) translateY(-3px);
+            box-shadow: 0 15px 30px var(--primary-glow);
+        }
+
+        .btn-outline:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .theme-toggle {
+            width: 2.8rem;
+            height: 2.8rem;
+            border-radius: 50%;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            color: var(--text-dark);
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .theme-toggle:hover {
+            transform: rotate(15deg) scale(1.1);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* hero */
+        .hero {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: slideUp 1s ease;
+        }
+
+        @keyframes slideUp {
+            0% { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1.2;
+            background: linear-gradient(145deg, #fff, var(--primary), #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 30px rgba(43,110,240,0.3);
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--text-dark);
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* upload card */
+        .upload-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 2.5rem;
+            padding: 2.5rem;
+            max-width: 700px;
+            margin: 0 auto;
+            backdrop-filter: blur(5px);
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px -10px var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-card::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, var(--primary), var(--secondary), var(--primary));
+            border-radius: 2.7rem;
+            opacity: 0;
+            transition: opacity 0.4s;
+            z-index: -1;
+        }
+
+        .upload-card:hover::before {
+            opacity: 0.3;
+        }
+
+        .upload-card:hover {
+            transform: scale(1.02) translateY(-5px);
+            box-shadow: 0 30px 40px -15px var(--primary-glow);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            margin-bottom: 2rem;
+            justify-content: center;
+        }
+
+        .card-header i {
+            font-size: 2.2rem;
+            color: var(--primary);
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%,100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .card-header h2 {
+            font-weight: 700;
+            font-size: 2rem;
+            color: var(--text-dark);
+        }
+
+        .drop-zone {
+            background: rgba(255,255,255,0.03);
+            border: 2px dashed var(--card-border);
+            border-radius: 2rem;
+            padding: 2.8rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 1.5rem;
+        }
+
+        .drop-zone:hover {
+            border-color: var(--primary);
+            background: rgba(43,110,240,0.1);
+            transform: scale(0.99);
+        }
+
+        .drop-zone i {
+            font-size: 4rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            filter: drop-shadow(0 0 15px var(--primary-glow));
+        }
+
+        .drop-zone p {
+            font-size: 1.2rem;
+            font-weight: 500;
+            color: var(--text-dark);
+        }
+
+        .drop-zone .small {
+            font-size: 0.9rem;
+            opacity: 0.7;
+            margin-top: 0.5rem;
+        }
+
+        .upload-btn {
+            background: linear-gradient(145deg, var(--primary), #1e3b8a);
+            border: none;
+            border-radius: 3rem;
+            padding: 1rem 2rem;
+            width: 100%;
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.8rem;
+            box-shadow: 0 8px 25px var(--primary-glow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .upload-btn:hover::after {
+            width: 300px;
+            height: 300px;
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px var(--primary-glow);
+        }
+
+        .encrypt-note {
+            text-align: center;
+            font-size: 0.9rem;
+            margin-top: 1.5rem;
+            color: var(--text-dark);
+            opacity: 0.7;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        /* footer */
+        .footer {
+            display: flex;
+            justify-content: center;
+            gap: 2.5rem;
+            margin-top: 3.5rem;
+            flex-wrap: wrap;
+            border-top: 1px solid var(--card-border);
+            padding-top: 2rem;
+        }
+
+        .footer a, .footer span {
+            color: var(--text-dark);
+            text-decoration: none;
+            font-weight: 500;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            opacity: 0.8;
+        }
+
+        .footer a:hover {
+            color: var(--primary);
+            transform: translateY(-2px);
+            opacity: 1;
+        }
+
+        /* moving particles */
+        #particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .particle {
+            position: absolute;
+            background: var(--primary);
+            border-radius: 50%;
+            opacity: 0.2;
+            filter: blur(2px);
+            animation: moveParticle linear infinite;
+        }
+
+        @keyframes moveParticle {
+            from { transform: translateY(100vh) scale(0); }
+            to { transform: translateY(-10vh) scale(1); }
+        }
+
+        /* mouse follower */
+        .mouse-follower {
+            width: 30px;
+            height: 30px;
+            border: 2px solid var(--primary);
+            border-radius: 50%;
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            transition: 0.1s;
+            transform: translate(-50%, -50%);
+            mix-blend-mode: difference;
+        }
+
+        /* responsiveness */
+        @media (max-width: 700px) {
+            .app { padding: 1.8rem; }
+            .hero h1 { font-size: 2.5rem; }
+            .header { flex-direction: column; align-items: stretch; }
+            .nav { justify-content: flex-end; }
+        }
+    </style>
+</head>
+<body>
+    <!-- floating orbs -->
+    <div class="orb"></div>
+    <div class="orb"></div>
+    <div class="orb"></div>
+
+    <!-- particles container (dynamic) -->
+    <div id="particles"></div>
+
+    <!-- main app -->
+    <div class="app">
+        <div class="header">
+            <div class="logo">
+                <i class="fas fa-shield-heart"></i>
+                <span>MedLedger</span>
+            </div>
+            <div class="nav">
+                <a href="login.html" class="btn btn-primary"><i class="fas fa-key"></i> Login</a>
+                <a href="help.html" class="btn btn-outline"><i class="fas fa-compass"></i> How to use</a>
+                <div class="theme-toggle" id="themeToggle">
+                    <i class="fas fa-moon" id="themeIcon"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="hero">
+            <h1>Blockchain Medical Records</h1>
+            <p>Encrypt, share, and prove — every access cryptographically signed.</p>
+        </div>
+
+        <div class="upload-card">
+            <div class="card-header">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <h2>Upload document</h2>
+            </div>
+            <div class="drop-zone" id="dropZone">
+                <i class="fas fa-file-waveform"></i>
+                <p>Drag & drop medical record</p>
+                <p class="small">PDF, DICOM, images · AES‑256 encrypted</p>
+            </div>
+            <input type="file" id="fileInput" hidden>
+            <button class="upload-btn" id="uploadTriggerBtn"><i class="fas fa-lock"></i> Encrypt & upload</button>
+            <div class="encrypt-note">
+                <i class="fas fa-shield"></i> client‑side encryption · hash stored on blockchain
+            </div>
+        </div>
+
+        <div class="footer">
+            <a href="#"><i class="fas fa-history"></i> Audit trail</a>
+            <a href="#"><i class="fas fa-user-plus"></i> Grant access</a>
+            <a href="#"><i class="fas fa-user-md"></i> For doctors</a>
+            <a href="help.html"><i class="fas fa-question-circle"></i> Help</a>
+            <span><i class="fas fa-code-branch"></i> Praxis</span>
+        </div>
+    </div>
+
+    <!-- mouse follower (optional, adds fun) -->
+    <div class="mouse-follower" id="mouseFollower"></div>
+
+    <script>
+        (function() {
+            // Theme toggle
+            const body = document.body;
+            const themeIcon = document.getElementById('themeIcon');
+            const themeToggle = document.getElementById('themeToggle');
+            const savedTheme = localStorage.getItem('medledger-theme');
+
+            if (savedTheme === 'light') {
+                body.classList.add('light');
+                themeIcon.classList.remove('fa-moon');
+                themeIcon.classList.add('fa-sun');
+            } else {
+                body.classList.remove('light');
+                themeIcon.classList.remove('fa-sun');
+                themeIcon.classList.add('fa-moon');
+            }
+
+            themeToggle.addEventListener('click', () => {
+                body.classList.toggle('light');
+                const isLight = body.classList.contains('light');
+                if (isLight) {
+                    themeIcon.classList.remove('fa-moon');
+                    themeIcon.classList.add('fa-sun');
+                    localStorage.setItem('medledger-theme', 'light');
+                } else {
+                    themeIcon.classList.remove('fa-sun');
+                    themeIcon.classList.add('fa-moon');
+                    localStorage.setItem('medledger-theme', 'dark');
+                }
+            });
+
+            // Upload interaction
+            const fileInput = document.getElementById('fileInput');
+            const dropZone = document.getElementById('dropZone');
+            const uploadBtn = document.getElementById('uploadTriggerBtn');
+
+            function triggerFileSelect() { fileInput.click(); }
+            dropZone.addEventListener('click', triggerFileSelect);
+            uploadBtn.addEventListener('click', triggerFileSelect);
+
+            fileInput.addEventListener('change', function(e) {
+                if (this.files.length > 0) {
+                    alert(`📁 "${this.files[0].name}" selected. (Demo simulation)`);
+                }
+                fileInput.value = '';
+            });
+
+            // Drag & drop
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.style.borderColor = 'var(--primary)';
+                dropZone.style.background = 'rgba(43,110,240,0.1)';
+            });
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.style.borderColor = '';
+                dropZone.style.background = '';
+            });
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.style.borderColor = '';
+                dropZone.style.background = '';
+                if (e.dataTransfer.files.length > 0) {
+                    alert(`📁 "${e.dataTransfer.files[0].name}" dropped. (Demo simulation)`);
+                }
+            });
+
+            // Dynamic floating particles
+            const particlesContainer = document.getElementById('particles');
+            for (let i = 0; i < 50; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                const size = Math.random() * 8 + 2;
+                particle.style.width = size + 'px';
+                particle.style.height = size + 'px';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDuration = Math.random() * 10 + 5 + 's';
+                particle.style.animationDelay = Math.random() * 5 + 's';
+                particle.style.background = i % 3 === 0 ? 'var(--secondary)' : 'var(--primary)';
+                particlesContainer.appendChild(particle);
+            }
+
+            // Mouse follower effect
+            const follower = document.getElementById('mouseFollower');
+            document.addEventListener('mousemove', (e) => {
+                follower.style.left = e.clientX + 'px';
+                follower.style.top = e.clientY + 'px';
+            });
+        })();
+    </script>
+</body>
+</html>

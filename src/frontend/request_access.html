@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedLedger · Request Access</title>
+    <!-- Fonts & Icons (same as before) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* -------------------- RESET & VARIABLES (same as register.html) -------------------- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Inter", sans-serif;
+            transition: background-color 0.3s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        body {
+            --bg-gradient-start: #1e0033;    /* deep purple */
+            --bg-gradient-end: #3f0d40;       /* wine */
+            --card-bg: rgba(50, 10, 60, 0.7);
+            --card-border: rgba(255, 100, 200, 0.5);
+            --text-primary: #fff0fa;
+            --text-secondary: #ffd6f5;
+            --accent: #ff7b9c;                /* vibrant pink */
+            --accent-secondary: #c867e8;       /* purple */
+            --accent-glow: rgba(255, 123, 156, 0.6);
+            --input-bg: rgba(255, 200, 240, 0.1);
+            --input-border: #b049b0;
+            --shadow-color: rgba(180, 0, 150, 0.5);
+            --heading-glow: 0 0 20px #ff7b9c;
+            --btn-gradient: linear-gradient(145deg, #ff7b9c, #c04cf0);
+        }
+
+        body.light {
+            --bg-gradient-start: #ffe6f0;      /* soft pink */
+            --bg-gradient-end: #f2e0ff;        /* lavender */
+            --card-bg: rgba(255, 255, 255, 0.8);
+            --card-border: rgba(200, 100, 255, 0.5);
+            --text-primary: #2d0a3a;
+            --text-secondary: #5a2b70;
+            --accent: #d43f8d;                  /* brighter pink */
+            --accent-secondary: #9b4de0;
+            --accent-glow: rgba(212, 63, 141, 0.5);
+            --input-bg: rgba(0,0,0,0.02);
+            --input-border: #e2b0ff;
+            --shadow-color: rgba(160, 60, 200, 0.3);
+            --heading-glow: 0 0 20px #d43f8d;
+            --btn-gradient: linear-gradient(145deg, #d43f8d, #8f4ae0);
+        }
+
+        body {
+            min-height: 100vh;
+            background: radial-gradient(circle at calc(var(--mouse-x, 0) * 1%) calc(var(--mouse-y, 0) * 1%), 
+                        var(--accent-glow) 0%, 
+                        transparent 35%), 
+                        linear-gradient(145deg, var(--bg-gradient-start), var(--bg-gradient-end));
+            color: var(--text-primary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            margin: 0;
+            backdrop-filter: blur(2px);
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background: var(--card-bg);
+            backdrop-filter: blur(12px) saturate(180%);
+            -webkit-backdrop-filter: blur(12px) saturate(180%);
+            border: 1px solid var(--card-border);
+            border-radius: 3rem;
+            padding: 2.5rem 2rem;
+            box-shadow: 0 25px 50px -10px var(--shadow-color), 0 0 0 1px rgba(255,123,156,0.2) inset;
+            transition: transform 0.3s;
+        }
+
+        .container:hover {
+            transform: scale(1.01);
+            box-shadow: 0 30px 60px -10px var(--accent-glow);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .back-home {
+            background: transparent;
+            border: 1px solid var(--accent);
+            border-radius: 2rem;
+            padding: 0.5rem 1.5rem;
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: 0.2s;
+        }
+
+        .back-home:hover {
+            background: var(--accent);
+            color: white;
+            transform: translateX(-3px);
+        }
+
+        .theme-toggle {
+            background: var(--input-bg);
+            border: 1px solid var(--accent);
+            border-radius: 3rem;
+            width: 3rem;
+            height: 3rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            color: var(--accent);
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1) rotate(15deg);
+            background: var(--accent);
+            color: white;
+        }
+
+        .logo-area {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .logo-icon {
+            font-size: 3.5rem;
+            color: var(--accent);
+            filter: drop-shadow(0 0 8px var(--accent-glow));
+            margin-bottom: 0.5rem;
+        }
+
+        .logo-text {
+            font-weight: 700;
+            font-size: 2.5rem;
+            letter-spacing: -0.5px;
+            background: linear-gradient(120deg, #fcc2ff, var(--accent), #ffb3c6);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: var(--heading-glow);
+        }
+
+        .tagline {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        h2 {
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .input-group label {
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 1rem;
+            letter-spacing: 0.3px;
+            margin-left: 0.5rem;
+        }
+
+        .input-field {
+            background: var(--input-bg);
+            border: 1.5px solid var(--input-border);
+            border-radius: 2rem;
+            padding: 1rem 1.5rem;
+            font-size: 1rem;
+            color: var(--text-primary);
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .input-field:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px var(--accent-glow);
+        }
+
+        textarea.input-field {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .btn-request {
+            background: var(--btn-gradient);
+            border: none;
+            border-radius: 3rem;
+            padding: 1rem;
+            font-weight: 700;
+            font-size: 1.3rem;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 0.5rem;
+            box-shadow: 0 10px 25px var(--accent-glow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        .btn-request:hover {
+            filter: brightness(1.1);
+            transform: scale(1.02);
+            box-shadow: 0 15px 35px var(--accent-glow);
+        }
+
+        .info-note {
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.8rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 1rem;
+        }
+
+        .footer {
+            margin-top: 2rem;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- header -->
+        <div class="header">
+            <a href="Doctorlogin.html" class="back-home"><i class="fas fa-arrow-left"></i> Back</a>
+            <div class="theme-toggle" id="themeToggle" title="Toggle light/dark">
+                <i class="fas fa-moon" id="themeIcon"></i>
+            </div>
+        </div>
+
+        <!-- logo / title -->
+        <div class="logo-area">
+            <i class="fas fa-shield-heart logo-icon"></i>
+            <div class="logo-text">MedLedger</div>
+            <div class="tagline">request patient access</div>
+        </div>
+
+        <h2><i class="fas fa-hand-holding-medical"></i> Request New Access</h2>
+
+        <form class="form" id="requestForm">
+            <div class="input-group">
+                <label><i class="fas fa-id-card"></i> Patient Public Key Hash</label>
+                <input type="text" class="input-field" placeholder="e.g., fb942e22f41f460b084828b283d1971304f8b5bdd6d9b666a13ab29b5405357a" id="patientKeyHash" required>
+                <small style="color: var(--text-secondary);">The patient's unique public key hash (from their profile).</small>
+            </div>
+
+            <div class="input-group">
+                <label><i class="fas fa-notes-medical"></i> Specific Record ID (optional)</label>
+                <input type="text" class="input-field" placeholder="Leave blank to request all records" id="recordId">
+            </div>
+
+            <div class="input-group">
+                <label><i class="fas fa-clock"></i> Desired Access Duration (hours)</label>
+                <input type="number" class="input-field" value="24" min="1" max="720" id="duration">
+            </div>
+
+            <div class="input-group">
+                <label><i class="fas fa-comment"></i> Message / Reason (optional)</label>
+                <textarea class="input-field" placeholder="e.g., 'Following up on recent lab results'" id="message"></textarea>
+            </div>
+
+            <button type="submit" class="btn-request"><i class="fas fa-paper-plane"></i> Send Request</button>
+        </form>
+
+        <div class="info-note">
+            <i class="fas fa-info-circle"></i>
+            The patient will be notified and can grant or deny your request. This demo simulates the request.
+        </div>
+
+        <div class="footer">
+            <i class="fas fa-code-branch"></i> Praxis · blockchain‑powered health data
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // --- THEME TOGGLE (same as before) ---
+            const body = document.body;
+            const themeIcon = document.getElementById('themeIcon');
+            const themeToggle = document.getElementById('themeToggle');
+
+            const savedTheme = localStorage.getItem('medledger-theme');
+            if (savedTheme === 'light') {
+                body.classList.add('light');
+                themeIcon.classList.remove('fa-moon');
+                themeIcon.classList.add('fa-sun');
+            } else {
+                body.classList.remove('light');
+                themeIcon.classList.remove('fa-sun');
+                themeIcon.classList.add('fa-moon');
+            }
+
+            themeToggle.addEventListener('click', () => {
+                body.classList.toggle('light');
+                const isLight = body.classList.contains('light');
+                if (isLight) {
+                    themeIcon.classList.remove('fa-moon');
+                    themeIcon.classList.add('fa-sun');
+                    localStorage.setItem('medledger-theme', 'light');
+                } else {
+                    themeIcon.classList.remove('fa-sun');
+                    themeIcon.classList.add('fa-moon');
+                    localStorage.setItem('medledger-theme', 'dark');
+                }
+            });
+
+            // --- MOUSE SPOTLIGHT ---
+            const updateMouseCoords = (e) => {
+                const x = (e.clientX / window.innerWidth) * 100;
+                const y = (e.clientY / window.innerHeight) * 100;
+                document.documentElement.style.setProperty('--mouse-x', x);
+                document.documentElement.style.setProperty('--mouse-y', y);
+            };
+            window.addEventListener('mousemove', updateMouseCoords);
+            document.documentElement.style.setProperty('--mouse-x', 50);
+            document.documentElement.style.setProperty('--mouse-y', 50);
+
+            // --- micro-move on logo ---
+            const logoIcon = document.querySelector('.logo-icon');
+            if (logoIcon) {
+                window.addEventListener('mousemove', (e) => {
+                    const x = (e.clientX / window.innerWidth - 0.5) * 6;
+                    const y = (e.clientY / window.innerHeight - 0.5) * 4;
+                    logoIcon.style.transform = `rotateX(${y}deg) rotateY(${x}deg) scale(1.02)`;
+                });
+            }
+
+            // --- Check authentication (optional) ---
+            const jwt = localStorage.getItem('medledger_jwt');
+            if (!jwt) {
+                // If not logged in, redirect to login
+                window.location.href = 'login.html';
+            }
+
+            // --- Form submission ---
+            const requestForm = document.getElementById('requestForm');
+            requestForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                const patientKeyHash = document.getElementById('patientKeyHash').value.trim();
+                const recordId = document.getElementById('recordId').value.trim();
+                const duration = document.getElementById('duration').value;
+                const message = document.getElementById('message').value.trim();
+
+                if (!patientKeyHash) {
+                    alert('Please enter the patient\'s public key hash.');
+                    return;
+                }
+
+                // In a real app, you would POST to an endpoint like /permissions/request
+                // For now, just simulate success
+                alert(`✅ Request sent to patient with key hash:\n${patientKeyHash}\n\nDuration: ${duration} hours\nRecord: ${recordId || 'all records'}\nMessage: ${message || '(none)'}\n\nThe patient will be notified.`);
+
+                // Optionally redirect back to doctor dashboard
+                setTimeout(() => {
+                    window.location.href = 'Doctorlogin.html';
+                }, 2000);
+            });
+        })();
+    </script>
+</body>
+</html>

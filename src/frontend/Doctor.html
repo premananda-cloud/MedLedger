@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedLedger · doctor guide</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Inter", sans-serif; }
+        body {
+            min-height: 100vh;
+            background: radial-gradient(circle at 30% 40%, #1e0033, #3f0d40);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            position: relative;
+        }
+        body::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at var(--x, 50%) var(--y, 50%), rgba(255,255,255,0.03) 0%, transparent 60%);
+            pointer-events: none;
+        }
+        .detail-card {
+            position: relative;
+            max-width: 900px;
+            width: 100%;
+            background: rgba(40, 10, 40, 0.3);
+            backdrop-filter: blur(8px) saturate(140%);
+            border-radius: 3rem;
+            border: 1px solid rgba(255, 200, 240, 0.25);
+            box-shadow: 0 30px 60px -20px rgba(0,0,0,0.6);
+            padding: 3rem 2.5rem;
+        }
+        /* back button at top right */
+        .back-link {
+            position: absolute;
+            top: 1.8rem;
+            right: 2.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 1.2rem;
+            background: rgba(255, 220, 240, 0.15);
+            border-radius: 40px;
+            color: #ffd9ec;
+            text-decoration: none;
+            font-size: 0.95rem;
+            border: 1px solid rgba(255, 200, 230, 0.4);
+            transition: all 0.2s;
+            backdrop-filter: blur(4px);
+            z-index: 10;
+        }
+        .back-link:hover {
+            background: rgba(255, 220, 240, 0.3);
+            color: #fff;
+            border-color: #ffa5c8;
+            transform: translateY(-2px);
+        }
+        h1 {
+            font-size: 2.4rem;
+            font-weight: 500;
+            color: #ffecf0;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            border-bottom: 1px solid rgba(255,200,220,0.3);
+            padding-bottom: 0.8rem;
+        }
+        h1 i { color: #ffb8d2; }
+        h2 {
+            font-size: 1.6rem;
+            font-weight: 500;
+            color: #ffd0e5;
+            margin: 2rem 0 1rem;
+            border-left: 4px solid #ffa5c8;
+            padding-left: 1rem;
+        }
+        h3 {
+            font-size: 1.2rem;
+            font-weight: 500;
+            color: #ffc2db;
+            margin: 1.5rem 0 0.5rem;
+        }
+        ul, ol {
+            color: #ffe2f0;
+            margin-left: 1.5rem;
+            line-height: 1.7;
+        }
+        li { margin-bottom: 0.4rem; }
+        .important {
+            background: rgba(255, 180, 210, 0.2);
+            border-left: 4px solid #ff7bb3;
+            padding: 1rem 1.5rem;
+            border-radius: 1rem;
+            margin: 1.5rem 0;
+            color: #ffe6f0;
+        }
+        .step-list { list-style-type: none; margin-left: 0; }
+        .step-list li { margin-bottom: 0.8rem; padding-left: 1.8rem; position: relative; }
+        .step-list li::before {
+            content: "•";
+            color: #ffa5c8;
+            font-size: 1.6rem;
+            position: absolute;
+            left: 0;
+            top: -0.3rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="detail-card">
+        <!-- back button at top right -->
+        <a href="help.html" class="back-link"><i class="fas fa-arrow-left"></i> BACK</a>
+        <h1><i class="fas fa-stethoscope"></i> doctor guide</h1>
+        <p style="color:#ffd6e5; margin-bottom:2rem;">You can request access to patient records. You only view records when the patient grants permission.</p>
+
+        <h2>Getting started</h2>
+        <h3>Registration</h3>
+        <ul class="step-list">
+            <li>Open registration page, select "Doctor" role.</li>
+            <li>Enter your details and verify your email.</li>
+        </ul>
+
+        <h3>Log in</h3>
+        <ul class="step-list">
+            <li>Open login page, enter credentials → you see your dashboard.</li>
+        </ul>
+
+        <h2>Accessing patient records</h2>
+        <h3>Request access</h3>
+        <ul class="step-list">
+            <li>"Find Patient" → search by username or ID → open profile.</li>
+            <li>Select a record → click "Request Access".</li>
+            <li>Add an optional message and send the request. The patient receives a notification.</li>
+        </ul>
+
+        <h3>View a record after approval</h3>
+        <ul class="step-list">
+            <li>Check your notifications.</li>
+            <li>Open the approved record. The system verifies the permission.</li>
+            <li>If valid, the record is displayed. The access is logged automatically.</li>
+        </ul>
+
+        <h2>Access log</h2>
+        <ul class="step-list">
+            <li>"My Access Log" shows all records you have accessed, with status and timestamps.</li>
+        </ul>
+
+        <h2>If access is denied</h2>
+        <p style="color:#ffe2f0;">Possible reasons:</p>
+        <ul class="step-list">
+            <li>No permission granted yet</li>
+            <li>Permission expired</li>
+            <li>Permission revoked</li>
+        </ul>
+        <div class="important">Solution: ask the patient to grant new access.</div>
+    </div>
+    <script>
+        (function() {
+            const updateMouseCoords = (e) => {
+                const x = (e.clientX / window.innerWidth) * 100;
+                const y = (e.clientY / window.innerHeight) * 100;
+                document.documentElement.style.setProperty('--x', x + '%');
+                document.documentElement.style.setProperty('--y', y + '%');
+            };
+            window.addEventListener('mousemove', updateMouseCoords);
+            document.documentElement.style.setProperty('--x', '50%');
+            document.documentElement.style.setProperty('--y', '50%');
+        })();
+    </script>
+</body>
+</html>

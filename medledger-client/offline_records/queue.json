@@ -1,0 +1,18 @@
+[
+  {
+    "id": "104fb996-49d0-455d-9815-a57b00747dfc",
+    "operation": "register",
+    "payload": {
+      "username": "adasdas",
+      "email": "asdasd",
+      "full_name": "asdasd",
+      "role": "patient",
+      "password": "asdasd",
+      "public_key_hex": "04db3dd88e86433bf32ca91d644cd37b3e785f1a33e303932717d61f4a60d2b9080a3600b8a903ee3cfa48fa54790991e21df4ca7a2d8f73cffe909235a5636167",
+      "public_key_compressed": "03db3dd88e86433bf32ca91d644cd37b3e785f1a33e303932717d61f4a60d2b908",
+      "public_key_hash": "c6fb33690b60d5ee8afb5d9dd38cb223dfbbb0a60c2a6b2aadd354b26584c95a",
+      "temp_id": "offline_be4ce5d9"
+    },
+    "queued_at": "2026-02-23T11:18:20.102457"
+  }
+]
