@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedLedger · Crypto flow · visual</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background: #0b1a2f;
+            font-family: 'Segoe UI', 'Roboto', system-ui, sans-serif;
+            padding: 2rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .flow-container {
+            max-width: 1300px;
+            width: 100%;
+            background: #112336;
+            border-radius: 2.5rem;
+            padding: 2rem 1.8rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6), 0 0 0 1px #2a3f5a inset;
+        }
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 500;
+            letter-spacing: -0.5px;
+            color: #b7e0ff;
+            margin: 0 0 0.25rem 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        h1 small {
+            font-size: 1rem;
+            background: #1e3a5f;
+            color: #9cc9ff;
+            padding: 0.3rem 1rem;
+            border-radius: 30px;
+            font-weight: 400;
+            border: 1px solid #2f5475;
+        }
+        .subtitle {
+            color: #86b4d9;
+            margin-bottom: 2rem;
+            border-left: 4px solid #2f80ed;
+            padding-left: 1.2rem;
+            font-size: 1.1rem;
+            background: linear-gradient(90deg, #1c314b, transparent);
+            border-radius: 0 8px 8px 0;
+        }
+        .flow-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1.8rem;
+        }
+        .section {
+            background: #0d1f30;
+            border-radius: 2rem;
+            border: 1px solid #2f4d70;
+            overflow: hidden;
+            box-shadow: 0 8px 0 #07131f;
+        }
+        .section-header {
+            background: #1a324b;
+            padding: 0.9rem 2rem;
+            font-weight: 600;
+            font-size: 1.3rem;
+            color: #d4edff;
+            border-bottom: 2px solid #2b5885;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .section-header span {
+            background: #0f2b44;
+            border-radius: 50px;
+            padding: 0.2rem 1.2rem;
+            font-size: 0.9rem;
+            color: #8fcbff;
+            border: 1px solid #3b6b9b;
+        }
+        .step-row {
+            display: flex;
+            flex-wrap: wrap;
+            padding: 1.2rem 1.5rem;
+            gap: 1rem;
+            align-items: center;
+            border-bottom: 1px dashed #254869;
+        }
+        .step-row:last-child {
+            border-bottom: none;
+        }
+        .step-num {
+            background: #2f80ed;
+            width: 38px;
+            height: 38px;
+            border-radius: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: white;
+            box-shadow: 0 5px 0 #10468b;
+            flex-shrink: 0;
+        }
+        .step-desc {
+            flex: 2;
+            min-width: 200px;
+            font-weight: 500;
+            color: #e3f0ff;
+        }
+        .crypto-badge {
+            background: #1c3d5e;
+            border-radius: 30px;
+            padding: 0.5rem 1.2rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            color: #b2dcff;
+            border: 1px solid #3575b0;
+            display: inline-flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .arrow-symbol {
+            color: #6da5d9;
+            font-size: 1.8rem;
+            font-weight: 200;
+            margin: 0 0.5rem;
+        }
+        .server-box {
+            background: #102434;
+            border: 2px solid #3e6b98;
+            border-radius: 28px;
+            padding: 1.5rem 2rem;
+            margin: 1rem 0 0.5rem;
+            position: relative;
+        }
+        .server-title {
+            position: absolute;
+            top: -14px;
+            left: 30px;
+            background: #21476b;
+            padding: 0.2rem 1.5rem;
+            border-radius: 40px;
+            color: white;
+            font-weight: 600;
+            border: 1px solid #5f8dc3;
+        }
+        .two-col {
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+        .col {
+            flex: 1;
+            min-width: 260px;
+            background: #0b1d2f;
+            border-radius: 20px;
+            padding: 1.5rem;
+            border: 1px solid #2b5885;
+        }
+        .col h3 {
+            color: #b3dfff;
+            font-weight: 400;
+            border-bottom: 2px solid #2565a8;
+            padding-bottom: 0.6rem;
+            margin-bottom: 1.2rem;
+        }
+        .checklist {
+            list-style: none;
+        }
+        .checklist li {
+            margin: 0.8rem 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #c4ddf5;
+        }
+        .check-y {
+            color: #2ecc71;
+            font-weight: 700;
+        }
+        .check-n {
+            color: #e67e22;
+        }
+        .key-table {
+            background: #0b253c;
+            border-radius: 18px;
+            padding: 1rem;
+            font-size: 0.9rem;
+            border: 1px solid #365f88;
+        }
+        .key-table div {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dotted #2d5479;
+            padding: 0.6rem 0;
+        }
+        .badge {
+            background: #0f3557;
+            border-radius: 30px;
+            padding: 0.25rem 1rem;
+            border: 1px solid #568ac2;
+        }
+        .footer-note {
+            margin-top: 2.5rem;
+            color: #6f9bc0;
+            text-align: center;
+            border-top: 2px solid #1d4363;
+            padding-top: 1.5rem;
+            font-size: 0.95rem;
+        }
+        .gibberish {
+            font-family: monospace;
+            background: #0f2c41;
+            color: #acd2ff;
+            padding: 0.3rem 0.8rem;
+            border-radius: 30px;
+            border: 1px solid #2f6ea2;
+            font-size: 0.9rem;
+        }
+        .attack-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.2rem;
+            background: #1c2f45;
+            border-radius: 20px;
+            padding: 1rem 1.5rem;
+            margin-top: 1rem;
+        }
+        .attack-item {
+            background: #0c253f;
+            border-radius: 40px;
+            padding: 0.5rem 1.3rem;
+            border-left: 4px solid #27ae60;
+        }
+    </style>
+</head>
+<body>
+<div class="flow-container">
+    <h1>
+        🔐 MedLedger · full crypto flow
+        <small>patient encrypts · grants · doctor verifies</small>
+    </h1>
+    <div class="subtitle">▼ insider‑proof architecture: math, not admin rules</div>
+
+    <!-- UPLOAD SECTION -->
+    <div class="flow-grid">
+        <!-- PATIENT UPLOADS -->
+        <div class="section">
+            <div class="section-header">
+                <span>①</span> PATIENT UPLOADS & ENCRYPTS RECORD
+            </div>
+            <!-- step 1 -->
+            <div class="step-row">
+                <div class="step-num">1</div>
+                <div class="step-desc"><strong>SHA‑256 hash</strong> of file (fingerprint)</div>
+                <div class="crypto-badge">SHA‑256 → 32 bytes</div>
+                <div class="arrow-symbol">▼</div>
+            </div>
+            <div class="step-row">
+                <div class="step-num">2</div>
+                <div class="step-desc"><strong>ECDSA sign</strong> hash with patient's private key</div>
+                <div class="crypto-badge">P‑256 ECDSA · RFC 6979</div>
+                <div class="arrow-symbol">▼</div>
+            </div>
+            <div class="step-row">
+                <div class="step-num">3</div>
+                <div class="step-desc"><strong>Generate DEK</strong> (random 32‑byte key)</div>
+                <div class="crypto-badge">os.urandom(32)</div>
+                <div class="arrow-symbol">▼</div>
+            </div>
+            <div class="step-row">
+                <div class="step-num">4</div>
+                <div class="step-desc"><strong>AES‑256‑GCM</strong> encrypt file with DEK</div>
+                <div class="crypto-badge">IV + ciphertext + auth tag</div>
+                <div class="arrow-symbol">▼</div>
+            </div>
+            <div class="step-row">
+                <div class="step-num">5</div>
+                <div class="step-desc"><strong>ECIES wrap</strong> DEK with patient's public key</div>
+                <div class="crypto-badge">ephemeral key · ECDH · HKDF</div>
+                <div class="arrow-symbol">▼</div>
+            </div>
+            <div class="step-row">
+                <div class="step-num">6</div>
+                <div class="step-desc"><strong>Send to server</strong> (ciphertext, wrapped DEK, hash, signature)</div>
+                <div class="crypto-badge">🔒 all encrypted · no plain DEK</div>
+            </div>
+        </div>
+
+        <!-- SERVER SIDE AFTER UPLOAD (mini) -->
+        <div class="server-box">
+            <div class="server-title">🗄️ SERVER STORAGE (after upload)</div>
+            <div class="two-col">
+                <div class="col">
+                    <h3>encrypted record</h3>
+                    <div class="gibberish">ciphertext: f3a8d1... (AES)</div>
+                    <div class="gibberish">IV + tag: 9c4e... / b2d6...</div>
+                    <div class="gibberish">DEK bundle (ECIES) 🔒</div>
+                    <div class="gibberish">file hash + signature</div>
+                </div>
+                <div class="col">
+                    <h3>admin view → ❌ can't read</h3>
+                    <div class="checklist">
+                        <li><span class="check-n">✗</span> plaintext record?</li>
+                        <li><span class="check-n">✗</span> DEK visible?</li>
+                        <li><span class="check-y">✓</span> only public keys</li>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- GRANT ACCESS SECTION -->
+        <div class="section">
+            <div class="section-header">
+                <span>②</span> PATIENT GRANTS DOCTOR TIME‑LIMITED ACCESS
+            </div>
+            <div class="step-row">
+                <div class="step-num">1</div>
+                <div class="step-desc">Decrypt own DEK (ECIES with patient private)</div>
+                <div class="crypto-badge">ecies_decrypt(patient_priv)</div>
+                <div class="arrow-symbol">▼</div>
+            </div>
+            <div class="step-row">
+                <div class="step-num">2</div>
+                <div class="step-desc">Re‑encrypt DEK <strong>for doctor's public key</strong> (ECIES)</div>
+                <div class="crypto-badge">ecies_encrypt(doctor_pub)</div>
+                <div class="arrow-symbol">▼</div>
+            </div>
+            <div class="step-row">
+                <div class="step-num">3</div>
+                <div class="step-desc">Build permission: patient, doctor, record, time window</div>
+                <div class="crypto-badge">{time_start, time_end}</div>
+                <div class="arrow-symbol">▼</div>
+            </div>
+            <div class="step-row">
+                <div class="step-num">4</div>
+                <div class="step-desc"><strong>ECDSA sign</strong> permission (deterministic JSON)</div>
+                <div class="crypto-badge">patient's private key</div>
+                <div class="arrow-symbol">▼</div>
+            </div>
+            <div class="step-row">
+                <div class="step-num">5</div>
+                <div class="step-desc">Send permission + signature + DEK bundle (doctor) → server</div>
+                <div class="crypto-badge">stored in permission table</div>
+            </div>
+        </div>
+
+        <!-- DOCTOR VIEW SECTION -->
+        <div class="section">
+            <div class="section-header">
+                <span>③</span> DOCTOR VIEWS RECORD — 4 VERIFICATIONS + DECRYPT
+            </div>
+            <!-- verification steps -->
+            <div style="background:#0b2a41; border-radius: 30px; margin: 1rem 1.5rem; padding: 0.8rem 1.5rem;">
+                <div style="display:flex; gap:1.5rem; flex-wrap:wrap; justify-content:space-around; color:#cde5ff;">
+                    <span>1️⃣ permission exists?</span>
+                    <span>2️⃣ time valid?</span>
+                    <span>3️⃣ ECDSA sig OK? (patient pub)</span>
+                    <span>4️⃣ not revoked?</span>
+                </div>
+            </div>
+            <div class="step-row">
+                <div class="step-num">✓</div>
+                <div class="step-desc"><strong>all four checks pass</strong> → server sends doctor‑encrypted DEK bundle + ciphertext</div>
+                <div class="arrow-symbol">▼</div>
+            </div>
+            <div class="step-row">
+                <div class="step-num">1</div>
+                <div class="step-desc">Doctor decrypts DEK bundle with own private key (ECIES)</div>
+                <div class="crypto-badge">ecies_decrypt(doctor_priv)</div>
+                <div class="arrow-symbol">▼</div>
+            </div>
+            <div class="step-row">
+                <div class="step-num">2</div>
+                <div class="step-desc">AES‑256‑GCM decrypt file using DEK</div>
+                <div class="crypto-badge">IV + ciphertext + tag</div>
+                <div class="arrow-symbol">▼</div>
+            </div>
+            <div class="step-row">
+                <div class="step-num">3</div>
+                <div class="step-desc">Verify SHA‑256 hash matches original (integrity)</div>
+                <div class="crypto-badge">file fingerprint</div>
+                <div class="arrow-symbol">▼</div>
+            </div>
+            <div class="step-row">
+                <div class="step-num">4</div>
+                <div class="step-desc"><strong>plaintext medical record displayed</strong> ✅</div>
+                <div class="crypto-badge">doctor sees data</div>
+            </div>
+        </div>
+
+        <!-- SECURITY GUARANTEES + KEY LOCATIONS -->
+        <div style="display:flex; flex-wrap:wrap; gap:1.5rem; margin-top:1rem;">
+            <div style="flex: 1.2; min-width:300px; background:#0f293f; border-radius: 2rem; padding:1.5rem; border:1px solid #2d5f88;">
+                <h3 style="color:#d1ebff; margin-bottom:1rem;">🔑 what admin CANNOT do (even full DB)</h3>
+                <ul class="checklist" style="list-style-type: none;">
+                    <li><span class="check-n">⛔</span> Read plaintext → AES + no DEK</li>
+                    <li><span class="check-n">⛔</span> Forge permission → needs ECDSA private key</li>
+                    <li><span class="check-n">⛔</span> Extend time window → breaks signature</li>
+                    <li><span class="check-n">⛔</span> Delete audit logs → append‑only / hash‑chained</li>
+                    <li><span class="check-n">⛔</span> Create fake patient + records → needs patient signature</li>
+                </ul>
+            </div>
+            <div style="flex: 0.9; min-width:260px; background:#0f293f; border-radius: 2rem; padding:1.5rem; border:1px solid #2d5f88;">
+                <h3 style="color:#d1ebff; margin-bottom:1rem;">📍 key storage</h3>
+                <div class="key-table">
+                    <div><span>patient private</span> <span class="badge">📱 device only</span></div>
+                    <div><span>doctor private</span> <span class="badge">📱 device only</span></div>
+                    <div><span>public keys</span> <span class="badge">🌐 server</span></div>
+                    <div><span>DEK (wrapped)</span> <span class="badge">🔐 server (ECIES)</span></div>
+                    <div><span>ciphertext</span> <span class="badge">💾 server</span></div>
+                </div>
+                <p style="margin-top:1rem; font-size:0.9rem; background:#0a1e30; padding:0.8rem; border-radius:18px;">
+                    🧠 private keys never leave device → root of trust
+                </p>
+            </div>
+        </div>
+
+        <!-- ATTACK SCENARIOS BLOCKED -->
+        <div style="background:#102c42; border-radius: 2rem; padding:1.3rem 1.8rem; border:2px solid #26577e;">
+            <div style="display:flex; gap:0.8rem; align-items:center; margin-bottom:1rem;">
+                <span style="background:#c0392b; width:20px; height:20px; border-radius:6px;"></span>
+                <span style="font-weight:600; font-size:1.2rem; color:#ffbaba;">attacks blocked by math</span>
+            </div>
+            <div class="attack-row">
+                <span class="attack-item">🔹 admin reads ciphertext → encrypted</span>
+                <span class="attack-item">🔹 admin forges permission → ECDSA fails</span>
+                <span class="attack-item">🔹 admin tampers time → sig invalid</span>
+                <span class="attack-item">🔹 doctor after revocation → perm missing</span>
+                <span class="attack-item">🔹 database breach → only gibberish</span>
+            </div>
+        </div>
+
+        <!-- QUICK REFERENCE TABLE (what's encrypted where) -->
+        <div style="background:#0e2236; border-radius: 2rem; margin-top:1rem; padding:1.5rem;">
+            <h3 style="color:#b7dcff; margin-bottom:1rem;">📋 what's stored & can admin read?</h3>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap:0.8rem;">
+                <div style="background:#153853; border-radius:20px; padding:0.8rem 1rem;">
+                    <div><strong>medical record</strong></div>
+                    <div style="font-size:0.8rem;">AES‑256‑GCM</div>
+                    <div style="color:#e76f51;">❌ admin no</div>
+                </div>
+                <div style="background:#153853; border-radius:20px; padding:0.8rem 1rem;">
+                    <div><strong>DEK (plain)</strong></div>
+                    <div style="font-size:0.8rem;">never on server</div>
+                    <div style="color:#2ecc71;">✅ only patient</div>
+                </div>
+                <div style="background:#153853; border-radius:20px; padding:0.8rem 1rem;">
+                    <div><strong>DEK (wrapped)</strong></div>
+                    <div style="font-size:0.8rem;">ECIES</div>
+                    <div style="color:#e76f51;">❌ needs private key</div>
+                </div>
+                <div style="background:#153853; border-radius:20px; padding:0.8rem 1rem;">
+                    <div><strong>permission</strong></div>
+                    <div style="font-size:0.8rem;">plaintext + signature</div>
+                    <div style="color:#f4a261;">⚠️ can see, can't alter</div>
+                </div>
+                <div style="background:#153853; border-radius:20px; padding:0.8rem 1rem;">
+                    <div><strong>private keys</strong></div>
+                    <div style="font-size:0.8rem;">patient/doctor device</div>
+                    <div style="color:#2ecc71;">✅ never transmitted</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTNOTE: demo + 5 guarantees -->
+        <div class="footer-note">
+            ⚡ MedLedger 5‑min master — replace trust with math.<br>
+            P‑256 · ECDSA · AES‑256‑GCM · ECIES · SHA‑256 · HKDF · Shamir 3‑of‑5
+        </div>
+    </div>
+</div>
+<!-- extra spacing for readability -->
+<div style="margin-top: 1.5rem; color:#4d7ca1; text-align:center; font-size:0.9rem;">
+    ⬆️ full encryption pipeline · permission grant · doctor verification · insider‑proof
+</div>
+</body>
+</html>
