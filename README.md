@@ -6,6 +6,7 @@
 
 ---
 > 📹 **[Watch the demo video](https://drive.google.com/file/d/1dNzt7CWriF2SZSG9TrRjf6icgA_1NobG/view?usp=sharing)**
+---
 > 🖥️ **[The Prototype Video](https://drive.google.com/file/d/1XkEqMgButtXeBNwi9hcO3p_AbgJrIarM/view?usp=sharing)**
 
 ## The Problem
