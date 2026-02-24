@@ -2,15 +2,16 @@
 
 **Patient-controlled healthcare data. Enforced by cryptography, not policy.**
 
-> 📹 **Presentation Video:** [Watch on Google Drive](https://drive.google.com/drive/folders/1E2nfH2up5BBV9a7kZd_50SgWbdqm3JKW?usp=sharing)
+> *"Cryptography doesn't have insider threats. Math doesn't take bribes."*
 
 ---
+> 📹 **[Watch the demo video](https://drive.google.com/file/d/1dNzt7CWriF2SZSG9TrRjf6icgA_1NobG/view?usp=sharing)**
 
 ## The Problem
 
-58% of healthcare data breaches involve insiders — someone with legitimate system access who shouldn't have been there, or shouldn't have stayed that long. The audit log that would prove it? An admin can delete it. The access control that would have stopped it? An admin can override it.
+58% of healthcare data breaches involve insiders — staff with legitimate system access who shouldn't have been there, or shouldn't have stayed that long. In every traditional hospital system, an administrator can override access controls. The audit log that would prove it? An admin can delete it too.
 
-Current healthcare systems are built on trust: trust that the admin won't look, trust that the log won't be touched, trust that policy will hold. That's not a security model. That's an assumption.
+Current healthcare IT is built on trust: trust that the admin won't look, trust that the policy will hold, trust that the log won't be touched. That's not a security model. That's an assumption.
 
 ---
 
@@ -18,150 +19,269 @@ Current healthcare systems are built on trust: trust that the admin won't look, 
 
 MedLedger replaces trust with math.
 
-When a patient registers, the app generates a P-256 EC keypair **locally on their device**. The private key never leaves. When a doctor needs access to a record, the patient grants it with a **cryptographic signature** specifying exactly who, what, and for how long. The server verifies the signature on every access. If the signature isn't there, access is denied — not by a policy rule someone could override, but by math.
+When a patient registers, the app generates a P-256 EC keypair **locally on their device**. The private key never leaves. When a doctor needs access to a record, the patient grants it with a **cryptographic signature** — specifying exactly who, what record, and for how long. The server verifies that signature on every access attempt. No signature, no access — not because of a policy rule that an admin could override, but because of mathematics.
 
 **The core guarantee:** a database administrator with full server access still cannot read a patient's record without the patient's private key.
 
 ---
 
-## Two Ways to Run
+## ⚡ Quickstart — Run the Demo (2 minutes)
 
-### 1. Clone the Repo (Development / Demo)
+The fastest way to see MedLedger is the self-contained single-file demo. It requires no server, no database, and no configuration. Everything — crypto, UI, the full patient-to-doctor flow — runs in one Python script.
 
-Run both the FastAPI server and the Python client on the same machine.
+### Prerequisites
 
 ```bash
-# Server
+pip install cryptography
+```
+
+That's the only dependency. `tkinter` ships with standard Python on Windows, macOS, and most Linux distros.
+
+### Run it
+
+```bash
+python medledger_demo.py
+```
+
+### Demo walkthrough
+
+**Step 1 — Register a patient**
+- Click **Create account**
+- Enter any name, email, and password
+- Select **Patient**
+- Watch the animated key generation — a real P-256 keypair is generated live using `cryptography.hazmat`
+
+**Step 2 — Register a doctor** *(open a second account in the same session)*
+- Log out, click **Create account** again
+- Enter different credentials
+- Select **Doctor**
+
+**Step 3 — Log in as the patient**
+- Go to **Upload Record**
+- Click **✨ Generate Demo PDF** to create a fake lab report instantly — or browse to any real file
+- Watch the 6-step encryption pipeline animate:
+  1. SHA-256 hash of the file
+  2. ECDSA-P256 signature with your private key
+  3. Random 256-bit DEK generated
+  4. AES-256-GCM file encryption
+  5. ECIES DEK wrapping with your public key
+  6. Encrypted blob stored
+- Go to **My Records** → select the record → **Grant Doctor Access**
+- Pick the doctor's email from the dropdown
+- Watch the 5-step ECIES key-rewrap animate — the DEK is decrypted with your key and re-encrypted for the doctor
+
+**Step 4 — Log in as the doctor**
+- See the granted record in the patient list
+- Click **Decrypt & View**
+- Watch the 5-step decryption animate
+- The actual plaintext appears in the viewer — content verified, integrity confirmed
+
+> **What's real:** The encryption is genuine AES-256-GCM. The key wrapping is genuine ECIES over P-256. The signatures are genuine ECDSA. The demo uses the exact same `cryptography` library primitives as the full server-backed system.
+
+---
+
+## Full System (Server + Desktop Client)
+
+For the complete backend + client architecture:
+
+```bash
+# Terminal 1 — FastAPI server
 pip install -r requirements.txt
 uvicorn src.api.main:app --reload --port 8000
 
-# Client (separate terminal)
+# Terminal 2 — Desktop client
 cd medledger-client
 pip install -r requirements.txt
 python main.py
 
-# API docs
-http://localhost:8000/docs
+# API docs / Swagger UI
+# http://localhost:8000/docs
 ```
 
-Or use the demo script:
+Or use the convenience script:
+
 ```bash
 bash run_demo.sh
 ```
 
-### 2. Download the App (End Users)
+---
 
-When the server is deployed, users just download and run `MedLedger.exe`. No Python install required. The app connects to the hosted server automatically.
+## How the Cryptography Works
 
-**Build the Windows executable:**
-```bash
-cd medledger-client
-build.bat
-# Output: dist/MedLedger.exe
+```
+REGISTRATION
+  → P-256 keypair generated locally on client device
+  → Public key registered with server; private key stays on device
+  → Private key never transmitted
+
+UPLOAD A RECORD
+  → File hashed (SHA-256), hash signed (ECDSA-P256) with patient's private key
+  → Random 256-bit DEK generated; file encrypted with AES-256-GCM
+  → DEK wrapped with patient's public key (ECIES: ECDH + HKDF-SHA256 + AES-256-GCM)
+  → Server stores only ciphertext — it cannot decrypt
+
+GRANT DOCTOR ACCESS
+  → Patient decrypts DEK with own private key
+  → Patient re-encrypts DEK for doctor's public key (ECIES rewrap)
+  → Patient signs a permission payload: { doctor_id, record_id, valid_from, valid_until }
+  → Server stores doctor's DEK bundle + patient's ECDSA signature
+
+DOCTOR VIEWS RECORD
+  → Server verifies: permission exists, not revoked, within time window, signature valid
+  → Doctor receives encrypted file + their DEK bundle
+  → Doctor decrypts DEK with their private key, decrypts file
+
+REVOCATION
+  → Patient revokes; server clears the doctor's DEK bundle immediately
+  → Doctor's next request is denied — the key is gone, not just flagged
 ```
 
-To point the app at your server, set `SERVER_URL` in `config.py` before building, or set the `MEDLEDGER_SERVER` environment variable at runtime.
+**Why the admin can't cheat:** Every permission is cryptographically bound to a specific patient, doctor, record, and time window by the patient's ECDSA signature. Even if an admin inserts a fake permission row into the database, signature verification will fail — they don't have the patient's private key, so they can't produce a valid signature. The access is denied by arithmetic, not by access controls.
 
 ---
 
-## How It Works
+## Security Model
 
-```
-Registration
-  → P-256 keypair generated locally on the client
-  → Public key sent to server, private key saved to keys/<user_id>.pem
-  → Private key never touches the server
+| Threat | Defence |
+|--------|---------|
+| Admin accesses record without permission | No patient signature → access denied by crypto |
+| Admin deletes audit log | Append-only table; no delete endpoint; hash-chained entries |
+| Admin inserts fake permission into database | Signature verification fails — no private key, no valid signature |
+| Admin modifies permission time window | Signature hash mismatch → verification fails |
+| Database breach | AES-256-GCM ciphertext + ECIES-wrapped keys; neither decryptable without private key |
+| Expired permission replayed | `valid_from`/`valid_until` verified on every access |
+| Doctor retains access after revocation | Doctor's DEK bundle cleared server-side; decryption is impossible |
+| Patient loses private key | Shamir 3-of-5 secret sharing — any 3 of 5 chosen trustees reconstruct the key |
+| Compromised doctor account | Still requires patient signature; doctor credentials alone give nothing |
 
-Upload a record
-  → File hashed (SHA-256) and signed (ECDSA) with patient's private key
-  → Random DEK generated, file encrypted with AES-256-GCM
-  → DEK wrapped with patient's public key (ECIES)
-  → Server receives only ciphertext — cannot decrypt
+---
 
-Grant doctor access
-  → Patient fetches doctor's public key from server
-  → Patient decrypts DEK with own private key, re-encrypts for doctor (ECIES)
-  → Patient signs a permission payload: doctor ID + record ID + time window
-  → Server stores the doctor's DEK bundle and the patient's signature
+## What the Tests Show
 
-Doctor views record
-  → Server verifies: permission exists, not revoked, in time window, signature valid
-  → Doctor receives encrypted file + doctor's DEK bundle
-  → Doctor decrypts DEK with their private key, decrypts file
+The full crypto and permission logic is covered by 26 integration checks in `test_medledger.py` — all passing as of the submission date.
 
-Revocation
-  → Patient revokes; server nulls the doctor's DEK bundle instantly
-  → Doctor's next access attempt is denied — the DEK is gone
-```
+Key things verified:
+
+- ECDSA signatures of valid DER lengths 68–72 bytes all verify correctly (regression on an edge-case bug fix)
+- Tampered permission payloads are rejected
+- Wrong public key is rejected
+- ECIES DEK wrapping and unwrapping round-trip correctly
+- Wrong private key for decryption raises `ValueError` (GCM auth tag working)
+- AES-256-GCM tampered ciphertext is rejected
+- Full grant → verify → revoke flow without a database or API server
+- A valid permission for record A cannot be replayed to access record B
+
+Full annotated output: [`docs/eval_and_self_analysis/TEST_RESULTS.md`](docs/eval_and_self_analysis/TEST_RESULTS.md)
 
 ---
 
 ## Architecture
 
-The client app uses an **Orchestrator** pattern: the UI talks only to the Orchestrator, which handles all routing and crypto. If the server is unreachable, it falls back automatically to **OfflineClient** — files are still encrypted and queued locally.
+The production client uses an **Orchestrator** pattern — the UI never touches crypto directly, and if the server is unreachable the app falls back to an encrypted local queue automatically.
 
 ```
 UI (tkinter screens)
         │
         ▼
   Orchestrator (core/orchestrator.py)
-  ├── online  → APIClient  → HTTP → FastAPI server
+  ├── online  → APIClient → HTTP → FastAPI server
   └── offline → OfflineClient → local encrypted store
 ```
 
----
+The server is a layered FastAPI application:
 
-## Security Model
-
-| Threat | How MedLedger Handles It |
-|---|---|
-| Admin views record without authorisation | Impossible — no patient signature, no access |
-| Admin deletes audit log | Impossible — append-only, no delete endpoint |
-| Doctor retains access after revocation | Server nulls doctor DEK instantly |
-| Database breach exposes records | AES-256-GCM ciphertext; DEKs ECIES-encrypted; neither decryptable without private key |
-| Expired permission replayed | valid_from/valid_until checked on every access |
-| Patient loses private key | Shamir 3-of-5 secret sharing (any 3 of 5 trustees reconstruct the key) |
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Backend | FastAPI (Python) · SQLAlchemy · SQLite / PostgreSQL |
-| Desktop Client | Python · tkinter · requests |
-| Build (Windows) | PyInstaller via `build.bat` → single `MedLedger.exe` |
-| Cryptography | P-256 ECDSA · ECIES (ECDH + HKDF-SHA256 + AES-256-GCM) · Shamir Secret Sharing |
-| Audit Trail | Hash-chained AuditLog table (append-only) |
+```
+FastAPI routes (src/api/routes/)
+        │
+        ▼
+Service layer (src/services/)      ← business logic, no HTTP concerns
+        │
+        ▼
+Crypto layer (src/crypto/)         ← ECDSA, ECIES, Shamir — no DB concerns
+        │
+        ▼
+SQLAlchemy ORM (src/database/)     ← SQLite dev / PostgreSQL prod
+```
 
 ---
 
 ## Project Structure
 
 ```
-├── src/                        # FastAPI server
-│   ├── api/routes/             # auth, records, permissions
-│   ├── crypto/                 # ECIES, signatures, Shamir sharing
-│   ├── database/               # SQLAlchemy models
-│   └── services/               # Business logic (registration, records, permissions)
+├── medledger_demo.py           ← Self-contained demo (start here)
 │
-├── medledger-client/           # Python desktop app
-│   ├── main.py                 # Entry point
-│   ├── config.py               # SERVER_URL and constants
-│   ├── build.bat               # Windows build (PyInstaller)
+├── src/                        ← FastAPI server
+│   ├── api/routes/             ← auth, records, permissions
+│   ├── crypto/                 ← ECIES, ECDSA, Shamir secret sharing
+│   ├── database/               ← SQLAlchemy models
+│   └── services/               ← Registration, records, permissions logic
+│
+├── medledger-client/           ← Python desktop app
+│   ├── main.py
 │   ├── core/
-│   │   ├── crypto.py           # All crypto operations
-│   │   ├── keystore.py         # .pem and session.json management
-│   │   └── orchestrator.py     # Central logic layer
+│   │   ├── crypto.py           ← All crypto operations (P-256, AES-GCM, ECIES)
+│   │   ├── keystore.py         ← Local key + session storage (SQLite)
+│   │   └── orchestrator.py     ← Central logic; routes to online/offline
 │   ├── client/
-│   │   ├── api_client.py       # HTTP client (requests)
-│   │   └── offline_client.py   # Offline fallback
-│   └── ui/screens/             # tkinter UI screens
+│   │   ├── api_client.py       ← HTTP client
+│   │   └── offline_client.py   ← Offline fallback
+│   └── ui/screens/             ← tkinter screens
 │
-├── docs/                       # Presentation materials and guides
+├── docs/
+│   ├── presentation/           ← Judge-facing materials
+│   │   ├── SECURITY.md         ← Honest security analysis and threat model
+│   │   ├── MedLedger_Technical_Documentation.docx
+│   │   ├── MedLedger_Solution.docx
+│   │   └── proposal/           ← PDFs, architecture diagram
+│   └── eval_and_self_analysis/
+│       ├── CODE_REVIEW.md      ← Component-by-component grades and notes
+│       ├── SYSTEM_ANALYSIS.md  ← Full architecture and data flow documentation
+│       ├── TEST_RESULTS.md     ← Annotated test output (26/26 passing)
+│       └── TESTING.md          ← Test strategy and what's covered
+│
 ├── requirements.txt
 └── run_demo.sh
 ```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend | FastAPI · SQLAlchemy · SQLite / PostgreSQL |
+| Desktop client | Python · tkinter · requests |
+| Build | PyInstaller → `MedLedger.exe` (Windows) |
+| Cryptography | P-256 ECDSA · ECIES (ECDH + HKDF-SHA256 + AES-256-GCM) · Shamir 3-of-5 Secret Sharing |
+| Audit trail | Hash-chained append-only `AuditLog` table |
+
+---
+
+## Compared to Traditional EHR Systems
+
+| Feature | Traditional EHR | MedLedger |
+|---------|----------------|-----------|
+| Patient controls access | No | Yes |
+| Admin can override | Yes (risk) | No — blocked by math |
+| Audit logs deletable | Yes (risk) | No — append-only, hash-chained |
+| Time-limited access | Rarely | Yes — enforced in signature |
+| Instant revocation | Rarely | Yes — DEK cleared immediately |
+| Proof of authorization | Policy document | Cryptographic signature |
+
+---
+
+## Honest Limitations
+
+This is a hackathon project. Before any clinical deployment it would need:
+
+- Independent cryptographic audit of the Shamir GF-256 implementation
+- Hardware-backed key storage (iOS Secure Enclave, Android Keystore, or TPM)
+- Distributed consensus for the audit chain (current implementation is single-node)
+- HIPAA compliance review
+- Penetration testing
+- HTTPS / TLS everywhere (currently HTTP in development)
+
+Full analysis in [`docs/presentation/SECURITY.md`](docs/presentation/SECURITY.md).
 
 ---
 
@@ -169,22 +289,25 @@ UI (tkinter screens)
 
 All judge-facing documents are in [`docs/presentation/`](docs/presentation/):
 
-- [`MedLedger_Proposal.pdf`](docs/presentation/MedLedger_Proposal.pdf) — project proposal
-- [`MedLedger_Technical_Report.docx`](docs/presentation/MedLedger_Technical_Report.docx) — full technical writeup
-- [`Problem_Statement.pdf`](docs/presentation/Problem_Statement.pdf) — problem framing and statistics
-- [`Proposed_Solution.pdf`](docs/presentation/Proposed_Solution.pdf) — solution design
-- [`medledger_architecture.html`](docs/presentation/medledger_architecture.html) — interactive architecture diagram
+- [`SECURITY.md`](docs/presentation/SECURITY.md) — precise security properties, threat model, and honest limitations
+- [`MedLedger_Solution.docx`](docs/presentation/MedLedger_Solution.docx) — solution overview
+- [`MedLedger_Technical_Documentation.docx`](docs/presentation/MedLedger_Technical_Documentation.docx) — full technical writeup
+- [`MedLedger_client_Reference.docx`](docs/presentation/MedLedger_client_Reference.docx) — client API reference
+- [`proposal/medledger_architecture.html`](docs/presentation/proposal/medledger_architecture.html) — interactive architecture diagram
+- [`proposal/MedLedger_Proposal.pdf`](docs/presentation/proposal/MedLedger_Proposal.pdf) — project proposal
+- [`proposal/Problem_Statement.pdf`](docs/presentation/proposal/Problem_Statement.pdf) — problem framing and statistics
+
+Self-evaluation and code review: [`docs/eval_and_self_analysis/`](docs/eval_and_self_analysis/)
 
 ---
 
 ## Team — Praxis
 
 | Name | Role |
-|---|---|
-| Mayanglambam Premananda | Blockchain Architecture · Backend |
-| Korounganba Thokchom | Frontend · Healthcare Domain |
-| Thajaba Naoroibam | Frontend · Healthcare Domain |
+|------|------|
+| Mayanglambam Premananda | Blockchain architecture · Backend · Cryptography |
+| Korounganba Thokchom | Frontend · Healthcare domain |
+| Thajaba Naoroibam | Frontend · Healthcare domain |
 
 ---
 
-*"Cryptography doesn't have insider threats. Math doesn't take bribes."*
