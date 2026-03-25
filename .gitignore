@@ -36,3 +36,6 @@ venv/
 *.zip
 
 .aider*
+#Virtual environment
+ev/
+.ev/
