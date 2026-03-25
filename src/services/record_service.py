@@ -86,7 +86,7 @@ class RecordService:
         original_filename: str,
         content_type: str,
         patient_id: Optional[int] = None,
-        encrypted_dek: Optional[str] = None,   # ECIES bundle JSON string from client
+        encrypted_dek: Optional[str] = None,   # ECIES bundle JSON string from client — REQUIRED for new records
     ) -> Tuple[MedicalRecordBlock, bool]:
         """
         Store a medical record file for a patient.
@@ -153,10 +153,23 @@ class RecordService:
         patient_dir = UPLOAD_ROOT / str(target_patient_id)
         patient_dir.mkdir(parents=True, exist_ok=True)
 
-        # Keep original extension for readability
-        suffix = Path(original_filename).suffix or ""
+        # Sanitize extension: allow only alphanumeric chars to prevent path traversal
+        # e.g. "../../evil.sh" → suffix="" → stored as just the record_id prefix
+        raw_suffix = Path(original_filename).suffix  # e.g. ".pdf", ".jpg"
+        if raw_suffix and raw_suffix[1:].isalnum() and len(raw_suffix) <= 6:
+            suffix = raw_suffix.lower()
+        else:
+            suffix = ""
+
         stored_filename = f"{record_id[:16]}{suffix}"
         file_path = patient_dir / stored_filename
+
+        # Resolve to absolute path and confirm it is strictly inside patient_dir.
+        # This blocks any remaining path traversal (e.g. symlink attacks).
+        resolved = file_path.resolve()
+        resolved_root = patient_dir.resolve()
+        if not str(resolved).startswith(str(resolved_root) + "/"):
+            raise RecordError("Rejected: computed storage path escapes upload root")
 
         try:
             file_path.write_bytes(file_bytes)
@@ -165,8 +178,25 @@ class RecordService:
 
         storage_path = str(file_path.relative_to(Path(".")))
 
-        # Use the client-provided DEK bundle if given, else fallback marker
-        dek_to_store = encrypted_dek if encrypted_dek else "PLAINTEXT_V1"
+        # Reject uploads that arrive without an encrypted DEK.
+        # A missing DEK means the record would be stored with no key protection —
+        # silently accepting it would violate the core security guarantee.
+        if not encrypted_dek:
+            raise RecordError(
+                "encrypted_dek is required. Encrypt the file DEK with the patient's "
+                "public key (ECIES) before uploading."
+            )
+
+        # Basic structure check — must be valid JSON with the four ECIES fields
+        import json as _json
+        try:
+            _bundle = _json.loads(encrypted_dek)
+            if not all(k in _bundle for k in ("epk", "iv", "ct", "tag")):
+                raise ValueError("missing required ECIES fields")
+        except (ValueError, TypeError) as exc:
+            raise RecordError(f"encrypted_dek is not a valid ECIES bundle: {exc}") from exc
+
+        dek_to_store = encrypted_dek
 
         # ── Create DB record ──────────────────────────────────────────────────
         record = MedicalRecordBlock(
@@ -208,7 +238,7 @@ class RecordService:
         Returns (record_meta, absolute_file_path, patient_dek_bundle).
         No permission check needed — it's their own file.
 
-        patient_dek_bundle is the ECIES JSON bundle (or PLAINTEXT_V1 marker)
+        patient_dek_bundle is the ECIES JSON bundle (always present — uploads without a DEK are rejected)
         stored at upload time. The client uses it to decrypt the file with
         their private key.
 
@@ -230,7 +260,7 @@ class RecordService:
             record_id=record_id,
             description="Patient accessed own record",
         )
-        # Return the DEK bundle stored at upload time (ECIES JSON or PLAINTEXT_V1 marker)
+        # Return the DEK bundle stored at upload time (always a valid ECIES JSON bundle)
         return record, abs_path, record.encrypted_dek_hex
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -327,16 +357,27 @@ class RecordService:
         return record
 
     def _resolve_path(self, record: MedicalRecordBlock) -> Path:
-        """Turn the stored storage_cid into an absolute Path and verify it exists."""
+        """Turn the stored storage_cid into an absolute Path and verify it exists.
+
+        Guards against a tampered storage_cid in the DB escaping UPLOAD_ROOT.
+        """
         path = Path(record.storage_cid)
         if not path.is_absolute():
-            path = Path(".") / path
-        path = path.resolve()
-        if not path.exists():
+            path = UPLOAD_ROOT.resolve() / path
+        resolved = path.resolve()
+
+        # Enforce that the resolved path is strictly inside UPLOAD_ROOT
+        upload_root_resolved = UPLOAD_ROOT.resolve()
+        if not str(resolved).startswith(str(upload_root_resolved) + "/"):
             raise RecordError(
-                f"File missing on disk for record {record.record_id}: {path}"
+                f"Security: storage_cid for record {record.record_id} resolves outside UPLOAD_ROOT"
             )
-        return path
+
+        if not resolved.exists():
+            raise RecordError(
+                f"File missing on disk for record {record.record_id}: {resolved}"
+            )
+        return resolved
 
     def _log(
         self,
@@ -346,21 +387,13 @@ class RecordService:
         record_id: Optional[str],
         description: str,
     ):
-        """Append to the immutable audit trail (mirrors PermissionService._log_audit)."""
-        try:
-            import hashlib as _hl
-            raw = f"{action}{user_id}{related_user_id}{record_id}{description}{datetime.utcnow().isoformat()}"
-            event_hash = _hl.sha256(raw.encode()).hexdigest()
-            log = AuditLog(
-                user_id=user_id,
-                action=action,
-                record_id=record_id,
-                related_user_id=related_user_id,
-                description=description,
-                event_hash=event_hash,
-                timestamp=datetime.utcnow(),
-            )
-            self.db.add(log)
-            self.db.commit()
-        except Exception as exc:
-            print(f"⚠ Audit log warning (record): {exc}")
+        """Append to the immutable audit trail via the shared AuditService."""
+        from src.services import audit_service
+        audit_service.append(
+            self.db,
+            action=action,
+            user_id=user_id,
+            related_user_id=related_user_id,
+            record_id=record_id,
+            description=description,
+        )

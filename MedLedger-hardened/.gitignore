@@ -1,0 +1,74 @@
+# Compiled files
+*.class
+*.exe
+*.dll
+
+# Dependencies
+
+# Environment files
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+*.log
+
+#claude
+claude/
+
+venv/
+.venv/
+
+*.zip
+
+.aider*
+#Virtual environment
+ev/
+.ev/
+# ── Secrets & credentials ─────────────────────────────────────────────────────
+.env
+.env.*
+*.env
+secrets.toml
+config.local.*
+
+# ── Databases & key material ──────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+
+# Offline key blobs written by the desktop client
+medledger-client/keys/
+medledger-client/offline_records/
+
+# Upload storage (contains encrypted patient records)
+medledger_uploads/
+
+# ── Python artefacts ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+*.so
+
+# ── Test / coverage output ────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Node / frontend ───────────────────────────────────────────────────────────
+node_modules/
+.expo/

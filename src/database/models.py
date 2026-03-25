@@ -11,19 +11,14 @@ Defines:
 from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, Boolean, DateTime,
-    ForeignKey, Text, Enum, Index, UniqueConstraint
+    ForeignKey, Text, Enum, Index, UniqueConstraint, event,
 )
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Session
 import enum
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
 
-DATABASE_URL = "sqlite:///./medledger.db"   # adjust to your preferred DB
-engine = create_engine(DATABASE_URL)
-# FIX: Removed duplicate Base = declarative_base() and create_all_tables() that appeared
-# earlier in the file. Having two Base instances means some models register on a different
-# Base than the one used by create_all_tables(), so those tables would never be created.
+# NOTE: engine/DATABASE_URL live exclusively in src/database/connection.py.
+# Do NOT import or re-create them here — that caused the duplicate-Base bug.
 Base = declarative_base()
 
 
@@ -167,6 +162,29 @@ class AuditLog(Base):
     
     def __repr__(self) -> str:
         return f"<AuditLog(id={self.id}, user_id={self.user_id}, action={self.action}, timestamp={self.timestamp})>"
+
+
+# ── AuditLog immutability guard ───────────────────────────────────────────────
+# These SQLAlchemy ORM events fire BEFORE any UPDATE or DELETE reaches the DB.
+# They raise immediately, so no audit row can ever be mutated through the ORM.
+# A raw SQL DELETE/UPDATE against the DB still requires DB-level controls
+# (e.g. a PostgreSQL row-security policy or a dedicated audit DB role with
+# INSERT-only privileges), which should be added before production deployment.
+
+@event.listens_for(AuditLog, "before_update")
+def _block_audit_update(mapper, connection, target):
+    raise RuntimeError(
+        "AuditLog rows are immutable — UPDATE is not permitted. "
+        f"Attempted on id={target.id}"
+    )
+
+
+@event.listens_for(AuditLog, "before_delete")
+def _block_audit_delete(mapper, connection, target):
+    raise RuntimeError(
+        "AuditLog rows are immutable — DELETE is not permitted. "
+        f"Attempted on id={target.id}"
+    )
 
 
 class MedicalRecordBlock(Base):

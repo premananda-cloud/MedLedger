@@ -9,13 +9,17 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 import os
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
 from src.services.registration import RegistrationService, RegistrationError, UserAlreadyExistsError
-# FIX #10: Import from the correct schema location (src/schemas/user.py)
 from src.schemas.user import (
     RegisterRequest, RegisterResponse, LoginRequest, LoginResponse,
     UserProfile, ErrorResponse, ValidationErrorResponse
 )
 from src.database.connection import get_db
+
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(
     prefix="/api/auth",
@@ -83,18 +87,21 @@ async def get_current_user_id(request: Request, db: Session = Depends(get_db)) -
     status_code=status.HTTP_201_CREATED,
     summary="Register new user",
 )
+@limiter.limit("5/minute")
 async def register_user(
-    request: RegisterRequest,
+    request: Request,
+    body: RegisterRequest,
     service: RegistrationService = Depends(get_registration_service),
 ) -> RegisterResponse:
     """
     Register a new PATIENT or DOCTOR.
 
     ⚠️ The private key is returned ONCE in this response — save it immediately.
+
+    Rate limited: 5 requests per minute per IP.
     """
     try:
-        # FIX #2: register_user is not async — no await
-        return service.register_user(request)
+        return service.register_user(body)
     except UserAlreadyExistsError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except RegistrationError as e:
@@ -112,14 +119,18 @@ async def register_user(
     status_code=status.HTTP_200_OK,
     summary="Login user",
 )
+@limiter.limit("10/minute")
 async def login_user(
-    request: LoginRequest,
+    request: Request,
+    body: LoginRequest,
     service: RegistrationService = Depends(get_registration_service),
 ) -> LoginResponse:
-    """Authenticate with email + password. Returns a JWT access token."""
+    """Authenticate with email + password. Returns a JWT access token.
+
+    Rate limited: 10 requests per minute per IP to slow brute-force attempts.
+    """
     try:
-        # FIX #2: login_user is not async — no await
-        return service.login_user(request)
+        return service.login_user(body)
     except RegistrationError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
     except Exception:

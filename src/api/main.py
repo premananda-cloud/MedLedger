@@ -6,28 +6,63 @@ Main application entry point. Initializes FastAPI, database, and routes.
 """
 
 import os
+import logging
 
-from fastapi import FastAPI, status
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from fastapi.responses import JSONResponse
 from datetime import datetime
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
-from src.database.models import Base
-from src.database.connection import engine, init_db
+logger = logging.getLogger(__name__)
+
+from src.database.connection import init_db
 from src.api.routes import auth, permissions
 from src.api.routes.records import router as records_router, public_key_router
 
+# ==================== Rate Limiter ====================
+
+# Keyed by real client IP. In production behind a reverse proxy, set the
+# FORWARDED_ALLOW_IPS env var (uvicorn) so the real IP is forwarded correctly.
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+
 # ==================== FastAPI App Initialization ====================
+
+_ENV = os.getenv("APP_ENV", "development").lower()
+_is_prod = _ENV == "production"
 
 app = FastAPI(
     title="MedLedger API",
     description="Blockchain-based healthcare data management with patient-controlled access",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json"
+    # Disable interactive docs in production — they expose the full API surface
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
+    openapi_url=None if _is_prod else "/openapi.json",
 )
+
+# Wire rate limiter state into the app
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+
+# ==================== Security Headers Middleware ====================
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=()"
+    # Only add HSTS in production where TLS is guaranteed
+    if _is_prod:
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    return response
 
 # ==================== CORS Configuration ====================
 
@@ -53,15 +88,16 @@ async def startup():
     """Initialize database on app startup"""
     try:
         init_db()
-        print("✓ Database tables created/verified")
+        logger.info("Database tables created/verified")
     except Exception as e:
-        print(f"✗ Error initializing database: {str(e)}")
+        logger.critical("Error initializing database: %s", e, exc_info=True)
+        raise  # fatal — don't silently continue with a broken DB
 
 
 @app.on_event("shutdown")
 async def shutdown():
     """Cleanup on app shutdown"""
-    print("MedLedger API shutting down")
+    logger.info("MedLedger API shutting down")
 
 
 # ==================== Routes Registration ====================
@@ -101,14 +137,17 @@ async def health_check():
 # ==================== Error Handlers ====================
 
 @app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
-    """Global exception handler"""
-    print(f"Unhandled exception: {str(exc)}")
-    return {
-        "error": "Internal server error",
-        "detail": str(exc),
-        "timestamp": datetime.utcnow().isoformat()
-    }
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Global exception handler — never leaks internal exception details to clients."""
+    # Log full traceback server-side only
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error": "Internal server error",
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+        },
+    )
 
 
 # ==================== API Documentation ====================

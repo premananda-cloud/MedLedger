@@ -347,3 +347,46 @@ async def get_audit_log(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving audit log: {str(e)}",
         )
+
+
+# ──────────────────────────── Audit chain verify ──────────────────────────────
+
+class ChainVerifyResponse(BaseModel):
+    intact: bool
+    broken_at_id: Optional[int] = None
+    message: str
+    total_entries: int
+
+
+@router.get(
+    "/audit/verify-chain",
+    response_model=ChainVerifyResponse,
+    summary="Verify audit log hash chain integrity (admin / forensic use)",
+)
+async def verify_audit_chain(
+    current_user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """
+    Walk the entire audit log and verify every hash-chain link.
+
+    Returns whether the chain is intact and, if not, the id of the first
+    broken entry.  Only ADMIN-role users may call this endpoint.
+    """
+    caller = db.query(User).filter(User.id == current_user_id).first()
+    if not caller or caller.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Audit chain verification requires ADMIN role",
+        )
+
+    from src.services import audit_service
+    total = db.query(AuditLog).count()
+    intact, broken_at, message = audit_service.verify_chain(db)
+
+    return ChainVerifyResponse(
+        intact=intact,
+        broken_at_id=broken_at,
+        message=message,
+        total_entries=total,
+    )

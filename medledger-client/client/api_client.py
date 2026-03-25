@@ -3,12 +3,30 @@ client/api_client.py - HTTP calls to the MedLedger FastAPI backend.
 
 Every method raises requests.exceptions.RequestException on network failure
 so the orchestrator can catch and fall back to offline mode.
+
+TLS: all requests verify the server certificate by default (requests default).
+     Set MEDLEDGER_TLS_VERIFY=0 only in isolated local dev environments —
+     never in staging or production.
 """
 
 import json
+import logging
+import os
 import requests
 from typing import Optional
 from config import SERVER_URL, CONNECT_TIMEOUT_S, REQUEST_TIMEOUT_S
+
+logger = logging.getLogger(__name__)
+
+# Verify TLS certs unless explicitly disabled for local dev.
+# Acceptable values: "0" / "false" to disable; anything else = verify.
+_tls_verify_env = os.getenv("MEDLEDGER_TLS_VERIFY", "1").strip().lower()
+_TLS_VERIFY: bool = _tls_verify_env not in ("0", "false", "no")
+if not _TLS_VERIFY:
+    logger.warning(
+        "TLS certificate verification is DISABLED (MEDLEDGER_TLS_VERIFY=0). "
+        "This must never be used outside a local dev environment."
+    )
 
 
 class APIClient:
@@ -17,6 +35,7 @@ class APIClient:
         self.base  = SERVER_URL.rstrip("/")
         self.token = token
         self.session = requests.Session()
+        self.session.verify = _TLS_VERIFY   # enforce cert verification by default
 
     def _headers(self) -> dict:
         h = {"Content-Type": "application/json"}

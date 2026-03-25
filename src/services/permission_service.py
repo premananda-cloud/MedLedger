@@ -390,28 +390,18 @@ class PermissionService:
         user_id: int,
         related_user_id: Optional[int],
         record_id: Optional[str],
-        description: str
+        description: str,
     ):
-        """Append to the immutable audit trail."""
-        try:
-            # Build a deterministic hash for chain integrity
-            raw = f"{action}{user_id}{related_user_id}{record_id}{description}{datetime.utcnow().isoformat()}"
-            event_hash = hashlib.sha256(raw.encode()).hexdigest()
-
-            log = AuditLog(
-                user_id=user_id,
-                action=action,
-                record_id=record_id,
-                related_user_id=related_user_id,
-                description=description,
-                event_hash=event_hash,
-                timestamp=datetime.utcnow(),
-            )
-            self.db.add(log)
-            self.db.commit()
-        except Exception as e:
-            # Audit failures should never break the main flow
-            print(f"⚠ Audit log warning: {e}")
+        """Append to the immutable audit trail via the shared AuditService."""
+        from src.services import audit_service
+        audit_service.append(
+            self.db,
+            action=action,
+            user_id=user_id,
+            related_user_id=related_user_id,
+            record_id=record_id,
+            description=description,
+        )
 
     def _log_access_attempt(
         self,

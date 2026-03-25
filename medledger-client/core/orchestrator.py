@@ -87,11 +87,11 @@ class Orchestrator:
         if self.token:
             self.api.set_token(self.token)
 
-    def _load_private_key(self):
-        """Load private key hex from DB into memory."""
+    def _load_private_key(self, password: str):
+        """Decrypt and load private key hex from DB into memory."""
         if not self.user_id:
             raise RuntimeError("Not logged in.")
-        self._private_key_hex = load_private_key_hex(self.user_id)
+        self._private_key_hex = load_private_key_hex(self.user_id, password)
 
     def _get_private_key(self) -> str:
         if not self._private_key_hex:
@@ -167,6 +167,7 @@ class Orchestrator:
                     private_key_hex=priv_hex,
                     public_key_hex=pub_hex,
                     public_key_hash=pub_hash,
+                    password=password,
                     token=token,
                     created_at=datetime.utcnow().isoformat(),
                 )
@@ -202,6 +203,7 @@ class Orchestrator:
             private_key_hex=priv_hex,
             public_key_hex=pub_hex,
             public_key_hash=pub_hash,
+            password=password,
             token=None,
             created_at=datetime.utcnow().isoformat(),
         )
@@ -263,7 +265,7 @@ class Orchestrator:
                 )
             progress("Server offline — loading local session…")
             self._hydrate_from_row(local)
-            self._load_private_key()
+            self._load_private_key(password)
             return {**local, "offline": True, "note": "Restored from local session"}
 
         # Online: authenticate with server
@@ -284,15 +286,20 @@ class Orchestrator:
         if local and local["user_id"] != user_id:
             # Migrate offline id -> real server id
             progress("Syncing offline account to server id…")
+            # Decrypt the private key from the old offline record, then re-encrypt
+            # it under the new (confirmed) server user_id entry.
+            from core.keystore import decrypt_private_key
+            migrated_priv = decrypt_private_key(local["private_key_enc"], password)
             save_user(
                 user_id=user_id,
                 username=result["username"],
                 email=email,
                 full_name=result.get("full_name", local.get("full_name", "")),
                 role=result["role"].lower(),
-                private_key_hex=local["private_key_hex"],
+                private_key_hex=migrated_priv,
                 public_key_hex=local["public_key_hex"],
                 public_key_hash=local["public_key_hash"],
+                password=password,
                 token=token,
             )
         else:
@@ -305,7 +312,7 @@ class Orchestrator:
         self._hydrate_from_row(row)
         self.token = token
         self.api.set_token(token)
-        self._load_private_key()
+        self._load_private_key(password)
 
         progress("Login successful ✓")
         return {**result, "offline": False}

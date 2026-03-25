@@ -46,14 +46,22 @@ class OfflineClient:
         public_key_hex: str, public_key_compressed: str, public_key_hash: str,
         temp_id: str,
     ):
-        """Queue a registration to be replayed when server comes back."""
+        """Queue a registration to be replayed when server comes back.
+
+        NOTE: The plaintext password is NOT written to the queue file.
+        When the queue is replayed the orchestrator must re-prompt for the
+        password, or pass it through in-memory only.
+        """
         _enqueue("register", {
-            "username": username, "email": email, "full_name": full_name,
-            "role": role, "password": password,
-            "public_key_hex": public_key_hex,
+            "username":              username,
+            "email":                 email,
+            "full_name":             full_name,
+            "role":                  role,
+            # password intentionally omitted — never written to disk in plaintext
+            "public_key_hex":        public_key_hex,
             "public_key_compressed": public_key_compressed,
-            "public_key_hash": public_key_hash,
-            "temp_id": temp_id,
+            "public_key_hash":       public_key_hash,
+            "temp_id":               temp_id,
         })
 
     def encrypt_and_store_local(

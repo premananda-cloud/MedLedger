@@ -3,18 +3,24 @@ Registration Service - Business logic for user registration
 Location: src/services/registration.py
 """
 
-import hashlib
-import json
+import logging
 import os
 from datetime import datetime, timedelta
 from typing import Optional
+
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-import jwt  # PyJWT 2.7.0 — installed as the "jwt" package alias
+import jwt  # PyJWT 2.7.0
 
-from src.database.models import User, UserRole, AuditLog, AuditAction
+from src.database.models import User, UserRole, AuditAction
 from src.crypto.key_manager import KeyManager
-from src.schemas.user import RegisterRequest, RegisterResponse, LoginRequest, LoginResponse, UserProfile
+from src.schemas.user import (
+    RegisterRequest, RegisterResponse,
+    LoginRequest, LoginResponse,
+    UserProfile,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class RegistrationError(Exception):
@@ -245,55 +251,30 @@ class RegistrationService:
 
     def _log_user_registration(self, user_id: int, username: str, role):
         """Log registration event to audit trail."""
-        try:
-            event_hash = hashlib.sha256(
-                f"{user_id}${username}${role}${datetime.utcnow().isoformat()}".encode()
-            ).hexdigest()
-            audit_log = AuditLog(
-                user_id=user_id,
-                action=AuditAction.USER_REGISTERED,
-                description=f"User registered as {role}",
-                # FIX #5: Use correct field name 'extra_data', not 'metadata'
-                extra_data=json.dumps({"username": username, "role": str(role)}),
-                event_hash=event_hash,
-            )
-            self.db.add(audit_log)
-            self.db.commit()
-        except Exception as e:
-            print(f"Warning: Failed to log registration: {str(e)}")
+        from src.services import audit_service
+        audit_service.append(
+            self.db,
+            action=AuditAction.USER_REGISTERED,
+            user_id=user_id,
+            description=f"User '{username}' registered as {role}",
+        )
 
     def _log_login_success(self, user_id: int, email: str):
-        try:
-            event_hash = hashlib.sha256(
-                f"{user_id}${email}$LOGIN${datetime.utcnow().isoformat()}".encode()
-            ).hexdigest()
-            audit_log = AuditLog(
-                user_id=user_id,
-                action=AuditAction.LOGIN_SUCCESS,
-                description="Login successful",
-                event_hash=event_hash,
-            )
-            self.db.add(audit_log)
-            self.db.commit()
-        except Exception as e:
-            print(f"Warning: Failed to log login: {str(e)}")
+        from src.services import audit_service
+        audit_service.append(
+            self.db,
+            action=AuditAction.LOGIN_SUCCESS,
+            user_id=user_id,
+            description=f"Login successful for {email}",
+        )
 
     def _log_failed_login(self, email: str, reason: str):
-        # FIX #4: AuditLog.user_id is NOT NULL — use a sentinel value (0) for
-        # anonymous/unknown users so we never violate the constraint.
-        try:
-            event_hash = hashlib.sha256(
-                f"{email}$LOGIN_FAILED${reason}${datetime.utcnow().isoformat()}".encode()
-            ).hexdigest()
-            audit_log = AuditLog(
-                user_id=0,           # 0 = unknown/anonymous (no FK enforced on SQLite; for
-                                     # Postgres add a dedicated "anonymous" user with id=0)
-                action=AuditAction.LOGIN_FAILED,
-                description=f"Login failed for {email}: {reason}",
-                extra_data=json.dumps({"email": email, "reason": reason}),
-                event_hash=event_hash,
-            )
-            self.db.add(audit_log)
-            self.db.commit()
-        except Exception as e:
-            print(f"Warning: Failed to log failed login: {str(e)}")
+        # user_id=0 is the sentinel for anonymous/unknown — no FK enforced on SQLite.
+        # For PostgreSQL, create a dedicated DB user with id=0 before first deploy.
+        from src.services import audit_service
+        audit_service.append(
+            self.db,
+            action=AuditAction.LOGIN_FAILED,
+            user_id=0,
+            description=f"Login failed for {email}: {reason}",
+        )
