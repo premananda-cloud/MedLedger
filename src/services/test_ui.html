@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CypherAegis — Registration Test</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  header h1 { font-size: 1.8rem; color: #38bdf8; letter-spacing: .04em; }
+  header p  { font-size: .85rem; color: #64748b; margin-top: .3rem; }
+
+  .panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    width: 100%;
+    max-width: 900px;
+  }
+  @media (max-width: 640px) { .panels { grid-template-columns: 1fr; } }
+
+  .card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 1.5rem;
+  }
+  .card h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 1.2rem;
+    padding-bottom: .6rem;
+    border-bottom: 1px solid #334155;
+  }
+
+  label {
+    display: block;
+    font-size: .78rem;
+    color: #94a3b8;
+    margin-bottom: .25rem;
+    margin-top: .8rem;
+  }
+  label:first-of-type { margin-top: 0; }
+
+  input, select {
+    width: 100%;
+    padding: .5rem .75rem;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #e2e8f0;
+    font-size: .9rem;
+    outline: none;
+    transition: border-color .15s;
+  }
+  input:focus, select:focus { border-color: #38bdf8; }
+
+  button {
+    margin-top: 1.2rem;
+    width: 100%;
+    padding: .6rem;
+    background: #0284c7;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: .95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  button:hover  { background: #0369a1; }
+  button:active { background: #075985; }
+  button:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
+
+  /* result box */
+  .result {
+    margin-top: 1.2rem;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: .75rem;
+    font-size: .78rem;
+    font-family: "Cascadia Code", "Fira Code", monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 280px;
+    overflow-y: auto;
+    color: #94a3b8;
+    display: none;
+  }
+  .result.ok  { border-color: #22c55e; color: #86efac; }
+  .result.err { border-color: #ef4444; color: #fca5a5; }
+
+  /* private key warning banner */
+  .pk-banner {
+    display: none;
+    margin-top: 1rem;
+    padding: .75rem 1rem;
+    background: #422006;
+    border: 1px solid #ea580c;
+    border-radius: 6px;
+    font-size: .82rem;
+    color: #fed7aa;
+    line-height: 1.5;
+  }
+  .pk-banner strong { color: #fb923c; }
+
+  .pk-box {
+    display: none;
+    margin-top: .5rem;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: .6rem;
+    font-size: .72rem;
+    font-family: monospace;
+    white-space: pre;
+    overflow-x: auto;
+    color: #fbbf24;
+  }
+
+  .copy-btn {
+    margin-top: .5rem;
+    width: auto;
+    padding: .35rem .9rem;
+    font-size: .8rem;
+    background: #155e75;
+  }
+  .copy-btn:hover { background: #0e4f63; }
+
+  /* config badge */
+  .badge {
+    display: inline-block;
+    padding: .2rem .6rem;
+    border-radius: 999px;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .05em;
+  }
+  .badge.json     { background: #1e3a5f; color: #38bdf8; }
+  .badge.sqlite   { background: #1a2e1a; color: #4ade80; }
+  .badge.postgres { background: #2e1a2e; color: #c084fc; }
+
+  .config-bar {
+    display: flex;
+    gap: .75rem;
+    align-items: center;
+    margin-bottom: 2rem;
+    font-size: .82rem;
+    color: #64748b;
+  }
+
+  hr.sep { border: none; border-top: 1px solid #334155; margin: 1rem 0; }
+
+  .token-area {
+    display: none;
+    margin-top: 1rem;
+  }
+  .token-label {
+    font-size: .75rem;
+    color: #64748b;
+    margin-bottom: .3rem;
+  }
+  .token-val {
+    font-size: .72rem;
+    font-family: monospace;
+    color: #38bdf8;
+    word-break: break-all;
+    background: #0f172a;
+    padding: .5rem;
+    border-radius: 5px;
+    border: 1px solid #334155;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⬡ CypherAegis</h1>
+  <p>Registration &amp; Auth — Development Test UI</p>
+</header>
+
+<div class="config-bar" id="configBar">
+  <span>Backend:</span>
+  <span class="badge" id="backendBadge">…</span>
+  <span id="backendPath" style="font-size:.75rem"></span>
+</div>
+
+<div class="panels">
+
+  <!-- ── REGISTER ─────────────────────────────────────────── -->
+  <div class="card">
+    <h2>Register</h2>
+
+    <label>Email</label>
+    <input type="email" id="reg-email" placeholder="alice@example.com">
+
+    <label>Password <span style="color:#475569;font-size:.72rem">(min 8 chars)</span></label>
+    <input type="password" id="reg-password" placeholder="••••••••">
+
+    <label>Username</label>
+    <input type="text" id="reg-username" placeholder="alice">
+
+    <label>Full Name <span style="color:#475569;font-size:.72rem">(optional)</span></label>
+    <input type="text" id="reg-fullname" placeholder="Alice Example">
+
+    <label>Role</label>
+    <select id="reg-role">
+      <option value="PATIENT">Patient</option>
+      <option value="DOCTOR">Doctor</option>
+    </select>
+
+    <button id="reg-btn" onclick="doRegister()">Register</button>
+
+    <div class="pk-banner" id="pk-banner">
+      <strong>⚠ Save your private key now.</strong><br>
+      This is the only time it will be shown. It is never stored server-side.
+      Copy it somewhere safe before closing this page.
+    </div>
+    <div class="pk-box" id="pk-box"></div>
+    <button class="copy-btn" id="pk-copy" style="display:none" onclick="copyKey()">Copy Private Key</button>
+
+    <div class="result" id="reg-result"></div>
+  </div>
+
+  <!-- ── LOGIN ────────────────────────────────────────────── -->
+  <div class="card">
+    <h2>Login</h2>
+
+    <label>Email</label>
+    <input type="email" id="login-email" placeholder="alice@example.com">
+
+    <label>Password</label>
+    <input type="password" id="login-password" placeholder="••••••••">
+
+    <button id="login-btn" onclick="doLogin()">Login</button>
+
+    <div class="token-area" id="token-area">
+      <div class="token-label">JWT access token (copy to test protected routes)</div>
+      <div class="token-val" id="token-val"></div>
+      <button class="copy-btn" onclick="copyToken()">Copy Token</button>
+    </div>
+
+    <div class="result" id="login-result"></div>
+  </div>
+
+</div>
+
+<script>
+// ── Config ──────────────────────────────────────────────────────────────────
+const API = "http://127.0.0.1:8000";   // change if your server runs elsewhere
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function show(id, text, ok) {
+  const el = document.getElementById(id);
+  el.style.display = "block";
+  el.className = "result " + (ok ? "ok" : "err");
+  el.textContent = typeof text === "object"
+    ? JSON.stringify(text, null, 2)
+    : text;
+}
+
+function setLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  btn.disabled = loading;
+  btn.textContent = loading
+    ? (btnId === "reg-btn" ? "Registering…" : "Logging in…")
+    : (btnId === "reg-btn" ? "Register" : "Login");
+}
+
+async function post(path, body) {
+  const res = await fetch(API + path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw { status: res.status, ...data };
+  return data;
+}
+
+// ── Register ─────────────────────────────────────────────────────────────────
+async function doRegister() {
+  const email    = document.getElementById("reg-email").value.trim();
+  const password = document.getElementById("reg-password").value;
+  const username = document.getElementById("reg-username").value.trim();
+  const fullName = document.getElementById("reg-fullname").value.trim();
+  const role     = document.getElementById("reg-role").value;
+
+  if (!email || !password || !username) {
+    show("reg-result", "Email, password, and username are required.", false);
+    return;
+  }
+
+  setLoading("reg-btn", true);
+  try {
+    const data = await post("/api/auth/register", {
+      email, password, username,
+      full_name: fullName || username,
+      role,
+    });
+
+    // Show private key warning
+    if (data.private_key_pem && data.private_key_pem !== "client-managed") {
+      document.getElementById("pk-banner").style.display = "block";
+      document.getElementById("pk-box").style.display    = "block";
+      document.getElementById("pk-copy").style.display   = "block";
+      document.getElementById("pk-box").textContent = data.private_key_pem;
+    }
+
+    // Show rest of response (redact private key from the JSON dump)
+    const display = { ...data, private_key_pem: "[shown above — save it]" };
+    show("reg-result", display, true);
+
+    // Pre-fill login fields
+    document.getElementById("login-email").value    = email;
+    document.getElementById("login-password").value = password;
+
+  } catch (err) {
+    show("reg-result", err, false);
+  } finally {
+    setLoading("reg-btn", false);
+  }
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+async function doLogin() {
+  const email    = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-password").value;
+
+  if (!email || !password) {
+    show("login-result", "Email and password are required.", false);
+    return;
+  }
+
+  setLoading("login-btn", true);
+  try {
+    const data = await post("/api/auth/login", { email, password });
+
+    document.getElementById("token-val").textContent = data.access_token;
+    document.getElementById("token-area").style.display = "block";
+
+    show("login-result", data, true);
+  } catch (err) {
+    show("login-result", err, false);
+  } finally {
+    setLoading("login-btn", false);
+  }
+}
+
+// ── Copy helpers ──────────────────────────────────────────────────────────────
+function copyKey() {
+  const text = document.getElementById("pk-box").textContent;
+  navigator.clipboard.writeText(text).then(() => alert("Private key copied to clipboard."));
+}
+
+function copyToken() {
+  const text = document.getElementById("token-val").textContent;
+  navigator.clipboard.writeText(text).then(() => alert("Token copied."));
+}
+
+// ── Enter key shortcuts ───────────────────────────────────────────────────────
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  const active = document.activeElement;
+  if (["reg-email","reg-password","reg-username","reg-fullname","reg-role"].includes(active.id))
+    doRegister();
+  if (["login-email","login-password"].includes(active.id))
+    doLogin();
+});
+
+// ── Show config badge on load ─────────────────────────────────────────────────
+(async () => {
+  try {
+    const res  = await fetch(API + "/api-info");
+    const data = await res.json();
+    // api-info doesn't expose backend, but health check does confirm server is up
+    document.getElementById("backendBadge").textContent = "server up";
+    document.getElementById("backendBadge").className   = "badge json";
+  } catch {
+    document.getElementById("configBar").innerHTML =
+      '<span style="color:#ef4444">⚠ Server not reachable at ' + API + '</span>';
+  }
+})();
+</script>
+</body>
+</html>

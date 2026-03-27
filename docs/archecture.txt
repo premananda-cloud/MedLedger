@@ -1,0 +1,138 @@
+CypherAegis — Architecture Record
+Intent
+Build a reusable cryptographic engine that handles key generation, encryption, signing, and secret sharing. The engine is independent — it can be dropped into any application (healthcare, legal, IoT) without modification. Applications like MedLedger or a legal document exchange will use this engine as a dependency, adding only their own business logic, storage, and user management.
+
+Core principle: Crypto operations are isolated. Private keys never leave the client. Applications can choose their own storage and auth layers.
+
+Architecture
+text
+┌─────────────────────────────────────────────────────────────┐
+│                    Application Layer                        │
+│  (MedLedger, LegalExchange, or any product)                 │
+│                                                             │
+│  • User registration / login                                │
+│  • Database storage (JSON, SQLite, PostgreSQL)              │
+│  • Business logic (permissions, workflows)                  │
+│  • Audit trails                                             │
+│  • API routes                                               │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              │ uses
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    CypherAegis Core                         │
+│                                                             │
+│  • Key generation (P-256 EC)                                │
+│  • Signing (ECDSA)                                          │
+│  • Encryption (ECIES + AES-256-GCM)                         │
+│  • Secret sharing (Shamir 3-of-5 over GF256)                │
+│                                                             │
+│  No database, no auth, no API, no config                    │
+└─────────────────────────────────────────────────────────────┘
+Justification:
+
+Separation of concerns — crypto is complex; isolate it
+
+Reusability — one crypto core serves many products
+
+Security — private key logic lives in one place, auditable
+
+Flexibility — applications can use any storage or auth
+
+Services (Application Layer)
+These live in the application, not the core.
+
+Registration Service (registration.py)
+What it does:
+
+User registration with email/password
+
+Password hashing (PBKDF2-HMAC-SHA256, 100k iterations)
+
+JWT token issuance for sessions
+
+User lookup by email, username, or public key hash
+
+How it uses CypherAegis:
+
+Calls KeyManager.generate_keypair() during registration
+
+Stores public key components (hex, compressed, hash) in its database
+
+Returns private key to user once, then discards it
+
+Never stores private key
+
+Why this separation:
+
+The application owns user accounts and sessions
+
+Crypto core only does cryptographic operations
+
+No crypto logic is embedded in registration
+
+Crypto Module (key_manager.py)
+What it does:
+
+Generates P-256 EC keypairs
+
+Returns private key (PEM) to caller
+
+Returns public key in three formats:
+
+public_key_hex — uncompressed (65 bytes, starts with "04")
+
+public_key_compressed — compressed (33 bytes)
+
+public_key_hash — SHA256 of raw public key bytes
+
+What it does NOT do:
+
+Store keys
+
+Validate users
+
+Connect to databases
+
+Issue tokens
+
+Interaction Flow (Registration)
+text
+User submits email + password
+        │
+        ▼
+Registration Service
+        │
+        ├── Hash password
+        ├── Call KeyManager.generate_keypair()
+        │           │
+        │           ▼
+        │     Crypto Core
+        │     └── Returns keypair (private + public)
+        │
+        ├── Store public key in database
+        ├── Return private key to user (once)
+        └── Issue JWT
+Guarantees:
+
+Private key is generated client-side or server-side depending on config
+
+Server never stores private key
+
+Public key serves as the user's cryptographic identity
+
+Current State
+Component	Status
+Crypto core (key generation)	Complete
+Crypto core (encryption)	Complete from earlier MedLedger
+Crypto core (signing)	Complete
+Crypto core (secret sharing)	Complete
+Registration service	Complete
+Configurable storage (JSON, SQLite, PostgreSQL)	Complete
+JWT auth	Complete
+Audit logging	Basic — present
+Blockchain integration	Planned, not started
+Pure crypto library extraction	Next step
+Next Step
+Extract the crypto core from key_manager.py and the existing MedLedger crypto files into a standalone Python package called cypheraegis that can be installed via pip. The application layer (registration.py, storage, etc.) will then import and use it as a dependency.
+

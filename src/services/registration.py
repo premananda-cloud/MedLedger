@@ -1,280 +1,359 @@
 """
-Registration Service - Business logic for user registration
+Registration Service  (rewritten)
 Location: src/services/registration.py
+
+What changed from the old version
+──────────────────────────────────
+OLD: expected the client to supply public_key_hex / public_key_compressed /
+     public_key_hash in the request body (full SSI production model).
+
+NEW: takes only  email + password + optional metadata.
+     The server calls KeyManager.generate_keypair() automatically.
+     The private_key_pem is returned ONCE in RegisterResult and never
+     stored anywhere — the caller must save it immediately.
+
+     Controlled by config.json → "crypto" → "keygen_on_server": true
+     (dev/test default).  Flip to false for the production SSI path where
+     the client generates and supplies public keys.
+
+Key format contract (matches the established crypto layer)
+──────────────────────────────────────────────────────────
+  KeyPair.public_key_hex        → uncompressed, 65 bytes hex, "04…"
+                                  → what ecies_encrypt() and verify_signature() expect
+  KeyPair.public_key_hash       → SHA-256 of the raw 65-byte key bytes, hex
+                                  → DB lookup key / identity anchor
+  KeyPair.public_key_compressed → 33 bytes hex, "02/03…"
+                                  → stored for display; not used in crypto ops
+  KeyPair.private_key_pem       → PEM string, returned to caller, NEVER stored
+
+Password hashing
+────────────────
+  PBKDF2-HMAC-SHA256, 100 000 iterations, random 32-byte salt.
+  Stored as:  sha256$<iterations>$<salt_hex>$<hash_hex>
+  Verified with hmac.compare_digest (constant-time).
 """
 
 import logging
 import os
+import hmac as hmac_lib
 from datetime import datetime, timedelta
 from typing import Optional
 
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
-import jwt  # PyJWT 2.7.0
+import jwt  # PyJWT
 
-from src.database.models import User, UserRole, AuditAction
+from src.config import cfg
+from src.database.store import get_store
 from src.crypto.key_manager import KeyManager
-from src.schemas.user import (
-    RegisterRequest, RegisterResponse,
-    LoginRequest, LoginResponse,
-    UserProfile,
-)
 
 logger = logging.getLogger(__name__)
 
+_key_manager = KeyManager()   # stateless — safe to share
+
+
+# ── Exceptions ────────────────────────────────────────────────────────────────
 
 class RegistrationError(Exception):
     pass
 
-
 class UserAlreadyExistsError(RegistrationError):
     pass
 
-
-class PasswordHashError(RegistrationError):
+class AuthenticationError(RegistrationError):
     pass
 
 
+# ── Result objects ────────────────────────────────────────────────────────────
+
+class RegisterResult:
+    __slots__ = [
+        "user_id", "email", "username", "full_name", "role",
+        "public_key_hex", "public_key_compressed", "public_key_hash",
+        "private_key_pem",   # returned ONCE — caller must save immediately
+        "access_token",
+        "created_at",
+    ]
+    def __init__(self, **kw):
+        for k, v in kw.items():
+            setattr(self, k, v)
+    def to_dict(self):
+        return {s: getattr(self, s) for s in self.__slots__}
+
+
+class LoginResult:
+    __slots__ = [
+        "user_id", "email", "username", "full_name", "role",
+        "public_key_hash", "public_key_compressed",
+        "access_token", "last_login",
+    ]
+    def __init__(self, **kw):
+        for k, v in kw.items():
+            setattr(self, k, v)
+    def to_dict(self):
+        return {s: getattr(self, s) for s in self.__slots__}
+
+
+# ── Service ───────────────────────────────────────────────────────────────────
+
 class RegistrationService:
+    """
+    Handles user registration and login.
+    Storage backend is determined by config.json — no DB driver imported here.
+    """
 
-    def __init__(
+    def __init__(self):
+        self.store = get_store()
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # REGISTER
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def register(
         self,
-        db: Session,
-        jwt_secret: str,
-        jwt_algorithm: str = "HS256",
-        jwt_expiration_hours: int = 1
-    ):
-        self.db = db
-        self.key_manager = KeyManager()
-        # FIX #7: Fail fast if JWT secret is missing or is the insecure default
-        if not jwt_secret or jwt_secret == "your-secret-key-change-in-production":
-            raise ValueError(
-                "JWT_SECRET environment variable must be set to a strong random value. "
-                "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
-            )
-        self.jwt_secret = jwt_secret
-        self.jwt_algorithm = jwt_algorithm
-        self.jwt_expiration_hours = jwt_expiration_hours
-
-    # ==================== User Registration ====================
-
-    # FIX #2: Changed to regular (non-async) method to match route calls
-    def register_user(self, request: RegisterRequest) -> RegisterResponse:
+        email: str,
+        password: str,
+        username: str,
+        full_name: str = "",
+        role: str = "PATIENT",
+        # --- production SSI path (only used when keygen_on_server = false) ---
+        public_key_hex: Optional[str] = None,
+        public_key_compressed: Optional[str] = None,
+        public_key_hash: Optional[str] = None,
+    ) -> RegisterResult:
         """
-        Complete user registration workflow.
-        Returns RegisterResponse with private key (returned ONCE only).
+        Register a new user.
+
+        Dev/test  (keygen_on_server=true):  pass email, password, username.
+                                            Server generates the keypair.
+        Production (keygen_on_server=false): client must also supply
+                                            public_key_hex, public_key_compressed,
+                                            public_key_hash.
+
+        Returns RegisterResult — private_key_pem is in it; save it now.
+        Raises UserAlreadyExistsError or RegistrationError.
         """
-        self._check_duplicate_users(request.email, request.username)
+        email    = email.strip().lower()
+        username = username.strip()
 
-        # Use the client-generated public key (private key never leaves the client)
-        # No server-side keypair generation needed.
-        try:
-            password_hash = self._hash_password(request.password)
-        except Exception as e:
-            raise PasswordHashError(f"Failed to hash password: {str(e)}")
+        # ── Validation ────────────────────────────────────────────────────────
+        if not email or "@" not in email:
+            raise RegistrationError("Invalid email address")
+        if not password or len(password) < 8:
+            raise RegistrationError("Password must be at least 8 characters")
+        if not username or len(username) < 3:
+            raise RegistrationError("Username must be at least 3 characters")
 
+        # ── Keypair ───────────────────────────────────────────────────────────
+        if cfg.keygen_on_server:
+            keypair        = _key_manager.generate_keypair()
+            priv_pem       = keypair.private_key_pem
+            pub_hex        = keypair.public_key_hex          # "04…" uncompressed, 130 hex chars
+            pub_compressed = keypair.public_key_compressed   # "02/03…", 66 hex chars
+            pub_hash       = keypair.public_key_hash         # SHA-256 of raw key bytes, 64 hex chars
+        else:
+            if not (public_key_hex and public_key_compressed and public_key_hash):
+                raise RegistrationError(
+                    "keygen_on_server is false — supply public_key_hex, "
+                    "public_key_compressed, and public_key_hash"
+                )
+            if not public_key_hex.startswith("04") or len(public_key_hex) != 130:
+                raise RegistrationError(
+                    "public_key_hex must be an uncompressed P-256 key: "
+                    "65 bytes hex-encoded starting with '04' (130 chars total)"
+                )
+            priv_pem       = "client-managed"
+            pub_hex        = public_key_hex
+            pub_compressed = public_key_compressed
+            pub_hash       = public_key_hash
+
+        # ── Hash password ─────────────────────────────────────────────────────
+        pw_hash = _hash_password(password)
+
+        # ── Persist ───────────────────────────────────────────────────────────
         try:
-            user = User(
-                username=request.username,
-                email=request.email,
-                full_name=request.full_name,
-                role=UserRole[request.role.value],
-                public_key_hex=request.public_key_hex,
-                public_key_compressed=request.public_key_compressed,
-                public_key_hash=request.public_key_hash,
-                password_hash=password_hash,
-                is_active=True,
-                is_verified=False,
+            user = self.store.create_user(
+                email=email,
+                username=username,
+                full_name=full_name or username,
+                role=role.upper(),
+                password_hash=pw_hash,
+                public_key_hex=pub_hex,
+                public_key_compressed=pub_compressed,
+                public_key_hash=pub_hash,
             )
-            self.db.add(user)
-            self.db.commit()
-            self.db.refresh(user)
-        except IntegrityError as e:
-            self.db.rollback()
-            raise UserAlreadyExistsError(f"User already exists: {str(e)}")
+        except ValueError as e:
+            raise UserAlreadyExistsError(str(e))
         except Exception as e:
-            self.db.rollback()
-            raise RegistrationError(f"Database error: {str(e)}")
+            raise RegistrationError(f"Storage error: {e}")
 
-        access_token = self._generate_jwt_token(user.id, user.email)
-        self._log_user_registration(user.id, user.username, request.role)
-
-        return RegisterResponse(
-            user_id=user.id,
-            username=user.username,
-            email=user.email,
-            role=request.role,
-            full_name=request.full_name,
-            public_key_hash=request.public_key_hash,
-            public_key_compressed=request.public_key_compressed,
-            private_key_pem="managed-client-side",
-            private_key_qr="",
-            access_token=access_token,
-            created_at=user.created_at,
+        self.store.append_audit(
+            user_id=user["id"],
+            action="USER_REGISTERED",
+            description=f"User '{username}' registered as {role.upper()}",
         )
 
-    # FIX #2: Changed to regular (non-async) method
-    def login_user(self, request: LoginRequest) -> LoginResponse:
-        """Authenticate user and return JWT."""
-        user = self.db.query(User).filter(User.email == request.email).first()
+        token = _issue_jwt(user["id"], email)
+        logger.info("Registered user id=%s email=%s role=%s", user["id"], email, role)
 
+        return RegisterResult(
+            user_id=user["id"],
+            email=email,
+            username=username,
+            full_name=user["full_name"],
+            role=user["role"],
+            public_key_hex=pub_hex,
+            public_key_compressed=pub_compressed,
+            public_key_hash=pub_hash,
+            private_key_pem=priv_pem,
+            access_token=token,
+            created_at=user["created_at"],
+        )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # LOGIN
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def login(self, email: str, password: str) -> LoginResult:
+        """
+        Authenticate with email + password.
+        Returns LoginResult with JWT and the user's public key material.
+        Raises AuthenticationError on bad credentials or inactive account.
+        """
+        email = email.strip().lower()
+        user  = self.store.get_by_email(email)
+
+        # Same error for "not found" and "wrong password" — don't leak email list
         if not user:
-            self._log_failed_login(request.email, "User not found")
-            raise RegistrationError("Invalid email or password")
+            self._log_failed(email, "user not found")
+            raise AuthenticationError("Invalid email or password")
 
-        if not user.is_active:
-            self._log_failed_login(request.email, "User not active")
-            raise RegistrationError("User account is disabled")
+        if not user.get("is_active", True):
+            self._log_failed(email, "account disabled")
+            raise AuthenticationError("Account is disabled")
 
-        if not self._verify_password(request.password, user.password_hash):
-            self._log_failed_login(request.email, "Invalid password")
-            raise RegistrationError("Invalid email or password")
+        if not _verify_password(password, user["password_hash"]):
+            self._log_failed(email, "wrong password")
+            raise AuthenticationError("Invalid email or password")
 
-        access_token = self._generate_jwt_token(user.id, user.email)
-        user.last_login = datetime.utcnow()
-        self.db.commit()
-        self._log_login_success(user.id, request.email)
+        self.store.touch_last_login(user["id"])
+        self.store.append_audit(
+            user_id=user["id"],
+            action="LOGIN_SUCCESS",
+            description=f"Login: {email}",
+        )
+        token = _issue_jwt(user["id"], email)
+        logger.info("Login ok user id=%s", user["id"])
 
-        return LoginResponse(
-            access_token=access_token,
-            user_id=user.id,
-            username=user.username,
-            email=user.email,
-            role=UserRole(user.role.value),
-            full_name=user.full_name,
-            public_key_hash=user.public_key_hash,
+        return LoginResult(
+            user_id=user["id"],
+            email=email,
+            username=user["username"],
+            full_name=user["full_name"],
+            role=user["role"],
+            public_key_hash=user["public_key_hash"],
+            public_key_compressed=user["public_key_compressed"],
+            access_token=token,
+            last_login=user.get("last_login"),
         )
 
-    # FIX #2: Changed to regular (non-async) method
-    def get_user_profile(self, user_id: int) -> UserProfile:
-        """Return user profile (non-sensitive fields only)."""
-        user = self.db.query(User).filter(User.id == user_id).first()
+    # ══════════════════════════════════════════════════════════════════════════
+    # JWT VERIFICATION  (used by auth middleware / route deps)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    @staticmethod
+    def verify_token(token: str) -> dict:
+        """Decode and verify a JWT.  Returns payload dict.
+           Raises AuthenticationError on any failure."""
+        try:
+            return jwt.decode(token, cfg.jwt_secret, algorithms=[cfg.jwt_algorithm])
+        except jwt.ExpiredSignatureError:
+            raise AuthenticationError("Token expired")
+        except jwt.InvalidTokenError as e:
+            raise AuthenticationError(f"Invalid token: {e}")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PUBLIC KEY LOOKUPS  (used by other services / crypto modules)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def get_public_key_hex(self, email: str) -> str:
+        """
+        Return uncompressed public_key_hex for a user by email.
+        This is the string ecies_encrypt() and verify_signature() expect.
+        Raises RegistrationError if not found.
+        """
+        user = self.store.get_by_email(email)
         if not user:
-            raise RegistrationError("User not found")
+            raise RegistrationError(f"User not found: {email}")
+        return user["public_key_hex"]
 
-        return UserProfile(
-            user_id=user.id,
-            username=user.username,
-            email=user.email,
-            role=UserRole(user.role.value),
-            full_name=user.full_name,
-            public_key_hash=user.public_key_hash,
-            public_key_compressed=user.public_key_compressed,
-            is_active=user.is_active,
-            is_verified=user.is_verified,
-            created_at=user.created_at,
-            last_login=user.last_login,
+    def get_public_key_hex_by_hash(self, public_key_hash: str) -> str:
+        """
+        Return uncompressed public_key_hex looked up by its SHA-256 hash.
+        Used by permission / record services that store the hash as identity.
+        Raises RegistrationError if not found.
+        """
+        user = self.store.get_by_public_key_hash(public_key_hash)
+        if not user:
+            raise RegistrationError(f"No user for public_key_hash: {public_key_hash}")
+        return user["public_key_hex"]
+
+    # ── Internal ──────────────────────────────────────────────────────────────
+
+    def _log_failed(self, email: str, reason: str):
+        self.store.append_audit(
+            user_id=0,   # sentinel for anonymous / unauthenticated events
+            action="LOGIN_FAILED",
+            description=f"Failed login for {email}: {reason}",
         )
 
-    # ==================== Password Management ====================
 
-    def _hash_password(self, password: str) -> str:
-        """Hash password with PBKDF2-HMAC-SHA256 (100,000 iterations)."""
+# ── Password helpers ──────────────────────────────────────────────────────────
+
+def _hash_password(password: str) -> str:
+    """PBKDF2-HMAC-SHA256, 100 000 iterations, 32-byte random salt.
+    Format:  sha256$<iterations>$<salt_hex>$<hash_hex>"""
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.backends import default_backend
+
+    iterations = 100_000
+    salt       = os.urandom(32)
+    kdf        = PBKDF2HMAC(
+        algorithm=hashes.SHA256(), length=32,
+        salt=salt, iterations=iterations, backend=default_backend(),
+    )
+    h = kdf.derive(password.encode("utf-8"))
+    return f"sha256${iterations}${salt.hex()}${h.hex()}"
+
+
+def _verify_password(password: str, stored: str) -> bool:
+    """Constant-time PBKDF2 verification."""
+    try:
         from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.backends import default_backend
 
-        iterations = 100_000
-        salt = os.urandom(32)
-
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=salt,
-            iterations=iterations,
-            backend=default_backend(),
-        )
-        hash_bytes = kdf.derive(password.encode("utf-8"))
-        return f"sha256${iterations}${salt.hex()}${hash_bytes.hex()}"
-
-    def _verify_password(self, password: str, password_hash: str) -> bool:
-        """Constant-time password verification."""
-        try:
-            from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-            from cryptography.hazmat.primitives import hashes
-            from cryptography.hazmat.backends import default_backend
-            import hmac as hmac_lib
-
-            parts = password_hash.split("$")
-            if len(parts) != 4 or parts[0] != "sha256":
-                return False
-
-            _, iterations, salt_hex, hash_hex = parts
-            iterations = int(iterations)
-            salt = bytes.fromhex(salt_hex)
-            stored_hash = bytes.fromhex(hash_hex)
-
-            kdf = PBKDF2HMAC(
-                algorithm=hashes.SHA256(),
-                length=32,
-                salt=salt,
-                iterations=iterations,
-                backend=default_backend(),
-            )
-            computed_hash = kdf.derive(password.encode("utf-8"))
-            return hmac_lib.compare_digest(computed_hash, stored_hash)
-        except Exception:
+        parts = stored.split("$")
+        if len(parts) != 4 or parts[0] != "sha256":
             return False
-
-    # ==================== JWT Token Management ====================
-
-    # FIX #3: Use PyJWT for both encode AND decode (was using custom encoder + PyJWT decoder)
-    def _generate_jwt_token(self, user_id: int, email: str) -> str:
-        """Generate a signed JWT using PyJWT."""
-        now = datetime.utcnow()
-        payload = {
-            "sub": str(user_id),
-            "email": email,
-            "iat": now,
-            "exp": now + timedelta(hours=self.jwt_expiration_hours),
-        }
-        return jwt.encode(payload, self.jwt_secret, algorithm=self.jwt_algorithm)
-
-    def verify_jwt_token(self, token: str) -> dict:
-        """Verify and decode a JWT. Raises RegistrationError on failure."""
-        try:
-            return jwt.decode(token, self.jwt_secret, algorithms=[self.jwt_algorithm])
-        except jwt.ExpiredSignatureError:
-            raise RegistrationError("Token has expired")
-        except jwt.InvalidTokenError as e:
-            raise RegistrationError(f"Invalid token: {str(e)}")
-
-    # ==================== Validation ====================
-
-    def _check_duplicate_users(self, email: str, username: str):
-        if self.db.query(User).filter(User.email == email).first():
-            raise UserAlreadyExistsError(f"Email already registered: {email}")
-        if self.db.query(User).filter(User.username == username).first():
-            raise UserAlreadyExistsError(f"Username already taken: {username}")
-
-    # ==================== Audit Logging ====================
-
-    def _log_user_registration(self, user_id: int, username: str, role):
-        """Log registration event to audit trail."""
-        from src.services import audit_service
-        audit_service.append(
-            self.db,
-            action=AuditAction.USER_REGISTERED,
-            user_id=user_id,
-            description=f"User '{username}' registered as {role}",
+        _, iterations, salt_hex, hash_hex = parts
+        salt        = bytes.fromhex(salt_hex)
+        stored_hash = bytes.fromhex(hash_hex)
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(), length=32,
+            salt=salt, iterations=int(iterations), backend=default_backend(),
         )
+        computed = kdf.derive(password.encode("utf-8"))
+        return hmac_lib.compare_digest(computed, stored_hash)
+    except Exception:
+        return False
 
-    def _log_login_success(self, user_id: int, email: str):
-        from src.services import audit_service
-        audit_service.append(
-            self.db,
-            action=AuditAction.LOGIN_SUCCESS,
-            user_id=user_id,
-            description=f"Login successful for {email}",
-        )
 
-    def _log_failed_login(self, email: str, reason: str):
-        # user_id=0 is the sentinel for anonymous/unknown — no FK enforced on SQLite.
-        # For PostgreSQL, create a dedicated DB user with id=0 before first deploy.
-        from src.services import audit_service
-        audit_service.append(
-            self.db,
-            action=AuditAction.LOGIN_FAILED,
-            user_id=0,
-            description=f"Login failed for {email}: {reason}",
-        )
+def _issue_jwt(user_id: int, email: str) -> str:
+    now = datetime.utcnow()
+    payload = {
+        "sub":   str(user_id),
+        "email": email,
+        "iat":   now,
+        "exp":   now + timedelta(hours=cfg.jwt_expiration_hours),
+    }
+    return jwt.encode(payload, cfg.jwt_secret, algorithm=cfg.jwt_algorithm)
