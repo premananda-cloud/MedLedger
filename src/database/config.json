@@ -1,0 +1,46 @@
+{
+  "_comment": "CypherAegis / MedLedger - External Configuration",
+  "_note": "Switch 'db_backend' to change storage without touching any code.",
+
+  "db_backend": "json",
+
+  "json_db": {
+    "path": "./data/users.json",
+    "_comment": "Used when db_backend = json. User identity store."
+  },
+
+  "vault_db": {
+    "path": "./database/vault.json",
+    "_comment": "Encrypted vault — records, ciphertext, grants, vault audit."
+  },
+
+  "sqlite": {
+    "path": "./data/medledger.db",
+    "_comment": "Used when db_backend = sqlite."
+  },
+
+  "postgres": {
+    "url_env": "DATABASE_URL",
+    "_comment": "Used when db_backend = postgres. Reads connection string from env var."
+  },
+
+  "jwt": {
+    "secret_env": "JWT_SECRET",
+    "secret_fallback": "dev-only-secret-change-before-any-real-use",
+    "algorithm": "HS256",
+    "expiration_hours": 1,
+    "_comment": "secret_env is read first; fallback is used ONLY in dev/test mode."
+  },
+
+  "crypto": {
+    "keygen_on_server": true,
+    "_comment": "true = server generates keypair during registration (dev/test only). false = client must supply public_key_hex etc. in the request body (production SSI model)."
+  },
+
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "env": "development",
+    "allowed_origins": ["http://localhost:3000", "http://localhost:8000", "http://127.0.0.1:8000"]
+  }
+}

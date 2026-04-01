@@ -1,30 +1,39 @@
 """
-Schemas Package Initialization
-Location: src/api/schemas/__init__.py
+schemas/__init__.py
 
-Exposes Pydantic models for request/response validation and serialization.
+Single import point for all CypherAegis schema types.
+
+Usage:
+    from src.schemas import UserRecord, VaultRecord, CiphertextRecord, Grant
 """
 
-from .user import (
-    UserRoleEnum,
-    RegisterRequest,
-    RegisterResponse,
-    LoginRequest,
-    LoginResponse,
-    UserProfile,
-    PublicKeyResponse,
-    ErrorResponse,
-    ValidationErrorResponse,
+from .user_schema import (
+    UserRecord,
+    AuditEntry,
+    VALID_ROLES,
+)
+
+from .vault_schema import (
+    VaultRecord,
+    CiphertextRecord,
+)
+
+from .grant_schema import (
+    Grant,
+    VaultAuditEntry,
+    VALID_PERMISSION_LEVELS,
 )
 
 __all__ = [
-    "UserRoleEnum",
-    "RegisterRequest",
-    "RegisterResponse",
-    "LoginRequest",
-    "LoginResponse",
-    "UserProfile",
-    "PublicKeyResponse",
-    "ErrorResponse",
-    "ValidationErrorResponse",
+    # user
+    "UserRecord",
+    "AuditEntry",
+    "VALID_ROLES",
+    # vault
+    "VaultRecord",
+    "CiphertextRecord",
+    # grants
+    "Grant",
+    "VaultAuditEntry",
+    "VALID_PERMISSION_LEVELS",
 ]

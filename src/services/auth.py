@@ -1,15 +1,19 @@
 """
 Authentication Routes
-Location: src/api/routes/auth.py
+Location: src/services/auth.py  (also served as src/api/routes/auth.py)
 
 Thin HTTP layer — all logic lives in RegistrationService.
+Fixed vs original:
+  - No longer imports get_db / SQLAlchemy session (store is config-driven)
+  - RegistrationService() takes no args (singleton store inside)
+  - verify_token is a @staticmethod, called correctly
+  - Removed duplicate route file confusion
 """
 
-from fastapi import APIRouter, HTTPException, Request, Depends, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -20,10 +24,10 @@ from src.services.registration import (
 
 limiter  = Limiter(key_func=get_remote_address)
 router   = APIRouter(prefix="/api/auth", tags=["authentication"])
-_service = RegistrationService()   # singleton — store is already a singleton inside
+_service = RegistrationService()   # singleton — store is a singleton inside
 
 
-# ── Request / Response schemas ────────────────────────────────────────────────
+# ── Request schemas ───────────────────────────────────────────────────────────
 
 class RegisterRequest(BaseModel):
     email:     EmailStr
@@ -31,7 +35,7 @@ class RegisterRequest(BaseModel):
     username:  str = Field(..., min_length=3, max_length=50)
     full_name: Optional[str] = ""
     role:      Optional[str] = "PATIENT"
-    # Production SSI path (only needed when keygen_on_server=false in config)
+    # Production SSI path — only needed when keygen_on_server=false in config
     public_key_hex:        Optional[str] = None
     public_key_compressed: Optional[str] = None
     public_key_hash:       Optional[str] = None
@@ -47,9 +51,8 @@ class LoginRequest(BaseModel):
 @limiter.limit("10/minute")
 async def register(request: Request, body: RegisterRequest):
     """
-    Register a new user.
-    Server generates the keypair (config keygen_on_server=true).
-    Returns private_key_pem ONCE — save it immediately.
+    Register a new user. Server generates the P-256 keypair (keygen_on_server=true).
+    Returns private_key_pem ONCE — save it immediately, it is never stored.
     """
     try:
         result = _service.register(
@@ -72,7 +75,7 @@ async def register(request: Request, body: RegisterRequest):
 @router.post("/login", status_code=200)
 @limiter.limit("10/minute")
 async def login(request: Request, body: LoginRequest):
-    """Authenticate with email + password. Returns JWT."""
+    """Authenticate with email + password. Returns JWT and public key material."""
     try:
         result = _service.login(body.email, body.password)
         return result.to_dict()
@@ -82,7 +85,7 @@ async def login(request: Request, body: LoginRequest):
 
 @router.get("/me", status_code=200)
 async def me(request: Request):
-    """Return profile of the currently authenticated user."""
+    """Return profile of the currently authenticated user (requires Bearer token)."""
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing Bearer token")
@@ -93,26 +96,28 @@ async def me(request: Request):
     except AuthenticationError as e:
         raise HTTPException(status_code=401, detail=str(e))
 
-    store = _service.store
-    user  = store.get_by_id(user_id)
+    user = _service.store.get_by_id(user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Return safe fields only (no password_hash)
     return {
-        "user_id":              user["id"],
-        "email":                user["email"],
-        "username":             user["username"],
-        "full_name":            user["full_name"],
-        "role":                 user["role"],
-        "public_key_hash":      user["public_key_hash"],
-        "public_key_compressed":user["public_key_compressed"],
-        "is_active":            user["is_active"],
-        "created_at":           user["created_at"],
-        "last_login":           user.get("last_login"),
+        "user_id":               user.id,
+        "email":                 user.email,
+        "username":              user.username,
+        "full_name":             user.full_name,
+        "role":                  user.role,
+        "public_key_hash":       user.public_key_hash,
+        "public_key_compressed": user.public_key_compressed,
+        "is_active":             user.is_active,
+        "created_at":            user.created_at,
+        "last_login":            user.last_login,
     }
 
 
 @router.get("/health")
 async def health():
-    return {"status": "ok", "service": "auth", "timestamp": datetime.utcnow().isoformat()}
+    return {
+        "status": "ok",
+        "service": "auth",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }

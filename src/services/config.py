@@ -21,9 +21,10 @@ from typing import Literal
 
 # ── Locate config.json ────────────────────────────────────────────────────────
 # Works whether you run from the project root or from inside src/.
-_HERE = Path(__file__).resolve().parent          # .../src/
-_ROOT = _HERE.parent                              # project root
-_CONFIG_PATH = _ROOT / "config.json"
+_HERE = Path(__file__).resolve().parent          # .../src/services/
+_SRC  = _HERE.parent                             # .../src/
+_ROOT = _SRC.parent                              # project root
+_CONFIG_PATH = _SRC / "database" / "config.json"  # canonical config with vault_db
 
 
 def _load_raw() -> dict:
@@ -43,9 +44,10 @@ class AppConfig:
     db_backend: Literal["json", "sqlite", "postgres"]
 
     # Resolved DB paths / URL
-    json_db_path: Path
-    sqlite_path: Path
-    postgres_url: str          # empty string if not configured
+    json_db_path:  Path      # data/users.json       — identity store
+    vault_db_path: Path      # database/vault.json   — encrypted vault
+    sqlite_path:   Path
+    postgres_url:  str       # empty string if not configured
 
     # JWT
     jwt_secret: str
@@ -70,10 +72,15 @@ class AppConfig:
 def _build_config(raw: dict) -> AppConfig:
     backend = raw.get("db_backend", "json").lower()
 
-    # ── JSON path ────────────────────────────────────────────────────────────
+    # ── JSON path (user identity) ─────────────────────────────────────────────
     json_rel = raw.get("json_db", {}).get("path", "./data/users.json")
     json_path = (_ROOT / json_rel).resolve()
     json_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # ── Vault path (encrypted records + grants) ───────────────────────────────
+    vault_rel  = raw.get("vault_db", {}).get("path", "./database/vault.json")
+    vault_path = (_ROOT / vault_rel).resolve()
+    vault_path.parent.mkdir(parents=True, exist_ok=True)
 
     # ── SQLite path ──────────────────────────────────────────────────────────
     sqlite_rel = raw.get("sqlite", {}).get("path", "./data/medledger.db")
@@ -104,6 +111,7 @@ def _build_config(raw: dict) -> AppConfig:
     return AppConfig(
         db_backend=backend,
         json_db_path=json_path,
+        vault_db_path=vault_path,
         sqlite_path=sqlite_path,
         postgres_url=postgres_url,
         jwt_secret=jwt_secret,

@@ -1,35 +1,30 @@
 """
 Store Factory
-Location: src/database/store.py
+Location: src/services/store.py
 
-Returns the active storage backend as decided by config.json.
-Every service that needs persistence imports get_store() from here.
+Returns the active user-identity storage backend as decided by config.json.
+Every service that needs user persistence imports get_store() from here.
+
+Delegates to src/database/user_store.UserStore (json backend) or
+src/database/sql_store.SqlStore (sqlite/postgres) — the new typed-schema layer.
 
 Usage:
-    from src.database.store import get_store
+    from src.services.store import get_store
     store = get_store()
-    user  = store.get_by_email("alice@example.com")
-
-Adding a new backend:
-    1. Implement the same public interface as JsonStore in a new class.
-    2. Add a branch in _build_store() below.
-    3. Update config.json → "db_backend" to the new name.
-    Nothing else changes.
+    user  = store.get_by_email("alice@example.com")  # returns UserRecord
 """
 
-from src.config import cfg
+from src.services.config import cfg
 
 
 def _build_store():
     backend = cfg.db_backend
 
     if backend == "json":
-        from src.database.json_store import JsonStore
-        return JsonStore(cfg.json_db_path)
+        from src.database.user_store import UserStore
+        return UserStore(cfg.json_db_path)
 
     if backend == "sqlite":
-        # SQLite uses the existing SQLAlchemy session via connection.py.
-        # Wrap it in a thin adapter so callers use the same interface.
         from src.database.sql_store import SqlStore
         return SqlStore(db_url=f"sqlite:///{cfg.sqlite_path}")
 
