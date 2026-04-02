@@ -1,4 +1,51 @@
 {
-  "users": [],
-  "audit": []
+  "users": [
+    {
+      "id": 1,
+      "email": "premananda367singh@gmail.com",
+      "username": "premananda",
+      "full_name": "",
+      "role": "PATIENT",
+      "password_hash": "sha256$100000$c372fbe429e2b36cb68a3b004e10eb44f8f48fce1f057aef62676e9df868573b$6309818726d5080ea5e8456597de05928e74c57c17ebd051f57206efd9f0a539",
+      "is_verified": true,
+      "is_active": true,
+      "created_at": "2026-04-02T03:39:31.039363+00:00",
+      "public_key_hex": "0494c8f24baa61434b7683778eb00c3d86140fdba75edb02d6018a58d14d2c030c517db6c9230b28f67e00fe279aa6729c0370b46424f56cb08d9584ca85ea617e",
+      "public_key_compressed": "0294c8f24baa61434b7683778eb00c3d86140fdba75edb02d6018a58d14d2c030c",
+      "public_key_hash": "36f56198e04e32fab8484d6d5082952875a0920729ae25538a7a826be52958e5",
+      "verification_token": null,
+      "token_expires_at": null,
+      "last_login": "2026-04-02T03:47:14.884942+00:00"
+    }
+  ],
+  "audit": [
+    {
+      "id": 1,
+      "user_id": 1,
+      "action": "REGISTRATION_STARTED",
+      "description": "Pending verification: premananda367singh@gmail.com",
+      "timestamp": "2026-04-02T03:39:31.040625+00:00"
+    },
+    {
+      "id": 2,
+      "user_id": 1,
+      "action": "EMAIL_VERIFIED",
+      "description": "Account activated: premananda367singh@gmail.com",
+      "timestamp": "2026-04-02T03:40:47.812510+00:00"
+    },
+    {
+      "id": 3,
+      "user_id": 1,
+      "action": "LOGIN_SUCCESS",
+      "description": "Authenticated: premananda367singh@gmail.com",
+      "timestamp": "2026-04-02T03:40:51.721286+00:00"
+    },
+    {
+      "id": 4,
+      "user_id": 1,
+      "action": "LOGIN_SUCCESS",
+      "description": "Authenticated: premananda367singh@gmail.com",
+      "timestamp": "2026-04-02T03:47:14.885937+00:00"
+    }
+  ]
 }

@@ -20,6 +20,10 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
+import pathlib
+
 from src.services.config import cfg
 from src.services.auth import router as auth_router
 from src.api.vault import router as vault_router
@@ -65,9 +69,16 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(vault_router)
 
+# ── Static UI ─────────────────────────────────────────────────────────────────
+_ui_dir = pathlib.Path(__file__).parent / "UI"
+if _ui_dir.exists():
+    app.mount("/ui", StaticFiles(directory=_ui_dir, html=True), name="ui")
+
 
 @app.get("/", tags=["health"])
 async def root():
+    if _ui_dir.exists():
+        return RedirectResponse("/ui/index.html")
     return {"service": "MedLedger", "status": "ok", "env": cfg.env}
 
 
