@@ -1,4 +1,4 @@
-# CypherAegis / MedLedger
+MedLedger
 
 Patient-controlled healthcare data vault with P-256 cryptography.
 
