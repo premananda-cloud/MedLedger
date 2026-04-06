@@ -8,12 +8,18 @@ const { createRoot } = ReactDOM;
 
 // ─── API layer ────────────────────────────────────────────────────────────────
 
-const BASE = "http://localhost:8000";
+// Read API base from config bootstrap (set by index.html before React loads).
+// Falls back to localhost:8000 for direct file:// opens or legacy use.
+function getBase() {
+  return (window.__ML_BASE || sessionStorage.getItem("ml_api_base") || "http://localhost:8000").replace(/\/+$/, "");
+}
+const BASE = { get current() { return getBase(); } };
+
 
 async function api(method, path, body, token) {
   const headers = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const r = await fetch(`${BASE}${path}`, {
+  const r = await fetch(`${BASE.current}${path}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,

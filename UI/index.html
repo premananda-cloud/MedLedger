@@ -5,15 +5,115 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MedLedger — Secure Healthcare Vault</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔐</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* Config banner */
+    #config-banner {
+      position: fixed; inset: 0; z-index: 9999;
+      background: #0f1923;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Outfit', sans-serif;
+      padding: 24px;
+    }
+    #config-banner.hidden { display: none; }
+    .cfg-card {
+      background: #fff; border-radius: 18px;
+      padding: 40px; width: 100%; max-width: 440px;
+      box-shadow: 0 24px 64px rgba(0,0,0,.3);
+    }
+    .cfg-title { font-size: 26px; font-weight: 700; color: #0f1923; margin: 0 0 4px; letter-spacing: -.4px; }
+    .cfg-sub   { font-size: 14px; color: #6b7280; margin: 0 0 28px; }
+    .cfg-label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    .cfg-input {
+      width: 100%; padding: 11px 14px; border: 1.5px solid #e5e9f0; border-radius: 10px;
+      font-family: 'DM Mono', monospace; font-size: 13px; color: #0f1923; outline: none;
+      transition: border-color .15s, box-shadow .15s; box-sizing: border-box;
+    }
+    .cfg-input:focus { border-color: #1d6fdb; box-shadow: 0 0 0 3px rgba(29,111,219,.12); }
+    .cfg-hint { font-size: 12px; color: #9ca3af; margin: 6px 0 24px; }
+    .cfg-btn {
+      width: 100%; padding: 12px; background: #1d6fdb; color: #fff;
+      border: none; border-radius: 10px; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: background .15s;
+    }
+    .cfg-btn:hover { background: #1558b8; }
+    .cfg-skip {
+      display: block; text-align: center; margin-top: 14px;
+      font-size: 13px; color: #9ca3af; cursor: pointer;
+      background: none; border: none; width: 100%;
+    }
+    .cfg-skip:hover { color: #6b7280; }
+    .cfg-note {
+      margin-top: 20px; padding: 12px 14px; background: #f8f9fb;
+      border-radius: 10px; border: 1px solid #e5e9f0;
+      font-size: 12px; color: #6b7280; line-height: 1.7;
+    }
+    .cfg-note code {
+      font-family: 'DM Mono', monospace; font-size: 11px;
+      background: #e5e9f0; padding: 1px 5px; border-radius: 4px; color: #374151;
+    }
+
+    /* API status chip in topbar */
+    #api-status-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 99px;
+      font-size: 12px; font-weight: 500; cursor: pointer;
+      border: none; transition: opacity .15s;
+    }
+    #api-status-chip:hover { opacity: .8; }
+  </style>
 </head>
 <body>
+
+  <!-- ── Config banner ──────────────────────────────────────────────────── -->
+  <div id="config-banner">
+    <div class="cfg-card">
+      <div class="cfg-title">🔐 MedLedger</div>
+      <div class="cfg-sub">Connect to your backend to get started.</div>
+
+      <label class="cfg-label" for="api-url-input">Backend API URL</label>
+      <input id="api-url-input" class="cfg-input" type="url"
+             value="http://localhost:8000" placeholder="http://localhost:8000" spellcheck="false" />
+      <div class="cfg-hint">Where your <code style="font-family:monospace;font-size:11px;">uvicorn main:app</code> server is running.</div>
+
+      <button class="cfg-btn" onclick="applyConfig()">Connect →</button>
+      <button class="cfg-skip" onclick="applyConfig(true)">Use default (localhost:8000)</button>
+
+      <div class="cfg-note">
+        <strong>Tip — skip this prompt permanently:</strong><br>
+        Add this line to <code>index.html</code> before the React scripts:<br>
+        <code>&lt;script&gt;window.MEDLEDGER_API = "http://your-host:8000";&lt;/script&gt;</code><br><br>
+        Or from your <code>.env</code>, inject it server-side into the HTML template so the browser receives it pre-configured.
+        The URL is also remembered in <code>sessionStorage</code> for the current tab.
+      </div>
+    </div>
+  </div>
+
   <div id="root"></div>
 
-  <!--
-    Dev setup — no bundler needed.
-    Babel standalone transpiles app.jsx in the browser.
-    For production, replace with: npm create vite@latest / npx vite build
-  -->
+  <!-- ── Config bootstrap ──────────────────────────────────────────────── -->
+  <script>
+    (function () {
+      // Priority: hardcoded window.MEDLEDGER_API > sessionStorage > banner
+      var stored    = sessionStorage.getItem("ml_api_base");
+      var hardcoded = window.MEDLEDGER_API;
+      if (hardcoded || stored) {
+        window.__ML_BASE = (hardcoded || stored).replace(/\/+$/, "");
+        document.getElementById("config-banner").classList.add("hidden");
+      }
+    })();
+
+    function applyConfig(useDefault) {
+      var input = document.getElementById("api-url-input");
+      var url   = useDefault ? "http://localhost:8000" : (input.value.trim() || "http://localhost:8000");
+      url = url.replace(/\/+$/, "");
+      sessionStorage.setItem("ml_api_base", url);
+      window.__ML_BASE = url;
+      document.getElementById("config-banner").classList.add("hidden");
+    }
+  </script>
+
   <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>

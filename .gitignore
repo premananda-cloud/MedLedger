@@ -39,3 +39,13 @@ venv/
 #Virtual environment
 ev/
 .ev/
+
+
+#sensitive 
+.env/
+env/
+.secrets/
+pem/
+.pem
+pem/
+

@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedLedger | Patient-Controlled Healthcare Vault — Architecture Visualization</title>
+    <!-- Font Awesome 6 (free) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,600;14..32,700;14..32,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #f5f9ff;
+            font-family: 'Inter', sans-serif;
+            color: #102a43;
+            line-height: 1.5;
+            scroll-behavior: smooth;
+        }
+
+        /* container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem 2rem 3rem;
+        }
+
+        /* header section */
+        .hero {
+            margin-bottom: 3rem;
+            border-bottom: 2px solid #dce5f2;
+            padding-bottom: 1.5rem;
+        }
+
+        .badge {
+            background: #eef2ff;
+            color: #1e4a76;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.25rem 0.75rem;
+            border-radius: 40px;
+            display: inline-block;
+            letter-spacing: 0.3px;
+            font-family: monospace;
+        }
+
+        h1 {
+            font-size: 2.6rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, #0f2b3d, #1b5a7a);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            margin: 0.75rem 0 0.5rem;
+        }
+
+        .sub {
+            color: #3a5c7c;
+            font-size: 1.05rem;
+            max-width: 800px;
+        }
+
+        /* cards & grids */
+        .grid-2col {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.8rem;
+        }
+
+        .grid-3col {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.8rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 1.5rem;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.02), 0 2px 6px rgba(0,20,40,0.05);
+            transition: all 0.2s ease;
+            border: 1px solid #e7edf4;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 1.2rem 1.5rem 0.6rem;
+            border-bottom: 1px solid #eef2f8;
+            font-weight: 700;
+            font-size: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #fafdff;
+        }
+
+        .card-header i {
+            color: #2c7cb6;
+            font-size: 1.3rem;
+        }
+
+        .card-body {
+            padding: 1.2rem 1.5rem 1.5rem;
+        }
+
+        .pill {
+            background: #eef2fa;
+            border-radius: 32px;
+            padding: 0.2rem 0.8rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+            font-family: monospace;
+        }
+
+        hr {
+            margin: 1rem 0;
+            border: 0;
+            height: 1px;
+            background: #e2e8f0;
+        }
+
+        .flow-step {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.2rem;
+            align-items: flex-start;
+        }
+
+        .step-number {
+            background: #eef2ff;
+            color: #1e4a76;
+            font-weight: 800;
+            width: 28px;
+            height: 28px;
+            border-radius: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+
+        .invariant {
+            background: #fef6e0;
+            border-left: 4px solid #e6b12e;
+            padding: 0.8rem 1rem;
+            border-radius: 12px;
+            margin-bottom: 0.8rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        th {
+            text-align: left;
+            background: #f1f5f9;
+            padding: 0.5rem 0.6rem;
+            font-weight: 600;
+        }
+        td {
+            padding: 0.6rem;
+            border-bottom: 1px solid #eef2f5;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            background: #f2f6fc;
+            padding: 0.1rem 0.3rem;
+            border-radius: 6px;
+        }
+
+        .footer-note {
+            margin-top: 3rem;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #5e7b9c;
+            border-top: 1px solid #dce5ef;
+            padding-top: 2rem;
+        }
+
+        @media (max-width: 900px) {
+            .grid-2col, .grid-3col {
+                grid-template-columns: 1fr;
+            }
+            .container {
+                padding: 1rem;
+            }
+        }
+
+        .section-title {
+            font-size: 1.7rem;
+            font-weight: 700;
+            margin: 2rem 0 1rem;
+            letter-spacing: -0.3px;
+            border-left: 5px solid #2c7cb6;
+            padding-left: 1rem;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="hero">
+        <span class="badge"><i class="fas fa-shield-alt"></i> Version 0.2 · April 2026 · CypherAegis / MedLedger</span>
+        <h1>MedLedger · Patient‑Controlled Vault</h1>
+        <div class="sub">Cryptographic health data platform — private keys never leave the client, every grant is signed, DEKs always wrapped.</div>
+    </div>
+
+    <!-- 2. Design principles & invariants -->
+    <div class="grid-2col">
+        <div class="card">
+            <div class="card-header"><i class="fas fa-gem"></i> Five Non‑Negotiable Invariants</div>
+            <div class="card-body">
+                <div class="invariant"><i class="fas fa-key"></i> <strong>Private keys never leave the client.</strong> Generated client-side, never transmitted.</div>
+                <div class="invariant"><i class="fas fa-database"></i> <strong>Server stores only public material.</strong> Public keys, encrypted records, permission signatures — no plaintext.</div>
+                <div class="invariant"><i class="fas fa-link"></i> <strong>On‑chain data is minimal.</strong> Only public key registrations, grant hashes — no health data.</div>
+                <div class="invariant"><i class="fas fa-signature"></i> <strong>Every permission grant = signed data structure.</strong> ECDSA signature verified before persistence.</div>
+                <div class="invariant"><i class="fas fa-lock"></i> <strong>DEKs are always ECIES‑wrapped.</strong> Record Encryption Keys never exist server-side in plaintext.</div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><i class="fas fa-layer-group"></i> Separation of Concerns</div>
+            <div class="card-body">
+                <table>
+                    <thead><tr><th>Concern</th><th>Owned By</th><th>Rationale</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Key generation + crypto</td><td class="mono">CypherAegis</td><td>Isolated, auditable, reusable</td></tr>
+                        <tr><td>User accounts + sessions</td><td class="mono">MedLedger (registration)</td><td>Application-specific</td></tr>
+                        <tr><td>Encrypted file storage</td><td class="mono">transceiver.py</td><td>Business logic, not crypto</td></tr>
+                        <tr><td>HTTP routing</td><td class="mono">api/</td><td>Thin wire layer</td></tr>
+                        <tr><td>Persistence</td><td class="mono">database/</td><td>Swappable backend</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. System Layers + CypherAegis modules -->
+    <div class="section-title"><i class="fas fa-microchip"></i> System Layers & Cryptographic Engine</div>
+    <div class="grid-2col">
+        <div class="card">
+            <div class="card-header"><i class="fas fa-cubes"></i> Layer Overview</div>
+            <div class="card-body">
+                <table style="font-size:0.78rem">
+                    <thead><tr><th>Layer</th><th>Responsibility</th><th>Environment</th></tr></thead>
+                    <tbody>
+                        <tr><td>1 — Identity</td><td>Key generation, registration, public key anchoring</td><td>Client + (future) blockchain</td></tr>
+                        <tr><td>2 — Crypto</td><td>ECIES, ECDSA, Shamir secret sharing</td><td>Client-side exclusively</td></tr>
+                        <tr><td>3 — Access Control</td><td>Permission grants, verification, revocation</td><td>Server validates, blockchain anchors</td></tr>
+                        <tr><td>4 — Storage</td><td>Encrypted records, DEK management</td><td>Server off-chain</td></tr>
+                    </tbody>
+                </table>
+                <hr>
+                <div><span class="pill"><i class="fas-regular fa-code-branch"></i> CypherAegis modules</span></div>
+                <div style="margin-top: 10px; display:flex; flex-wrap:wrap; gap:6px;">
+                    <span class="mono">key_manager.py</span> <span class="mono">ecies.py</span> <span class="mono">signature_verifier.py</span>
+                    <span class="mono">secret_sharing.py</span> <span class="mono">recovery_key_manager.py</span>
+                </div>
+                <div class="mono" style="margin-top: 12px;">Algorithms: P-256, ECDSA, AES-256-GCM, ECIES(ECDH+HKDF), Shamir GF(256)</div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><i class="fas fa-server"></i> Application Layer Modules</div>
+            <div class="card-body">
+                <ul style="list-style: none; margin-left: 0;">
+                    <li><i class="fas fa-user-plus"></i> <strong>registration.py</strong> – register, login, JWT, public key storage</li>
+                    <li><i class="fas fa-cloud-upload-alt"></i> <strong>transceiver.py</strong> – vault ops: upload, download, grant, revoke, rotate key</li>
+                    <li><i class="fas fa-database"></i> <strong>user_store.py / vault_store.py</strong> – JSON/ SQLite persistence</li>
+                    <li><i class="fas fa-fast-forward"></i> <strong>auth.py / vault.py</strong> – FastAPI thin routers</li>
+                    <li><i class="fas fa-id-card"></i> <strong>deps.py</strong> – JWT Bearer validation → CallerIdentity</li>
+                </ul>
+                <div class="mono" style="background:#eef2ff; margin-top:12px; padding:6px;">Data files: data/users.json | database/vault.json (split by design)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Key data flows: registration, login, upload, grant -->
+    <div class="section-title"><i class="fas fa-exchange-alt"></i> Core Data Flows</div>
+    <div class="grid-2col">
+        <div class="card">
+            <div class="card-header"><i class="fas fa-id-card"></i> Registration & Login Flow</div>
+            <div class="card-body">
+                <div class="flow-step"><span class="step-number">1</span><span>Client POST email + password → server hashes with PBKDF2 (100k iter, salt)</span></div>
+                <div class="flow-step"><span class="step-number">2</span><span>Inactive user record + verification token (email simulation)</span></div>
+                <div class="flow-step"><span class="step-number">3</span><span>Client verifies token → server generates P-256 keypair via <span class="mono">KeyManager</span></span></div>
+                <div class="flow-step"><span class="step-number">4</span><span>Stores <span class="mono">public_key_hex</span> + hash; private_key_pem returned once → never stored</span></div>
+                <div class="flow-step"><span class="step-number">5</span><span>Login: password verification (constant‑time), JWT HS256 issued (sub, email, exp)</span></div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><i class="fas fa-upload"></i> File Upload (DEK + ECIES)</div>
+            <div class="card-body">
+                <div class="flow-step"><span class="step-number">1</span><span>Client sends private_key_pem + file → server derives owner public key</span></div>
+                <div class="flow-step"><span class="step-number">2</span><span>Generate fresh 256‑bit DEK, AES-256-GCM encrypt file → IV + ciphertext</span></div>
+                <div class="flow-step"><span class="step-number">3</span><span>ECIES-wrap DEK under owner's public key → <span class="mono">dek_bundle</span></span></div>
+                <div class="flow-step"><span class="step-number">4</span><span>Atomically store VaultRecord + CiphertextRecord (DEK never in plaintext)</span></div>
+                <div class="flow-step"><span class="step-number">5</span><span>Return record_id — plaintext DEK zeroed immediately after wrapping</span></div>
+                <div class="mono" style="margin-top:8px;">🔒 DEK always wrapped, forward secrecy per file via ephemeral ECIES keys</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid-2col" style="margin-top: 0.5rem;">
+        <div class="card">
+            <div class="card-header"><i class="fas fa-share-alt"></i> Grant + Access Flow</div>
+            <div class="card-body">
+                <div class="flow-step"><span class="step-number">1</span><span>Owner POSTs private_key + grantee public_key + record_id + permission</span></div>
+                <div class="flow-step"><span class="step-number">2</span><span>Server decrypts DEK via owner private key (ECIES) → re‑encrypts under grantee public key → new bundle</span></div>
+                <div class="flow-step"><span class="step-number">3</span><span>Construct canonical permission payload → sign with owner's private key (ECDSA P‑256)</span></div>
+                <div class="flow-step"><span class="step-number">4</span><span>Grant stored: <span class="mono">dek_bundle_grantee + signature_hex + time_window + revoked=false</span></span></div>
+                <div class="flow-step"><span class="step-number">5</span><span>On grantee download: verify signature, check time window, decrypt DEK bundle → plaintext DEK locally</span></div>
+                <div class="invariant" style="margin-top:8px;"><i class="fas fa-ban"></i> Revoke: grant.revoked = True → future checks instantly reject</div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><i class="fas fa-shield-hog"></i> Security Properties & Threat Model</div>
+            <div class="card-body">
+                <div><span class="pill">AES-256-GCM + ECIES</span> <span class="pill">ECDSA non‑repudiation</span> <span class="pill">Shamir 3-of-5 recovery</span></div>
+                <hr>
+                <div><strong>✅ Defeats:</strong> database breach (ciphertext only), server compromise (no private keys), permission forgery (signature verification), insider access, replay via signed time windows.</div>
+                <hr>
+                <div><strong>🔐 Cryptographic guarantees:</strong> Forward secrecy (fresh ephemeral keypair per ECIES), constant‑time password verify, PBKDF2 brute‑force resistance.</div>
+                <div style="margin-top:12px;"><i class="fas fa-file-signature"></i> Every grant is a signed data structure — rows without valid signature are invalid.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Model & File separation -->
+    <div class="section-title"><i class="fas fa-table"></i> Data Model & Strict Separation</div>
+    <div class="grid-2col">
+        <div class="card">
+            <div class="card-header"><i class="fas fa-folder-open"></i> File Split (Identity vs Vault)</div>
+            <div class="card-body">
+                <div class="invariant" style="background:#e8f0fe;"><strong>data/users.json</strong> → UserRecord: id, email, password_hash, public_key_hex, public_key_hash, is_active, last_login<br><span class="mono">❌ never contains ciphertext, DEK bundles, grants</span></div>
+                <div class="invariant" style="background:#fef2e0;"><strong>database/vault.json</strong> → VaultRecord, CiphertextRecord, Grant, Audit entries<br><span class="mono">🔒 encrypted vault state, DEK bundles, grants, signatures</span></div>
+                <div class="mono" style="margin-top: 8px;">Rationale: identity never co-resides with encrypted medical records — deliberate isolation.</div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><i class="fas fa-archive"></i> Core Schema Classes</div>
+            <div class="card-body">
+                <ul style="font-size:0.8rem;">
+                    <li><strong>UserRecord</strong> — id, email, username, role, password_hash, public_key_hex, verification_token</li>
+                    <li><strong>VaultRecord</strong> — record_id (UUID), owner_key_hash, filename, iv_hex, tags, created_at</li>
+                    <li><strong>CiphertextRecord</strong> — record_id FK, ciphertext bytes, dek_bundle (ECIES encrypted for owner)</li>
+                    <li><strong>Grant</strong> — grant_id, record_id, grantor_hash, grantee_public_key, permission_level, time_window, dek_bundle_grantee, signature_hex, revoked flag</li>
+                    <li><strong>AuditEntry / VaultAuditEntry</strong> — immutable action trails</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- CypherAegis & Recovery + roadmap -->
+    <div class="section-title"><i class="fas fa-chart-line"></i> Implementation Roadmap & Status</div>
+    <div class="grid-3col">
+        <div class="card">
+            <div class="card-header"><i class="fas fa-check-circle" style="color:#2b6e3b;"></i> Complete Crypto Core</div>
+            <div class="card-body">
+                ✔ key_manager.py (P-256, backup QR) <br>
+                ✔ ecies.py (ECIES + AES-GCM) <br>
+                ✔ signature_verifier.py (ECDSA) <br>
+                ✔ secret_sharing.py (Shamir 3-of-5) <br>
+                ✔ recovery_key_manager.py <br>
+                ✔ Registration, JWT auth, vault upload/download/grant/revoke <br>
+                ✔ Key rotation (re-wrap all DEKs)
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><i class="fas fa-forward"></i> Next Milestones</div>
+            <div class="card-body">
+                🔄 Challenge‑response 2FA (sign nonce with private key) <br>
+                🔄 Wire registration.py → UserStore (remove legacy json_store) <br>
+                🔄 Transceiver → VaultStore typed backend <br>
+                📦 Extract CypherAegis as standalone pip package <br>
+                ⛓️ Blockchain anchoring: public_key_hash + grant hashes on distributed ledger <br>
+                🧹 Delete legacy duplicate <span class="mono">src/medledger/</span>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><i class="fas fa-shield-virus"></i> Production SSI Mode</div>
+            <div class="card-body">
+                <strong>Private key never transmitted</strong> — In production (self‑sovereign identity) all key generation happens client‑side.<br>
+                Server only stores public keys and encrypted payloads.<br>
+                <div class="mono" style="margin-top: 12px;">JWT auth + ECDSA grants = zero‑trust ready.</div>
+                <hr>
+                <i class="fas fa-qrcode"></i> Shamir fragments enable key recovery without central escrow.
+            </div>
+        </div>
+    </div>
+
+    <!-- Threat model table extra -->
+    <div class="section-title"><i class="fas fa-bug"></i> Threat Model Summary</div>
+    <div class="card">
+        <div class="card-body">
+            <div style="display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between;">
+                <div style="flex:1; min-width: 200px;"><i class="fas fa-database"></i> <strong>Database breach</strong><br>Ciphertext + encrypted DEKs → useless without private key</div>
+                <div style="flex:1; min-width: 200px;"><i class="fas fa-terminal"></i> <strong>Server compromise</strong><br>Private keys never transmitted (SSI mode) → only public material</div>
+                <div style="flex:1; min-width: 200px;"><i class="fas fa-pen-fancy"></i> <strong>Permission forgery</strong><br>ECDSA signature on grant; invalid rows rejected</div>
+                <div style="flex:1; min-width: 200px;"><i class="fas fa-clock"></i> <strong>Replay / expired grants</strong><br>Signed time window enforces expiry</div>
+            </div>
+            <hr>
+            <div class="mono" style="text-align: center;">Patient controls master private key — no central party can revoke access to patient’s own records.</div>
+        </div>
+    </div>
+
+    <!-- design invariants recap: key ownership -->
+    <div class="footer-note">
+        <i class="fas fa-lock"></i> MedLedger v0.2 — Architecture designed around CypherAegis crypto layer.  
+        <strong>Private keys are sovereign.</strong> Every access grant verified by math, not institutional trust.<br>
+        Draft — Pre‑Implementation | Author: Premananda (Team Praxis) | April 2026
+    </div>
+</div>
+</body>
+</html>
