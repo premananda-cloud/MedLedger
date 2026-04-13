@@ -15,7 +15,7 @@
       "public_key_hash": "36f56198e04e32fab8484d6d5082952875a0920729ae25538a7a826be52958e5",
       "verification_token": null,
       "token_expires_at": null,
-      "last_login": "2026-04-06T17:09:58.760799+00:00"
+      "last_login": "2026-04-13T08:36:05.640143+00:00"
     }
   ],
   "audit": [
@@ -81,6 +81,34 @@
       "action": "LOGIN_SUCCESS",
       "description": "Authenticated: premananda367singh@gmail.com",
       "timestamp": "2026-04-06T17:09:58.761696+00:00"
+    },
+    {
+      "id": 10,
+      "user_id": 1,
+      "action": "LOGIN_SUCCESS",
+      "description": "Authenticated: premananda367singh@gmail.com",
+      "timestamp": "2026-04-06T17:29:49.295329+00:00"
+    },
+    {
+      "id": 11,
+      "user_id": 1,
+      "action": "LOGIN_SUCCESS",
+      "description": "Authenticated: premananda367singh@gmail.com",
+      "timestamp": "2026-04-10T11:54:50.368396+00:00"
+    },
+    {
+      "id": 12,
+      "user_id": 1,
+      "action": "LOGIN_SUCCESS",
+      "description": "Authenticated: premananda367singh@gmail.com",
+      "timestamp": "2026-04-10T11:58:44.665861+00:00"
+    },
+    {
+      "id": 13,
+      "user_id": 1,
+      "action": "LOGIN_SUCCESS",
+      "description": "Authenticated: premananda367singh@gmail.com",
+      "timestamp": "2026-04-13T08:36:05.641451+00:00"
     }
   ]
 }
