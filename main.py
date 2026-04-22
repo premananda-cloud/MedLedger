@@ -8,9 +8,9 @@ Run:
 Docs:
     http://localhost:8000/docs
 """
-import load_env  
-
 from __future__ import annotations
+
+import load_env
 
 import logging
 from contextlib import asynccontextmanager

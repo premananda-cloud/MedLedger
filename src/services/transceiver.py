@@ -37,7 +37,7 @@ from typing import Optional
 from src.crypto.ecies import ecies_encrypt, ecies_decrypt, aes_gcm_encrypt, aes_gcm_decrypt
 from src.crypto.key_manager import KeyManager
 from src.crypto.signature_verifier import SignatureVerifier
-from src.database.vault_store import VaultStore
+from src.database.pg_vault_store import PgVaultStore
 from src.schemas import VaultRecord, CiphertextRecord, Grant
 
 _km  = KeyManager()
@@ -122,11 +122,11 @@ class Transceiver:
     Every method takes a caller_private_key_pem so the transceiver can
     derive the caller's public key hash on the fly — no session state needed.
 
-    vault_path: path to the vault JSON ledger (passed to VaultStore).
+    vault_path: path to the vault JSON ledger (passed to PgVaultStore).
     """
 
-    def __init__(self, vault_path: Path):
-        self._store = VaultStore(vault_path)
+    def __init__(self, store: PgVaultStore):
+        self._store = store
 
     # ── internal helpers ──────────────────────────────────────────────────────
 
