@@ -15,7 +15,7 @@
       "public_key_hash": "36f56198e04e32fab8484d6d5082952875a0920729ae25538a7a826be52958e5",
       "verification_token": null,
       "token_expires_at": null,
-      "last_login": "2026-04-13T08:36:05.640143+00:00"
+      "last_login": "2026-04-15T12:17:41.695745+00:00"
     }
   ],
   "audit": [
@@ -109,6 +109,13 @@
       "action": "LOGIN_SUCCESS",
       "description": "Authenticated: premananda367singh@gmail.com",
       "timestamp": "2026-04-13T08:36:05.641451+00:00"
+    },
+    {
+      "id": 14,
+      "user_id": 1,
+      "action": "LOGIN_SUCCESS",
+      "description": "Authenticated: premananda367singh@gmail.com",
+      "timestamp": "2026-04-15T12:17:41.697714+00:00"
     }
   ]
 }
