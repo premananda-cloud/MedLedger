@@ -8,6 +8,7 @@ Run:
 Docs:
     http://localhost:8000/docs
 """
+import load_env  
 
 from __future__ import annotations
 

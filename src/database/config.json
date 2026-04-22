@@ -2,7 +2,7 @@
   "_comment": "CypherAegis / MedLedger - External Configuration",
   "_note": "Switch 'db_backend' to change storage without touching any code.",
 
-  "db_backend": "json",
+  "db_backend": "postgres",
 
   "json_db": {
     "path": "./data/users.json",

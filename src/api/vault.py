@@ -41,8 +41,8 @@ from src.api.deps import require_auth, CallerIdentity
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vault", tags=["vault"])
 
-# Singleton transceiver backed by the configured vault path
-_transceiver = Transceiver(cfg.vault_db_path)
+# Singleton transceiver — store backend is chosen by config.json db_backend
+_transceiver = Transceiver(get_vault_store())
 
 
 # ── Request / Response schemas ────────────────────────────────────────────────
