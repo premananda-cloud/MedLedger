@@ -105,8 +105,27 @@ def cmd_register(args):
     print(f"  email             : {resp['email']}")
     print(f"  token_expires_at  : {resp['token_expires_at']}")
     print()
-    print(f"Verification token  : {resp['verification_token']}")
-    print("Run: python client.py verify --token <token>")
+
+    token = resp.get("verification_token")
+    if token and not args.no_auto_verify:
+        # Dev mode: token is returned directly — auto-verify immediately.
+        print("Auto-verifying email (dev mode)...")
+        vresp = _post("/api/auth/verify", {"token": token})
+        session = _load_session()
+        session["private_key_pem"] = vresp["private_key_pem"]
+        session["public_key_hash"] = vresp["public_key_hash"]
+        session["public_key_hex"]  = vresp["public_key_hex"]
+        session["email"]           = vresp["email"]
+        session["user_id"]         = vresp["user_id"]
+        _save_session(session)
+        print(f"Email verified. Account active.")
+        print(f"  public_key_hash : {vresp['public_key_hash'][:16]}...")
+        print()
+        print("Private key saved to .session.json — keep this file safe!")
+        print(f"Now login: python client.py login --email {args.email} --password <password>")
+    else:
+        print(f"Verification token  : {token}")
+        print("Run: python client.py verify --token <token>")
 
 
 def cmd_verify(args):
@@ -299,6 +318,7 @@ def main():
     p.add_argument("--username",  required=True)
     p.add_argument("--full-name", dest="full_name", default="")
     p.add_argument("--role",      default="PATIENT")
+    p.add_argument("--no-auto-verify", dest="no_auto_verify", action="store_true", help="Skip automatic email verification (production / manual flow)")
 
     # verify
     p = sub.add_parser("verify", help="Verify email with token")
