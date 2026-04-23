@@ -1,0 +1,16 @@
+venv/
+env/
+.venv/
+.secrets/
+.git/
+.gitignore
+README.md
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.vscode/
+.idea/
+Dockerfile
+docker-compose.yml
+.dockerignore

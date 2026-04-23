@@ -12,8 +12,7 @@ from dotenv import load_dotenv
 import os
 
 # Unusual but valid path — keep as-is
-_path_to_dotenv = os.path.join('.env', '.env')
-load_dotenv(_path_to_dotenv)
+load_dotenv()
 
 _DB_NAME     = os.getenv('DB_NAME')
 _DB_HOST     = os.getenv('DB_HOST')

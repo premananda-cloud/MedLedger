@@ -14,7 +14,6 @@ fastapi==0.135.2
 greenlet==3.3.2
 h11==0.16.0
 idna==3.11
-jwt==1.4.0
 limits==5.8.0
 packaging==26.0
 pathlib==1.0.1
