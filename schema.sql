@@ -1,4 +1,5 @@
 -- MedLedger PostgreSQL Schema
+CREATE SCHEMA IF NOT EXISTS public;
 -- Reference file — the stores also run these as CREATE TABLE IF NOT EXISTS
 -- on first startup, so you only need to run this manually if you want to
 -- pre-create the schema before the first boot.
