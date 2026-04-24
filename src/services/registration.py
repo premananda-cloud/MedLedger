@@ -21,6 +21,7 @@ Flow:
 
 import os
 import secrets
+import hashlib
 import hmac as _hmac
 import logging
 from dataclasses import dataclass, asdict
@@ -263,6 +264,9 @@ class InvalidTokenError(RegistrationError):
 class AuthenticationError(Exception):
     pass
 
+class PasswordResetError(Exception):
+    pass
+
 
 # ── Result objects ────────────────────────────────────────────────────────────
 
@@ -306,6 +310,17 @@ class LoginResult:
     public_key_compressed: str
     access_token:          str   # signed JWT
     token_type:            str = "bearer"
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class PasswordResetPending:
+    """Returned by request_password_reset(). Token is plaintext (dev) or emailed (prod)."""
+    email:        str
+    reset_token:  str   # plaintext — send this in the reset link / return in dev
+    expires_at:   str   # ISO UTC
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -508,6 +523,71 @@ class RegistrationService:
             raise AuthenticationError("Token has expired")
         except _jwt.InvalidTokenError as e:
             raise AuthenticationError(f"Invalid token: {e}")
+
+    def request_password_reset(self, email: str) -> PasswordResetPending:
+        """
+        Generate a password-reset token for the given email.
+        The token is stored as SHA-256 hash; the plaintext is returned once.
+        In dev mode the caller returns it directly; in prod it would be emailed.
+        Deliberately does NOT reveal whether the email exists (prevents enumeration).
+        """
+        _RESET_TTL_MINUTES = 30
+        email = email.strip().lower()
+
+        user = self.store.get_by_email(email)
+        # Always return success-looking response to prevent enumeration
+        plaintext = secrets.token_urlsafe(32)
+        expires_at = (
+            datetime.now(timezone.utc) + timedelta(minutes=_RESET_TTL_MINUTES)
+        ).isoformat()
+
+        if user and user.is_active:
+            token_hash = hashlib.sha256(plaintext.encode()).hexdigest()
+            self.store.set_reset_token(
+                user_id=user.id,
+                token_hash=token_hash,
+                expires_at=expires_at,
+            )
+            self.store.append_audit(
+                user_id=user.id,
+                action="PASSWORD_RESET_REQUESTED",
+                description=f"Reset token issued for {email}",
+            )
+            logger.info("password reset requested user_id=%s email=%s", user.id, email)
+
+        return PasswordResetPending(
+            email=email,
+            reset_token=plaintext,
+            expires_at=expires_at,
+        )
+
+    def confirm_password_reset(self, token: str, new_password: str) -> None:
+        """
+        Validate the plaintext reset token, enforce password rules,
+        update the password, and clear the token.
+        Raises PasswordResetError on any failure.
+        """
+        if not new_password or len(new_password) < 8:
+            raise PasswordResetError("Password must be at least 8 characters.")
+
+        token_hash = hashlib.sha256(token.strip().encode()).hexdigest()
+        user = self.store.get_by_reset_token_hash(token_hash)
+
+        if not user:
+            raise PasswordResetError("Invalid or expired reset token.")
+
+        expires_at = datetime.fromisoformat(user.reset_token_expires_at)
+        if datetime.now(timezone.utc) > expires_at:
+            raise PasswordResetError("Reset token has expired. Please request a new one.")
+
+        new_hash = _hash_password(new_password)
+        self.store.set_password(user_id=user.id, password_hash=new_hash)
+        self.store.append_audit(
+            user_id=user.id,
+            action="PASSWORD_RESET_COMPLETED",
+            description=f"Password reset for {user.email}",
+        )
+        logger.info("password reset completed user_id=%s", user.id)
 
 
 # ── Password helpers ──────────────────────────────────────────────────────────

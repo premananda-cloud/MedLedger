@@ -175,6 +175,37 @@ class JsonStore:
                     break
             self._write(data)
 
+    def set_reset_token(self, *, user_id: int, token_hash: str, expires_at: str):
+        """Store a hashed password-reset token and its expiry."""
+        with _lock:
+            data = self._read()
+            for u in data["users"]:
+                if u["id"] == user_id:
+                    u["reset_token_hash"]       = token_hash
+                    u["reset_token_expires_at"] = expires_at
+                    break
+            self._write(data)
+
+    def get_by_reset_token_hash(self, token_hash: str):
+        with _lock:
+            data = self._read()
+        return next(
+            (u for u in data["users"] if u.get("reset_token_hash") == token_hash),
+            None,
+        )
+
+    def set_password(self, *, user_id: int, password_hash: str):
+        """Update password and clear the reset token atomically."""
+        with _lock:
+            data = self._read()
+            for u in data["users"]:
+                if u["id"] == user_id:
+                    u["password_hash"]          = password_hash
+                    u["reset_token_hash"]       = None
+                    u["reset_token_expires_at"] = None
+                    break
+            self._write(data)
+
     def append_audit(self, *, user_id: int, action: str, description: str):
         with _lock:
             data = self._read()

@@ -55,6 +55,10 @@ class UserRecord:
     verification_token:     Optional[str] = None
     token_expires_at:       Optional[str] = None
 
+    # password-reset token (hashed server-side, returned plaintext once)
+    reset_token_hash:       Optional[str] = None
+    reset_token_expires_at: Optional[str] = None
+
     last_login:             Optional[str] = None
 
     def to_dict(self) -> dict:
@@ -77,6 +81,8 @@ class UserRecord:
             public_key_hash=d.get("public_key_hash"),
             verification_token=d.get("verification_token"),
             token_expires_at=d.get("token_expires_at"),
+            reset_token_hash=d.get("reset_token_hash"),
+            reset_token_expires_at=d.get("reset_token_expires_at"),
             last_login=d.get("last_login"),
         )
 

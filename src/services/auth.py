@@ -20,7 +20,7 @@ from slowapi.util import get_remote_address
 
 from src.services.registration import (
     RegistrationService, UserAlreadyExistsError, AuthenticationError,
-    RegistrationError, InvalidTokenError,
+    RegistrationError, InvalidTokenError, PasswordResetError,
 )
 
 limiter  = Limiter(key_func=get_remote_address)
@@ -48,6 +48,15 @@ class LoginRequest(BaseModel):
 
 class VerifyRequest(BaseModel):
     token: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token:        str
+    new_password: str = Field(..., min_length=8)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -100,6 +109,33 @@ async def verify_email(request: Request, body: VerifyRequest):
         result = _service.verify_email(body.token)
         return result.to_dict()
     except InvalidTokenError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/forgot-password", status_code=200)
+@limiter.limit("5/minute")
+async def forgot_password(request: Request, body: ForgotPasswordRequest):
+    """
+    Request a password-reset token.
+    Always returns 200 to prevent user enumeration.
+    In dev the plaintext token is returned directly in the response.
+    In production you would email it instead and return only {"status": "sent"}.
+    """
+    result = _service.request_password_reset(body.email)
+    return result.to_dict()
+
+
+@router.post("/reset-password", status_code=200)
+@limiter.limit("10/minute")
+async def reset_password(request: Request, body: ResetPasswordRequest):
+    """
+    Complete a password reset using the token from /forgot-password.
+    The token is valid for 30 minutes and single-use.
+    """
+    try:
+        _service.confirm_password_reset(body.token, body.new_password)
+        return {"status": "ok", "message": "Password updated. Please log in."}
+    except PasswordResetError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 

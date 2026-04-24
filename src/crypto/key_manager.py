@@ -95,8 +95,12 @@ class KeyManager:
             # Serialize private key to PEM
             private_key_pem = private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                format=serialization.PrivateFormat.PKCS8,     # PKCS#8 = "BEGIN PRIVATE KEY"
                 encryption_algorithm=serialization.NoEncryption()
+                # Changed from TraditionalOpenSSL (SEC1 "BEGIN EC PRIVATE KEY") so the
+                # browser can import it directly via SubtleCrypto importKey("pkcs8", ...).
+                # Existing SEC1 keys are still accepted server-side (load_pem_private_key
+                # handles both formats automatically) and by the browser fallback parser.
             ).decode('utf-8')
             
             # Extract public key

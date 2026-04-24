@@ -41,6 +41,38 @@ except ImportError:
 DEFAULT_BASE = os.environ.get("MEDLEDGER_URL", "http://localhost:8000")
 KEY_DIR = Path(".env")
 
+# Session key store: username -> Path chosen by user this session
+_session_key_paths: dict[str, Path] = {}
+
+
+def key_path(username):
+    return KEY_DIR / f"{username}.pem"
+
+
+def save_key(username, pem, dest_path: Path = None):
+    """Save PEM to dest_path (user-chosen) or default .env location."""
+    p = dest_path or key_path(username)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(pem)
+    p.chmod(0o600)
+    if dest_path:
+        _session_key_paths[username] = dest_path
+
+
+def load_key(username) -> str | None:
+    """Return PEM text: check session path first, then default .env location."""
+    session_path = _session_key_paths.get(username)
+    if session_path and session_path.exists():
+        return session_path.read_text().strip()
+    p = key_path(username)
+    return p.read_text().strip() if p.exists() else None
+
+
+def set_session_key_path(username: str, path: Path):
+    """Record that the user loaded their key from a custom path this session."""
+    _session_key_paths[username] = path
+
+
 # ── Palette ───────────────────────────────────────────────────────────────────
 C = {
     "bg":        "#0D1117",
@@ -235,18 +267,6 @@ def _get(base, path, token=None):
         detail = r.text
     return None, f"HTTP {r.status_code}: {detail}"
 
-def key_path(username):
-    return KEY_DIR / f"{username}.pem"
-
-def save_key(username, pem):
-    KEY_DIR.mkdir(exist_ok=True)
-    p = key_path(username)
-    p.write_text(pem)
-    p.chmod(0o600)
-
-def load_key(username):
-    p = key_path(username)
-    return p.read_text().strip() if p.exists() else None
 
 # ── Worker thread ──────────────────────────────────────────────────────────────
 class ApiWorker(QThread):
@@ -663,6 +683,15 @@ class LoginPage(QWidget):
         reg_btn.clicked.connect(self.switch_register.emit)
         form_layout.addWidget(reg_btn)
 
+        forgot_btn = QPushButton("Forgot password?")
+        forgot_btn.setStyleSheet(
+            f"background: transparent; border: none; "
+            f"color: {C['text3']}; font-size: 12px; text-decoration: underline;"
+        )
+        forgot_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        forgot_btn.clicked.connect(self._open_forgot_dialog)
+        form_layout.addWidget(forgot_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+
         layout.addWidget(form_card)
         outer.addWidget(container)
 
@@ -696,9 +725,216 @@ class LoginPage(QWidget):
             return
         self.login_success.emit(resp["access_token"], resp["username"], resp)
 
+    def _open_forgot_dialog(self):
+        """Two-step dialog: enter email → receive token → set new password."""
+        from PyQt6.QtWidgets import QDialog
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Reset Password")
+        dlg.setFixedWidth(420)
+        dlg.setStyleSheet(f"background: {C['surface']}; color: {C['text']};")
+
+        stack = QStackedWidget()
+        main_layout = QVBoxLayout(dlg)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.addWidget(stack)
+
+        # ── Step 1: enter email ───────────────────────────────────────────────
+        step1 = QWidget()
+        s1 = QVBoxLayout(step1)
+        s1.setContentsMargins(32, 28, 32, 28)
+        s1.setSpacing(14)
+
+        s1.addWidget(QLabel("🔒", alignment=Qt.AlignmentFlag.AlignCenter))
+        hdr1 = QLabel("Reset your password")
+        hdr1.setStyleSheet(f"font-size: 16px; font-weight: 700; color: {C['text']};")
+        hdr1.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        s1.addWidget(hdr1)
+
+        sub1 = QLabel(
+            "Enter your account email address. A reset token will be\n"
+            "returned here (dev mode — would be emailed in production)."
+        )
+        sub1.setWordWrap(True)
+        sub1.setStyleSheet(f"font-size: 12px; color: {C['text2']};")
+        sub1.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        s1.addWidget(sub1)
+
+        email_input = QLineEdit()
+        email_input.setPlaceholderText("your@email.com")
+        email_input.setFixedHeight(42)
+        # Pre-fill from login form if already typed
+        email_input.setText(self.email_input.text().strip())
+        s1.addWidget(email_input)
+
+        s1_status = QLabel("")
+        s1_status.setStyleSheet(f"font-size: 12px; color: {C['red']};")
+        s1_status.setWordWrap(True)
+        s1.addWidget(s1_status)
+
+        s1_btn = QPushButton("Send Reset Token")
+        s1_btn.setFixedHeight(42)
+        s1_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {C['accent']}; border: none; border-radius: 8px;
+                color: white; font-size: 13px; font-weight: 600;
+            }}
+            QPushButton:hover {{ background: {C['accent2']}; }}
+            QPushButton:disabled {{ background: {C['border2']}; color: {C['text3']}; }}
+        """)
+        s1.addWidget(s1_btn)
+        stack.addWidget(step1)   # index 0
+
+        # ── Step 2: token + new password ──────────────────────────────────────
+        step2 = QWidget()
+        s2 = QVBoxLayout(step2)
+        s2.setContentsMargins(32, 28, 32, 28)
+        s2.setSpacing(14)
+
+        hdr2 = QLabel("Enter your reset token")
+        hdr2.setStyleSheet(f"font-size: 16px; font-weight: 700; color: {C['text']};")
+        hdr2.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        s2.addWidget(hdr2)
+
+        token_box = QWidget()
+        token_box.setStyleSheet(
+            f"background: {C['bg']}; border: 1px solid {C['accent']}; "
+            f"border-radius: 8px; padding: 4px;"
+        )
+        token_box_layout = QVBoxLayout(token_box)
+        token_box_layout.setContentsMargins(12, 10, 12, 10)
+        token_lbl_caption = QLabel("Your reset token (copy this):")
+        token_lbl_caption.setStyleSheet(f"font-size: 11px; color: {C['text2']};")
+        token_box_layout.addWidget(token_lbl_caption)
+        token_display = QLabel("—")
+        token_display.setStyleSheet(
+            f"font-family: monospace; font-size: 11px; color: {C['accent2']};"
+        )
+        token_display.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        token_display.setWordWrap(True)
+        token_box_layout.addWidget(token_display)
+        s2.addWidget(token_box)
+
+        token_input = QLineEdit()
+        token_input.setPlaceholderText("Paste reset token here")
+        token_input.setFixedHeight(42)
+        s2.addWidget(token_input)
+
+        pw_new  = PasswordField("New password (min 8 chars)")
+        pw_new.setFixedHeight(42)
+        pw_new2 = PasswordField("Confirm new password")
+        pw_new2.setFixedHeight(42)
+        s2.addWidget(pw_new)
+        s2.addWidget(pw_new2)
+
+        s2_status = QLabel("")
+        s2_status.setStyleSheet(f"font-size: 12px; color: {C['red']};")
+        s2_status.setWordWrap(True)
+        s2.addWidget(s2_status)
+
+        s2_btn = QPushButton("Reset Password")
+        s2_btn.setFixedHeight(42)
+        s2_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {C['accent']}; border: none; border-radius: 8px;
+                color: white; font-size: 13px; font-weight: 600;
+            }}
+            QPushButton:hover {{ background: {C['accent2']}; }}
+            QPushButton:disabled {{ background: {C['border2']}; color: {C['text3']}; }}
+        """)
+        s2.addWidget(s2_btn)
+        stack.addWidget(step2)   # index 1
+
+        # ── Step 1 action ─────────────────────────────────────────────────────
+        def _do_step1():
+            email = email_input.text().strip()
+            if not email or "@" not in email:
+                s1_status.setText("Please enter a valid email address.")
+                return
+            s1_btn.setEnabled(False)
+            s1_btn.setText("Sending…")
+            s1_status.setText("")
+
+            def _work():
+                return _post(self.base_url, "/api/auth/forgot-password", {"email": email})
+
+            def _on_done(result, err):
+                s1_btn.setEnabled(True)
+                s1_btn.setText("Send Reset Token")
+                if err:
+                    s1_status.setText(str(err))
+                    return
+                resp, api_err = result
+                if api_err:
+                    s1_status.setText(api_err)
+                    return
+                # Show token from response and advance to step 2
+                token_display.setText(resp.get("reset_token", "—"))
+                token_input.setText(resp.get("reset_token", ""))
+                stack.setCurrentIndex(1)
+                dlg.setWindowTitle("Reset Password — Step 2")
+
+            w = ApiWorker(_work)
+            w.done.connect(_on_done)
+            w.start()
+            self._step1_worker = w
+
+        s1_btn.clicked.connect(_do_step1)
+        email_input.returnPressed.connect(_do_step1)
+
+        # ── Step 2 action ─────────────────────────────────────────────────────
+        def _do_step2():
+            token  = token_input.text().strip()
+            pw     = pw_new.text()
+            pw_c   = pw_new2.text()
+            if not token:
+                s2_status.setText("Please enter the reset token.")
+                return
+            if len(pw) < 8:
+                s2_status.setText("Password must be at least 8 characters.")
+                return
+            if pw != pw_c:
+                s2_status.setText("Passwords do not match.")
+                return
+            s2_btn.setEnabled(False)
+            s2_btn.setText("Resetting…")
+            s2_status.setText("")
+
+            def _work():
+                return _post(self.base_url, "/api/auth/reset-password",
+                             {"token": token, "new_password": pw})
+
+            def _on_done(result, err):
+                s2_btn.setEnabled(True)
+                s2_btn.setText("Reset Password")
+                if err:
+                    s2_status.setText(str(err))
+                    return
+                resp, api_err = result
+                if api_err:
+                    s2_status.setText(api_err)
+                    return
+                dlg.accept()
+                QMessageBox.information(
+                    self, "Password Reset",
+                    "✓ Password updated successfully.\n\nPlease sign in with your new password."
+                )
+                # Pre-fill login email for convenience
+                self.email_input.setText(email_input.text().strip())
+                self.pw_input.clear()
+                self.pw_input.setFocus()
+
+            w = ApiWorker(_work)
+            w.done.connect(_on_done)
+            w.start()
+            self._step2_worker = w
+
+        s2_btn.clicked.connect(_do_step2)
+        dlg.exec()
+
 
 class RegisterPage(QWidget):
-    register_success = pyqtSignal(str)
+    register_success = pyqtSignal(str, str)   # username, saved_msg
     switch_login = pyqtSignal()
 
     def __init__(self, base_url, parent=None):
@@ -809,18 +1045,17 @@ class RegisterPage(QWidget):
                 "username": user, "full_name": name, "role": role,
             })
             if err:
-                return None, err
+                return None, None, err
             token = res.get("verification_token")
             if not token:
-                return None, "Server did not return a verification token."
+                return None, None, "Server did not return a verification token."
             vres, verr = _post(self.base_url, "/api/auth/verify", {"token": token})
             if verr:
-                return None, verr
+                return None, None, verr
             pem = vres.get("private_key_pem")
             if not pem:
-                return None, "Server did not return private key."
-            save_key(user, pem)
-            return user, None
+                return None, None, "Server did not return private key."
+            return user, pem, None
 
         self._worker = ApiWorker(_work)
         self._worker.done.connect(self._on_done)
@@ -832,11 +1067,29 @@ class RegisterPage(QWidget):
         if err:
             self.status_lbl.setText(str(err))
             return
-        username, api_err = result
+        username, pem, api_err = result
         if api_err:
             self.status_lbl.setText(api_err)
             return
-        self.register_success.emit(username)
+
+        # ── Ask user where to save the private key ────────────────────────────
+        default_name = f"{username}_medledger_private.pem"
+        save_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save your private key — keep this file safe!",
+            str(Path.home() / default_name),
+            "PEM Key (*.pem);;All files (*)",
+        )
+        if save_path:
+            dest = Path(save_path)
+            save_key(username, pem, dest_path=dest)
+            saved_msg = f"Key saved to:\n{dest}"
+        else:
+            # User cancelled — save to default .env/ as fallback
+            save_key(username, pem)
+            saved_msg = f"Key saved to default location:\n.env/{username}.pem"
+
+        self.register_success.emit(username, saved_msg)
 
 
 # ── Dashboard ──────────────────────────────────────────────────────────────────
@@ -853,6 +1106,123 @@ class DashboardPage(QWidget):
         self._workers  = []
         self._build()
         self._load_overview()
+
+    def _prompt_for_key(self, reason: str = "") -> str | None:
+        """
+        Show a dialog asking the user to locate their private key file.
+        Stores the chosen path in the session so subsequent calls succeed silently.
+        Returns the PEM text, or None if the user cancels.
+        """
+        from PyQt6.QtWidgets import QDialog
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Private Key Required")
+        dlg.setFixedWidth(480)
+        dlg.setStyleSheet(f"background: {C['surface']}; color: {C['text']};")
+        layout = QVBoxLayout(dlg)
+        layout.setContentsMargins(28, 24, 28, 24)
+        layout.setSpacing(14)
+
+        icon_lbl = QLabel("🔑")
+        icon_lbl.setStyleSheet("font-size: 32px;")
+        icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon_lbl)
+
+        title = QLabel("Private Key Not Found")
+        title.setStyleSheet(f"font-size: 16px; font-weight: 700; color: {C['text']};")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
+        msg = reason or (
+            f"Your private key for '{self.username}' could not be found at the default "
+            f"location (.env/{self.username}.pem).\n\n"
+            "Please locate your saved .pem file to continue."
+        )
+        desc = QLabel(msg)
+        desc.setWordWrap(True)
+        desc.setStyleSheet(f"font-size: 13px; color: {C['text2']}; text-align: center;")
+        desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(desc)
+
+        path_display = QLabel("No file selected")
+        path_display.setStyleSheet(
+            f"font-size: 11px; color: {C['text3']}; font-family: monospace; "
+            f"background: {C['bg']}; border-radius: 6px; padding: 6px 10px;"
+        )
+        path_display.setWordWrap(True)
+        layout.addWidget(path_display)
+
+        chosen_path = [None]
+
+        browse_btn = QPushButton("📂  Browse for private key…")
+        browse_btn.setFixedHeight(40)
+        browse_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {C['surface2']}; border: 1px solid {C['border2']};
+                border-radius: 8px; color: {C['text']}; font-size: 13px;
+            }}
+            QPushButton:hover {{ border-color: {C['blue']}; color: {C['blue']}; }}
+        """)
+
+        def _browse():
+            path, _ = QFileDialog.getOpenFileName(
+                dlg, "Select your private key file",
+                str(Path.home()),
+                "PEM Key (*.pem);;All files (*)",
+            )
+            if path:
+                chosen_path[0] = Path(path)
+                path_display.setText(str(chosen_path[0]))
+                path_display.setStyleSheet(
+                    f"font-size: 11px; color: {C['accent2']}; font-family: monospace; "
+                    f"background: {C['bg']}; border-radius: 6px; padding: 6px 10px;"
+                )
+                ok_btn.setEnabled(True)
+
+        browse_btn.clicked.connect(_browse)
+        layout.addWidget(browse_btn)
+
+        btn_row = QHBoxLayout()
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setFixedHeight(38)
+        cancel_btn.clicked.connect(dlg.reject)
+
+        ok_btn = QPushButton("Use This Key")
+        ok_btn.setEnabled(False)
+        ok_btn.setFixedHeight(38)
+        ok_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {C['accent']}; border: none; border-radius: 8px;
+                color: white; font-size: 13px; font-weight: 600;
+            }}
+            QPushButton:hover {{ background: {C['accent2']}; }}
+            QPushButton:disabled {{ background: {C['border2']}; color: {C['text3']}; }}
+        """)
+        ok_btn.clicked.connect(dlg.accept)
+        btn_row.addWidget(cancel_btn)
+        btn_row.addWidget(ok_btn)
+        layout.addLayout(btn_row)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted or not chosen_path[0]:
+            return None
+
+        try:
+            pem = chosen_path[0].read_text().strip()
+            if "PRIVATE KEY" not in pem:
+                QMessageBox.warning(self, "Invalid Key File",
+                    "The selected file does not appear to be a PEM private key.")
+                return None
+            set_session_key_path(self.username, chosen_path[0])
+            return pem
+        except Exception as e:
+            QMessageBox.critical(self, "Key Load Error", str(e))
+            return None
+
+    def _ensure_key(self) -> str | None:
+        """Return the PEM for this session's user, prompting if not found."""
+        pem = load_key(self.username)
+        if not pem:
+            pem = self._prompt_for_key()
+        return pem
 
     def _build(self):
         root = QHBoxLayout(self)
@@ -1004,9 +1374,10 @@ class DashboardPage(QWidget):
         return page
 
     def _load_overview(self):
+        pem = load_key(self.username)   # silent check only — no dialog on overview auto-load
+
         def _work():
             records, rerr = _get(self.base_url, "/api/vault/records", self.token)
-            pem = load_key(self.username)
             grants, gerr = (None, "no key") if not pem else _post(
                 self.base_url, "/api/vault/permissions", {"private_key_pem": pem}, self.token)
             inbox, ierr = (None, "no key") if not pem else _post(
@@ -1212,10 +1583,10 @@ class DashboardPage(QWidget):
             self._upload_status.setText("⚠ Please select a file first.")
             self._upload_status.setStyleSheet(f"font-size: 12px; color: {C['orange']};")
             return
-        pem = load_key(self.username)
+        pem = self._ensure_key()
         if not pem:
-            self._upload_status.setText(f"✕ Private key not found at .env/{self.username}.pem")
-            self._upload_status.setStyleSheet(f"font-size: 12px; color: {C['red']};")
+            self._upload_status.setText("⚠ Private key required to upload.")
+            self._upload_status.setStyleSheet(f"font-size: 12px; color: {C['orange']};")
             return
 
         p    = Path(self._upload_filepath)
@@ -1263,9 +1634,8 @@ class DashboardPage(QWidget):
 
     # ── Download helper ───────────────────────────────────────────────────────
     def _download_record(self, record_id, filename):
-        pem = load_key(self.username)
+        pem = self._ensure_key()
         if not pem:
-            QMessageBox.warning(self, "No Key", f"Private key not found at .env/{self.username}.pem")
             return
         out_path, _ = QFileDialog.getSaveFileName(self, "Save file as", filename)
         if not out_path:
@@ -1344,9 +1714,9 @@ class DashboardPage(QWidget):
         """)
 
         def _do():
-            pem = load_key(self.username)
+            pem = self._ensure_key()
             if not pem:
-                status_lbl.setText("Private key not found.")
+                status_lbl.setText("Private key required.")
                 return
             grantee = pub_input.text().strip()
             if len(grantee) < 100:
@@ -1423,9 +1793,9 @@ class DashboardPage(QWidget):
         return page
 
     def _load_access(self):
-        pem = load_key(self.username)
+        pem = self._ensure_key()
         if not pem:
-            self._access_placeholder.setText("Private key not found.")
+            self._access_placeholder.setText("Private key required to view grants.")
             return
 
         def _work():
@@ -1460,9 +1830,8 @@ class DashboardPage(QWidget):
             self._access_layout.addWidget(row)
 
     def _do_revoke(self, grant_id):
-        pem = load_key(self.username)
+        pem = self._ensure_key()
         if not pem:
-            QMessageBox.warning(self, "No Key", "Private key not found.")
             return
         confirm = QMessageBox.question(self, "Revoke Grant",
             f"Revoke grant {grant_id[:16]}…?\nThis cannot be undone.",
@@ -1519,9 +1888,9 @@ class DashboardPage(QWidget):
         return page
 
     def _load_inbox(self):
-        pem = load_key(self.username)
+        pem = self._ensure_key()
         if not pem:
-            self._inbox_placeholder.setText("Private key not found.")
+            self._inbox_placeholder.setText("Private key required to view inbox.")
             return
 
         def _work():
@@ -1629,10 +1998,11 @@ class DashboardPage(QWidget):
         return page
 
     def _load_profile(self):
+        pem = self._ensure_key()   # resolve on main thread (may show dialog)
+
         def _work():
             profile, err = _get(self.base_url, "/api/auth/me", self.token)
             pubkey = None
-            pem = load_key(self.username)
             if pem:
                 try:
                     from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
@@ -1693,9 +2063,8 @@ class DashboardPage(QWidget):
         if confirm != QMessageBox.StandardButton.Yes:
             return
 
-        pem = load_key(self.username)
+        pem = self._ensure_key()
         if not pem:
-            QMessageBox.warning(self, "No Key", "Private key not found.")
             return
 
         def _work():
@@ -1778,10 +2147,10 @@ class MainWindow(QMainWindow):
     def _on_login(self, token, username, profile):
         self._load_dashboard(token, username, profile)
 
-    def _on_register_success(self, username):
+    def _on_register_success(self, username, saved_msg):
         QMessageBox.information(self, "Account Created",
-            f"✓ Account created for '{username}'.\n"
-            f"Your private key is saved at .env/{username}.pem\n\n"
+            f"✓ Account created for '{username}'.\n\n"
+            f"{saved_msg}\n\n"
             "Please log in now.")
         self._show_login()
 

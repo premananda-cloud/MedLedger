@@ -85,7 +85,7 @@ async function derivePublicKeyHash(pem) {
 
     let point; // 65-byte uncompressed EC point: 04 || x || y
 
-    if (pem.includes("-----BEGIN PRIVATE KEY-----")) {   // PKCS#8 only, not "BEGIN EC PRIVATE KEY"
+    if (pem.includes("BEGIN PRIVATE KEY")) {
       // ── PKCS#8 path ─────────────────────────────────────────────────────
       const key = await crypto.subtle.importKey(
         "pkcs8", der.buffer, { name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey"]

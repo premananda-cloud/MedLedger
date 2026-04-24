@@ -48,7 +48,10 @@ _transceiver = Transceiver(get_vault_store())
 # ── Request / Response schemas ────────────────────────────────────────────────
 
 class UploadRequest(BaseModel):
-    private_key_pem: str
+    # private_key_pem is intentionally absent: the public key is fetched from
+    # the DB via the authenticated caller's JWT (CallerIdentity.public_key_hex).
+    # This guarantees owner_key_hash == public_key_hash and means the private
+    # key never needs to reach the server for upload operations.
     filename: str
     plaintext_hex: str          # file bytes as hex — avoids multipart for simplicity
     tags: list[str] = []
@@ -108,8 +111,12 @@ async def upload(body: UploadRequest, caller: CallerIdentity = Depends(require_a
     except ValueError:
         raise HTTPException(status_code=400, detail="plaintext_hex must be valid hex")
     try:
-        result = _transceiver.upload(
-            caller_private_key_pem=body.private_key_pem,
+        # Use the public key already stored in the DB for this user (via JWT).
+        # This is the source-of-truth key — identical to what list_records
+        # queries by — so owner_key_hash will always match.
+        result = _transceiver.upload_with_public_key(
+            caller_public_key_hex=caller.public_key_hex,
+            caller_public_key_hash=caller.public_key_hash,
             plaintext=plaintext,
             filename=body.filename,
             tags=body.tags,

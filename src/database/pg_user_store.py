@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS users (
     public_key_hash       TEXT        UNIQUE,
     verification_token    TEXT,
     token_expires_at      TEXT,
+    reset_token_hash      TEXT,
+    reset_token_expires_at TEXT,
     created_at            TEXT        NOT NULL,
     last_login            TEXT
 );
@@ -54,6 +56,19 @@ CREATE TABLE IF NOT EXISTS user_audit (
     description TEXT    NOT NULL DEFAULT '',
     timestamp   TEXT    NOT NULL
 );
+
+-- Safe migration for existing deployments that predate the reset-token columns
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='users' AND column_name='reset_token_hash'
+    ) THEN
+        ALTER TABLE users
+            ADD COLUMN reset_token_hash       TEXT,
+            ADD COLUMN reset_token_expires_at TEXT;
+    END IF;
+END$$;
 """
 
 
@@ -211,6 +226,42 @@ class PgUserStore:
             cur.execute(
                 "UPDATE users SET last_login = %s WHERE id = %s",
                 (_now(), user_id),
+            )
+
+    def set_reset_token(self, *, user_id: int, token_hash: str, expires_at: str) -> None:
+        """Store a hashed password-reset token and its expiry for user_id."""
+        with self._tx() as cur:
+            cur.execute(
+                """
+                UPDATE users SET
+                    reset_token_hash       = %s,
+                    reset_token_expires_at = %s
+                WHERE id = %s
+                """,
+                (token_hash, expires_at, user_id),
+            )
+
+    def get_by_reset_token_hash(self, token_hash: str) -> Optional[UserRecord]:
+        """Look up a user by their hashed reset token."""
+        with self._tx() as cur:
+            cur.execute(
+                "SELECT * FROM users WHERE reset_token_hash = %s", (token_hash,)
+            )
+            row = cur.fetchone()
+        return self._to_user(row) if row else None
+
+    def set_password(self, *, user_id: int, password_hash: str) -> None:
+        """Update password and clear the reset token atomically."""
+        with self._tx() as cur:
+            cur.execute(
+                """
+                UPDATE users SET
+                    password_hash          = %s,
+                    reset_token_hash       = NULL,
+                    reset_token_expires_at = NULL
+                WHERE id = %s
+                """,
+                (password_hash, user_id),
             )
 
     # ── audit ─────────────────────────────────────────────────────────────────
