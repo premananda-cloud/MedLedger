@@ -26,6 +26,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from src.schemas import UserRecord, AuditEntry
+
 _lock = threading.Lock()
 
 
@@ -64,27 +66,31 @@ class JsonStore:
 
     # ── queries ───────────────────────────────────────────────────────────────
 
-    def get_by_email(self, email: str) -> Optional[dict]:
+    def get_by_email(self, email: str) -> Optional[UserRecord]:
         data = self._read()
-        return next(
+        row = next(
             (u for u in data["users"] if u["email"] == email.lower()), None
         )
+        return UserRecord.from_dict(row) if row else None
 
-    def get_by_id(self, user_id: int) -> Optional[dict]:
+    def get_by_id(self, user_id: int) -> Optional[UserRecord]:
         data = self._read()
-        return next((u for u in data["users"] if u["id"] == user_id), None)
+        row = next((u for u in data["users"] if u["id"] == user_id), None)
+        return UserRecord.from_dict(row) if row else None
 
-    def get_by_verification_token(self, token: str) -> Optional[dict]:
+    def get_by_verification_token(self, token: str) -> Optional[UserRecord]:
         data = self._read()
-        return next(
+        row = next(
             (u for u in data["users"] if u.get("verification_token") == token), None
         )
+        return UserRecord.from_dict(row) if row else None
 
-    def get_by_public_key_hash(self, pkh: str) -> Optional[dict]:
+    def get_by_public_key_hash(self, pkh: str) -> Optional[UserRecord]:
         data = self._read()
-        return next(
+        row = next(
             (u for u in data["users"] if u.get("public_key_hash") == pkh), None
         )
+        return UserRecord.from_dict(row) if row else None
 
     # ── mutations ─────────────────────────────────────────────────────────────
 
@@ -186,13 +192,14 @@ class JsonStore:
                     break
             self._write(data)
 
-    def get_by_reset_token_hash(self, token_hash: str):
+    def get_by_reset_token_hash(self, token_hash: str) -> Optional[UserRecord]:
         with _lock:
             data = self._read()
-        return next(
+        row = next(
             (u for u in data["users"] if u.get("reset_token_hash") == token_hash),
             None,
         )
+        return UserRecord.from_dict(row) if row else None
 
     def set_password(self, *, user_id: int, password_hash: str):
         """Update password and clear the reset token atomically."""

@@ -10,7 +10,7 @@ Fixed vs original:
   - Removed duplicate route file confusion
 """
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime, timezone
@@ -22,6 +22,8 @@ from src.services.registration import (
     RegistrationService, UserAlreadyExistsError, AuthenticationError,
     RegistrationError, InvalidTokenError, PasswordResetError,
 )
+from src.api.deps import require_auth, CallerIdentity
+from src.database import get_user_store
 
 limiter  = Limiter(key_func=get_remote_address)
 router   = APIRouter(prefix="/api/auth", tags=["authentication"])
@@ -140,19 +142,13 @@ async def reset_password(request: Request, body: ResetPasswordRequest):
 
 
 @router.get("/me", status_code=200)
-async def me(request: Request):
-    """Return profile of the currently authenticated user (requires Bearer token)."""
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing Bearer token")
-    token = auth.split(" ", 1)[1]
-    try:
-        payload = RegistrationService.verify_token(token)
-        user_id = int(payload["sub"])
-    except AuthenticationError as e:
-        raise HTTPException(status_code=401, detail=str(e))
-
-    user = _service.store.get_by_id(user_id)
+async def me(caller: CallerIdentity = Depends(require_auth)):
+    """
+    Return profile of the currently authenticated user (requires Bearer token).
+    Auth is handled by the require_auth dependency — no manual token parsing needed.
+    """
+    store = get_user_store()
+    user  = store.get_by_id(caller.user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 

@@ -20,16 +20,20 @@ _DB_PASSWORD = os.getenv('DB_PASSWORD')
 _DB_USER     = os.getenv('DB_USER')
 _DB_PORT     = os.getenv('DB_PORT', '5432')
 
-if not all([_DB_NAME, _DB_HOST, _DB_PASSWORD, _DB_USER, _DB_PORT]):
-    raise ValueError(
-        "Missing required database environment variables. "
-        "Ensure DB_NAME, DB_HOST, DB_PASSWORD, DB_USER, and DB_PORT "
-        "are set in .env/.env"
+if all([_DB_NAME, _DB_HOST, _DB_PASSWORD, _DB_USER, _DB_PORT]):
+    # Build and publish DATABASE_URL so config.py picks it up at import time.
+    # setdefault keeps any value the caller already set in the environment.
+    _database_url = (
+        f"postgresql://{_DB_USER}:{_DB_PASSWORD}@{_DB_HOST}:{_DB_PORT}/{_DB_NAME}"
     )
-
-# Build and publish DATABASE_URL so config.py picks it up at import time.
-# setdefault keeps any value the caller already set in the environment.
-_database_url = (
-    f"postgresql://{_DB_USER}:{_DB_PASSWORD}@{_DB_HOST}:{_DB_PORT}/{_DB_NAME}"
-)
-os.environ.setdefault('DATABASE_URL', _database_url)
+    os.environ.setdefault('DATABASE_URL', _database_url)
+else:
+    # Postgres vars not set — only a problem if db_backend == "postgres".
+    # The store factory in src/database/__init__.py will raise a clear error
+    # when it tries to connect if the URL is missing.
+    import logging as _logging
+    _logging.getLogger("medledger.load_env").warning(
+        "Postgres environment variables (DB_NAME, DB_HOST, DB_PASSWORD, DB_USER) "
+        "are not set. This is fine if db_backend is 'json'; otherwise the server "
+        "will fail when it first tries to connect to the database."
+    )

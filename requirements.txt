@@ -8,7 +8,7 @@ click==8.3.1
 cryptography==46.0.5
 Deprecated==1.3.1
 dnspython==2.8.0
-dotenv==0.9.9
+# dotenv==0.9.9 removed — conflicts with python-dotenv below
 email-validator==2.3.0
 fastapi==0.135.2
 greenlet==3.3.2
@@ -16,7 +16,7 @@ h11==0.16.0
 idna==3.11
 limits==5.8.0
 packaging==26.0
-pathlib==1.0.1
+# pathlib==1.0.1 removed — pathlib is stdlib in Python 3; the PyPI package conflicts
 pillow==12.1.1
 psycopg2-binary==2.9.12
 pycparser==3.0
