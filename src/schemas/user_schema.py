@@ -3,7 +3,7 @@ schemas/user_schema.py
 
 UserRecord — identity and authentication fields stored in data/users.json.
 
-This schema covers everything registration.py writes and json_store.py reads.
+This schema covers everything registration.py writes and pg_user_store.py reads.
 No vault/crypto fields live here — public_key_hex is the bridge to the vault
 but does not belong to the vault itself.
 

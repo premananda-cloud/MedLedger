@@ -39,7 +39,7 @@ logger = logging.getLogger("medledger")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("MedLedger starting — env=%s db=%s", cfg.env, cfg.db_backend)
+    logger.info("MedLedger starting — env=%s", cfg.env)
     yield
     logger.info("MedLedger shutdown")
 
@@ -131,4 +131,4 @@ async def root():
 
 @app.get("/health", tags=["health"])
 async def health():
-    return {"status": "ok", "db_backend": cfg.db_backend}
+    return {"status": "ok", "db": "postgres"}

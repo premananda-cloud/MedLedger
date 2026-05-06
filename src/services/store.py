@@ -2,8 +2,8 @@
 Store Factory
 Location: src/services/store.py
 
-Delegates to src/database.get_user_store() — the single config-aware
-singleton.  Kept for backward compatibility with registration.py imports.
+Delegates to src/database.get_user_store() — the single config-aware singleton.
+Kept for backward compatibility with registration.py imports.
 
     from src.services.store import get_store
     store = get_store()

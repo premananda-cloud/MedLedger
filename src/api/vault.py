@@ -41,8 +41,15 @@ from src.api.deps import require_auth, CallerIdentity
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vault", tags=["vault"])
 
-# Singleton transceiver — store backend is chosen by config.json db_backend
-_transceiver = Transceiver(get_vault_store())
+# Lazy singleton — instantiated on first request so the module imports cleanly
+_transceiver: "Transceiver | None" = None
+
+
+def _get_transceiver() -> Transceiver:
+    global _transceiver
+    if _transceiver is None:
+        _transceiver = Transceiver(get_vault_store())
+    return _transceiver
 
 
 # ── Request / Response schemas ────────────────────────────────────────────────
@@ -114,7 +121,7 @@ async def upload(body: UploadRequest, caller: CallerIdentity = Depends(require_a
         # Use the public key already stored in the DB for this user (via JWT).
         # This is the source-of-truth key — identical to what list_records
         # queries by — so owner_key_hash will always match.
-        result = _transceiver.upload_with_public_key(
+        result = _get_transceiver().upload_with_public_key(
             caller_public_key_hex=caller.public_key_hex,
             caller_public_key_hash=caller.public_key_hash,
             plaintext=plaintext,
@@ -139,7 +146,7 @@ async def download(
     Caller must supply their private key; it is used locally, never stored.
     """
     try:
-        result = _transceiver.download(
+        result = _get_transceiver().download(
             caller_private_key_pem=body.private_key_pem,
             record_id=record_id,
         )
@@ -174,7 +181,7 @@ async def grant(body: GrantRequest, caller: CallerIdentity = Depends(require_aut
     the permission payload with their private key.
     """
     try:
-        result = _transceiver.grant(
+        result = _get_transceiver().grant(
             owner_private_key_pem=body.private_key_pem,
             record_id=body.record_id,
             grantee_public_key_hex=body.grantee_public_key_hex,
@@ -194,7 +201,7 @@ async def revoke(body: RevokeRequest, caller: CallerIdentity = Depends(require_a
     Revoke a grant immediately. Only the record owner can revoke.
     """
     try:
-        return _transceiver.revoke(
+        return _get_transceiver().revoke(
             owner_private_key_pem=body.private_key_pem,
             grant_id=body.grant_id,
         )
@@ -206,7 +213,7 @@ async def revoke(body: RevokeRequest, caller: CallerIdentity = Depends(require_a
 async def permissions(body: PermissionsQuery, caller: CallerIdentity = Depends(require_auth)):
     """Grants the caller has issued (outbox — what they gave away)."""
     try:
-        result = _transceiver.permissions(body.private_key_pem, as_owner=True)
+        result = _get_transceiver().permissions(body.private_key_pem, as_owner=True)
         return [p.to_dict() for p in result]
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -216,7 +223,7 @@ async def permissions(body: PermissionsQuery, caller: CallerIdentity = Depends(r
 async def inbox(body: PermissionsQuery, caller: CallerIdentity = Depends(require_auth)):
     """Grants the caller has received (inbox — what they can access)."""
     try:
-        result = _transceiver.inbox(body.private_key_pem)
+        result = _get_transceiver().inbox(body.private_key_pem)
         return [p.to_dict() for p in result]
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -230,7 +237,7 @@ async def rotate_key(body: RotateKeyRequest, caller: CallerIdentity = Depends(re
     All existing grants are revoked (grantees must re-request access).
     """
     try:
-        return _transceiver.rotate_key(
+        return _get_transceiver().rotate_key(
             old_private_key_pem=body.old_private_key_pem,
             new_public_key_hex=body.new_public_key_hex,
             new_private_key_pem=body.new_private_key_pem,

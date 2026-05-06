@@ -27,7 +27,14 @@ from src.database import get_user_store
 
 limiter  = Limiter(key_func=get_remote_address)
 router   = APIRouter(prefix="/api/auth", tags=["authentication"])
-_service = RegistrationService()   # singleton — store is a singleton inside
+_service: "RegistrationService | None" = None
+
+
+def _get_service() -> RegistrationService:
+    global _service
+    if _service is None:
+        _service = RegistrationService()
+    return _service
 
 
 # ── Request schemas ───────────────────────────────────────────────────────────
@@ -71,7 +78,7 @@ async def register(request: Request, body: RegisterRequest):
     Returns private_key_pem ONCE — save it immediately, it is never stored.
     """
     try:
-        result = _service.register(
+        result = _get_service().register(
             email=body.email,
             password=body.password,
             username=body.username,
@@ -93,7 +100,7 @@ async def register(request: Request, body: RegisterRequest):
 async def login(request: Request, body: LoginRequest):
     """Authenticate with email + password. Returns JWT and public key material."""
     try:
-        result = _service.login(body.email, body.password)
+        result = _get_service().login(body.email, body.password)
         return result.to_dict()
     except AuthenticationError as e:
         raise HTTPException(status_code=401, detail=str(e))
@@ -108,7 +115,7 @@ async def verify_email(request: Request, body: VerifyRequest):
     It is never stored server-side.
     """
     try:
-        result = _service.verify_email(body.token)
+        result = _get_service().verify_email(body.token)
         return result.to_dict()
     except InvalidTokenError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -123,7 +130,7 @@ async def forgot_password(request: Request, body: ForgotPasswordRequest):
     In dev the plaintext token is returned directly in the response.
     In production you would email it instead and return only {"status": "sent"}.
     """
-    result = _service.request_password_reset(body.email)
+    result = _get_service().request_password_reset(body.email)
     return result.to_dict()
 
 
@@ -135,7 +142,7 @@ async def reset_password(request: Request, body: ResetPasswordRequest):
     The token is valid for 30 minutes and single-use.
     """
     try:
-        _service.confirm_password_reset(body.token, body.new_password)
+        _get_service().confirm_password_reset(body.token, body.new_password)
         return {"status": "ok", "message": "Password updated. Please log in."}
     except PasswordResetError as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -1,27 +1,9 @@
 {
-  "_comment": "CypherAegis / MedLedger - External Configuration",
-  "_note": "Switch 'db_backend' to change storage without touching any code.",
-
-  "db_backend": "postgres",
-
-  "json_db": {
-    "path": "./data/users.json",
-    "_comment": "Used when db_backend = json. User identity store."
-  },
-
-  "vault_db": {
-    "path": "./database/vault.json",
-    "_comment": "Encrypted vault — records, ciphertext, grants, vault audit."
-  },
-
-  "sqlite": {
-    "path": "./data/medledger.db",
-    "_comment": "Used when db_backend = sqlite."
-  },
+  "_comment": "CypherAegis / MedLedger — External Configuration",
 
   "postgres": {
     "url_env": "DATABASE_URL",
-    "_comment": "Used when db_backend = postgres. Reads connection string from env var."
+    "_comment": "Connection string is built from DB_NAME, DB_HOST, DB_PASSWORD, DB_USER, DB_PORT in .env"
   },
 
   "jwt": {
@@ -34,7 +16,7 @@
 
   "crypto": {
     "keygen_on_server": true,
-    "_comment": "true = server generates keypair during registration (dev/test only). false = client must supply public_key_hex etc. in the request body (production SSI model)."
+    "_comment": "true = server generates keypair during registration (dev/test only). false = client must supply public_key_hex in the request body (production SSI model)."
   },
 
   "server": {
