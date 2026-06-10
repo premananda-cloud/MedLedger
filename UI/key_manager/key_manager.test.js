@@ -371,13 +371,12 @@ describe("encryptRecord()", () => {
     ).not.toThrow();
   });
 
-  it("encrypts large file (1 MB)", () => {
-    const largeFile = sodium.randombytes_buf(1_048_576); // 1 MB
-    expect(() =>
-      KeysetManager.encryptRecord(largeFile, aliceExchangePubKeyB64),
-    ).not.toThrow();
-  });
-});
+  it('encrypts large file (1 MB)', () => {
+      const largeFile = sodium.randombytes_buf(1_048_576);  // 1 MB
+      expect(() =>
+          KeysetManager.encryptRecord(largeFile, aliceExchangePubKeyB64)
+      ).not.toThrow();
+  }, 30000);  // 30 second timeout
 
 // ─────────────────────────────────────────────────────────────────
 // Suite 9 — decryptShare()

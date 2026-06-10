@@ -12,7 +12,10 @@
  * Requires: libsodium-wrappers (npm install libsodium-wrappers)
  */
 
-import sodium from 'libsodium-wrappers';
+import _sodium from "libsodium-wrappers-sumo";
+
+await _sodium.ready;
+const sodium = _sodium;
 
 // ─────────────────────────────────────────────────────────────────
 // Constants
@@ -34,9 +37,9 @@ import sodium from 'libsodium-wrappers';
  * for weak passwords.
  */
 const ARGON2_PARAMS = {
-    OPSLIMIT:  3,
-    MEMLIMIT:  67_108_864,   // 64 MB
-    SEED_BYTES: 64,          // split: [0..31] → Ed25519 seed, [32..63] → X25519 seed
+  OPSLIMIT: 3,
+  MEMLIMIT: 67_108_864, // 64 MB
+  SEED_BYTES: 64, // split: [0..31] → Ed25519 seed, [32..63] → X25519 seed
 };
 
 // ─────────────────────────────────────────────────────────────────
@@ -59,62 +62,57 @@ const ARGON2_PARAMS = {
  *   signing:  { publicKey: Uint8Array, privateKey: Uint8Array },  // Ed25519
  *   exchange: { publicKey: Uint8Array, privateKey: Uint8Array },  // X25519
  * }}
- *
- * @throws {Error} if sodium is not yet ready (call `await sodium.ready` first)
  */
 export function deriveKeys(username, password, serverSalt = null) {
-    // sodium.ready must already be resolved — this is a sync function by design.
-    // The caller (key_manager.js init()) is responsible for awaiting sodium.ready.
+  const canonicalUsername = username.toLowerCase().trim();
 
-    const canonicalUsername = username.toLowerCase().trim();
+  // Build salt: BLAKE2b(username) XOR'd with serverSalt if available.
+  // This keeps determinism (same username → same base) while adding
+  // real entropy from the server when present.
+  const usernameSalt = sodium.crypto_generichash(
+    16,
+    sodium.from_string(canonicalUsername),
+  );
 
-    // Build salt: BLAKE2b(username) XOR'd with serverSalt if available.
-    // This keeps determinism (same username → same base) while adding
-    // real entropy from the server when present.
-    const usernameSalt = sodium.crypto_generichash(
-        16,
-        sodium.from_string(canonicalUsername)
-    );
-
-    let salt;
-    if (serverSalt instanceof Uint8Array && serverSalt.length >= 16) {
-        // Mix server salt into the first 16 bytes by XOR.
-        // Use the first 16 bytes of serverSalt so Argon2id gets its required
-        // crypto_pwhash_SALTBYTES (16) while the server can store 32 bytes.
-        salt = new Uint8Array(16);
-        for (let i = 0; i < 16; i++) {
-            salt[i] = usernameSalt[i] ^ serverSalt[i];
-        }
-    } else {
-        salt = usernameSalt;
+  let salt;
+  if (serverSalt instanceof Uint8Array && serverSalt.length >= 16) {
+    // Mix server salt into the first 16 bytes by XOR.
+    // Use the first 16 bytes of serverSalt so Argon2id gets its required
+    // crypto_pwhash_SALTBYTES (16) while the server can store 32 bytes.
+    salt = new Uint8Array(16);
+    for (let i = 0; i < 16; i++) {
+      salt[i] = usernameSalt[i] ^ serverSalt[i];
     }
+  } else {
+    salt = usernameSalt;
+  }
 
-    // Argon2id: stretch password into 64-byte master seed
-    const seed = sodium.crypto_pwhash(
-        ARGON2_PARAMS.SEED_BYTES,
-        sodium.from_string(password),
-        salt,
-        ARGON2_PARAMS.OPSLIMIT,
-        ARGON2_PARAMS.MEMLIMIT,
-        sodium.crypto_pwhash_ALG_ARGON2ID13
-    );
+  // Argon2id: stretch password into 64-byte master seed
+  const seed = sodium.crypto_pwhash(
+    ARGON2_PARAMS.SEED_BYTES,
+    sodium.from_string(password),
+    salt,
+    ARGON2_PARAMS.OPSLIMIT,
+    ARGON2_PARAMS.MEMLIMIT,
+    sodium.crypto_pwhash_ALG_ARGON2ID13,
+  );
 
-    // Split seed into two 32-byte sub-seeds
-    const sigSeed = seed.slice(0, 32);
-    const encSeed = seed.slice(32, 64);
+  // Split seed into two 32-byte sub-seeds
+  const sigSeed = seed.slice(0, 32);
+  const encSeed = seed.slice(32, 64);
 
-    // Derive keypairs from seeds
-    const signingKeypair  = sodium.crypto_sign_seed_keypair(sigSeed);
-    const exchangeKeypair = sodium.crypto_box_seed_keypair(encSeed);
+  // Derive keypairs from seeds
+  const signingKeypair = sodium.crypto_sign_seed_keypair(sigSeed);
+  const exchangeKeypair = sodium.crypto_box_seed_keypair(encSeed);
 
-    // Wipe all intermediate material immediately
-    sodium.memzero(seed);
-    sodium.memzero(sigSeed);
-    sodium.memzero(encSeed);
+  // Wipe all intermediate material immediately
+  sodium.memzero(seed);
+  sodium.memzero(sigSeed);
+  sodium.memzero(encSeed);
 
-    // Caller owns the returned private keys and must memzero them when done.
-    return {
-        signing:  signingKeypair,
-        exchange: exchangeKeypair,
-    };
+  // Caller owns the returned private keys and must memzero them when done.
+  return {
+    signing: signingKeypair,
+    exchange: exchangeKeypair,
+  };
 }

@@ -16,28 +16,31 @@
  * Requires: libsodium-wrappers, ./make_key.js
  */
 
-import sodium from 'libsodium-wrappers';
-import { deriveKeys } from './make_key.js';
+import _sodium from "libsodium-wrappers-sumo";
+
+import { deriveKeys } from "./make_key.js";
+await _sodium.ready;
+const sodium = _sodium;
 
 // ─────────────────────────────────────────────────────────────────
 // Errors
 // ─────────────────────────────────────────────────────────────────
 
 export class KeysetError extends Error {
-    constructor(code, message) {
-        super(message);
-        this.name = 'KeysetError';
-        this.code = code;
-    }
+  constructor(code, message) {
+    super(message);
+    this.name = "KeysetError";
+    this.code = code;
+  }
 }
 
 export const ERRORS = {
-    NOT_INITIALIZED:   'KEYSET_NOT_INITIALIZED',
-    SESSION_LOCKED:    'KEYSET_SESSION_LOCKED',
-    DERIVATION_FAILED: 'KEYSET_DERIVATION_FAILED',
-    DECRYPTION_FAILED: 'KEYSET_DECRYPTION_FAILED',
-    SIGNATURE_INVALID: 'KEYSET_SIGNATURE_INVALID',
-    BAD_KEY_FORMAT:    'KEYSET_BAD_KEY_FORMAT',
+  NOT_INITIALIZED: "KEYSET_NOT_INITIALIZED",
+  SESSION_LOCKED: "KEYSET_SESSION_LOCKED",
+  DERIVATION_FAILED: "KEYSET_DERIVATION_FAILED",
+  DECRYPTION_FAILED: "KEYSET_DECRYPTION_FAILED",
+  SIGNATURE_INVALID: "KEYSET_SIGNATURE_INVALID",
+  BAD_KEY_FORMAT: "KEYSET_BAD_KEY_FORMAT",
 };
 
 // ─────────────────────────────────────────────────────────────────
@@ -45,20 +48,20 @@ export const ERRORS = {
 // ─────────────────────────────────────────────────────────────────
 
 let _state = {
-    initialized:     false,   // survives logout — no need to re-init
-    locked:          true,
-    username:        null,
+  initialized: false, // survives logout — no need to re-init
+  locked: true,
+  username: null,
 
-    // Private keys — Uint8Array, wiped on every logout
-    signingPrivKey:  null,    // Ed25519, 64 bytes
-    exchangePrivKey: null,    // X25519,  32 bytes
+  // Private keys — Uint8Array, wiped on every logout
+  signingPrivKey: null, // Ed25519, 64 bytes
+  exchangePrivKey: null, // X25519,  32 bytes
 
-    // Public keys — safe to cache; cleared on logout for cleanliness
-    signingPubKey:   null,    // Ed25519, 32 bytes
-    exchangePubKey:  null,    // X25519,  32 bytes
+  // Public keys — safe to cache; cleared on logout for cleanliness
+  signingPubKey: null, // Ed25519, 32 bytes
+  exchangePubKey: null, // X25519,  32 bytes
 
-    // Derived identity
-    userIdHex:       null,    // BLAKE2b(signingPubKey, 16) as hex
+  // Derived identity
+  userIdHex: null, // BLAKE2b(signingPubKey, 16) as hex
 };
 
 // ─────────────────────────────────────────────────────────────────
@@ -66,16 +69,22 @@ let _state = {
 // ─────────────────────────────────────────────────────────────────
 
 function assertInitialized() {
-    if (!_state.initialized) {
-        throw new KeysetError(ERRORS.NOT_INITIALIZED, 'Call init() before any other method');
-    }
+  if (!_state.initialized) {
+    throw new KeysetError(
+      ERRORS.NOT_INITIALIZED,
+      "Call init() before any other method",
+    );
+  }
 }
 
 function assertUnlocked() {
-    assertInitialized();
-    if (_state.locked) {
-        throw new KeysetError(ERRORS.SESSION_LOCKED, 'Session is locked — call loginUser() first');
-    }
+  assertInitialized();
+  if (_state.locked) {
+    throw new KeysetError(
+      ERRORS.SESSION_LOCKED,
+      "Session is locked — call loginUser() first",
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -94,20 +103,25 @@ function assertUnlocked() {
  * @returns {string}
  */
 function canonicalJSON(value) {
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-        return JSON.stringify(value);
-    }
-    const sorted = Object.keys(value)
-        .sort()
-        .reduce((acc, k) => {
-            acc[k] = value[k];
-            return acc;
-        }, {});
-    return JSON.stringify(sorted, (_, v) =>
-        v !== null && typeof v === 'object' && !Array.isArray(v)
-            ? Object.keys(v).sort().reduce((a, k) => { a[k] = v[k]; return a; }, {})
-            : v
-    );
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return JSON.stringify(value);
+  }
+  const sorted = Object.keys(value)
+    .sort()
+    .reduce((acc, k) => {
+      acc[k] = value[k];
+      return acc;
+    }, {});
+  return JSON.stringify(sorted, (_, v) =>
+    v !== null && typeof v === "object" && !Array.isArray(v)
+      ? Object.keys(v)
+          .sort()
+          .reduce((a, k) => {
+            a[k] = v[k];
+            return a;
+          }, {})
+      : v,
+  );
 }
 
 /**
@@ -115,13 +129,13 @@ function canonicalJSON(value) {
  * Shared by createUser and loginUser.
  */
 function _publicKeysResult(sigPub, encPub, userIdHex, username) {
-    const enc = sodium.base64_variants.URLSAFE_NO_PADDING;
-    return {
-        signingPublicKey:  sodium.to_base64(sigPub, enc),
-        exchangePublicKey: sodium.to_base64(encPub, enc),
-        userIdHex,
-        username,
-    };
+  const enc = sodium.base64_variants.URLSAFE_NO_PADDING;
+  return {
+    signingPublicKey: sodium.to_base64(sigPub, enc),
+    exchangePublicKey: sodium.to_base64(encPub, enc),
+    userIdHex,
+    username,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -135,9 +149,9 @@ function _publicKeysResult(sigPub, encPub, userIdHex, username) {
  * @returns {Promise<void>}
  */
 async function init() {
-    if (_state.initialized) return;
-    await sodium.ready;
-    _state.initialized = true;
+  if (_state.initialized) return;
+  // sodium is already initialized via top-level await
+  _state.initialized = true;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -158,23 +172,33 @@ async function init() {
  * }>}
  */
 async function createUser(username, password, serverSalt = null) {
-    assertInitialized();
+  assertInitialized();
 
-    let keys;
-    try {
-        keys = deriveKeys(username, password, serverSalt);
-    } catch (err) {
-        throw new KeysetError(ERRORS.DERIVATION_FAILED, `Key derivation failed: ${err.message}`);
-    }
+  let keys;
+  try {
+    keys = deriveKeys(username, password, serverSalt);
+  } catch (err) {
+    throw new KeysetError(
+      ERRORS.DERIVATION_FAILED,
+      `Key derivation failed: ${err.message}`,
+    );
+  }
 
-    const userIdHex = sodium.to_hex(sodium.crypto_generichash(16, keys.signing.publicKey));
-    const result    = _publicKeysResult(keys.signing.publicKey, keys.exchange.publicKey, userIdHex, username);
+  const userIdHex = sodium.to_hex(
+    sodium.crypto_generichash(16, keys.signing.publicKey),
+  );
+  const result = _publicKeysResult(
+    keys.signing.publicKey,
+    keys.exchange.publicKey,
+    userIdHex,
+    username,
+  );
 
-    // Wipe private material immediately — caller will loginUser() separately
-    sodium.memzero(keys.signing.privateKey);
-    sodium.memzero(keys.exchange.privateKey);
+  // Wipe private material immediately — caller will loginUser() separately
+  sodium.memzero(keys.signing.privateKey);
+  sodium.memzero(keys.exchange.privateKey);
 
-    return result;
+  return result;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -195,31 +219,34 @@ async function createUser(username, password, serverSalt = null) {
  * }>}
  */
 async function loginUser(username, password, serverSalt = null) {
-    assertInitialized();
+  assertInitialized();
 
-    let keys;
-    try {
-        keys = deriveKeys(username, password, serverSalt);
-    } catch (err) {
-        throw new KeysetError(ERRORS.DERIVATION_FAILED, `Key derivation failed: ${err.message}`);
-    }
-
-    _state.locked          = false;
-    _state.username        = username;
-    _state.signingPrivKey  = keys.signing.privateKey;    // held in memory
-    _state.exchangePrivKey = keys.exchange.privateKey;   // held in memory
-    _state.signingPubKey   = keys.signing.publicKey;
-    _state.exchangePubKey  = keys.exchange.publicKey;
-    _state.userIdHex       = sodium.to_hex(
-        sodium.crypto_generichash(16, keys.signing.publicKey)
+  let keys;
+  try {
+    keys = deriveKeys(username, password, serverSalt);
+  } catch (err) {
+    throw new KeysetError(
+      ERRORS.DERIVATION_FAILED,
+      `Key derivation failed: ${err.message}`,
     );
+  }
 
-    return _publicKeysResult(
-        _state.signingPubKey,
-        _state.exchangePubKey,
-        _state.userIdHex,
-        _state.username
-    );
+  _state.locked = false;
+  _state.username = username;
+  _state.signingPrivKey = keys.signing.privateKey; // held in memory
+  _state.exchangePrivKey = keys.exchange.privateKey; // held in memory
+  _state.signingPubKey = keys.signing.publicKey;
+  _state.exchangePubKey = keys.exchange.publicKey;
+  _state.userIdHex = sodium.to_hex(
+    sodium.crypto_generichash(16, keys.signing.publicKey),
+  );
+
+  return _publicKeysResult(
+    _state.signingPubKey,
+    _state.exchangePubKey,
+    _state.userIdHex,
+    _state.username,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -235,19 +262,19 @@ async function loginUser(username, password, serverSalt = null) {
  * @returns {void}
  */
 function logoutUser() {
-    if (_state.signingPrivKey)  sodium.memzero(_state.signingPrivKey);
-    if (_state.exchangePrivKey) sodium.memzero(_state.exchangePrivKey);
+  if (_state.signingPrivKey) sodium.memzero(_state.signingPrivKey);
+  if (_state.exchangePrivKey) sodium.memzero(_state.exchangePrivKey);
 
-    _state = {
-        initialized:     _state.initialized,   // preserve — intentional
-        locked:          true,
-        username:        null,
-        signingPrivKey:  null,
-        exchangePrivKey: null,
-        signingPubKey:   null,
-        exchangePubKey:  null,
-        userIdHex:       null,
-    };
+  _state = {
+    initialized: _state.initialized, // preserve — intentional
+    locked: true,
+    username: null,
+    signingPrivKey: null,
+    exchangePrivKey: null,
+    signingPubKey: null,
+    exchangePubKey: null,
+    userIdHex: null,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -279,35 +306,38 @@ function logoutUser() {
  * }}
  */
 function encryptRecord(fileBytes, recipientExchangePublicKeyB64) {
-    assertInitialized();
+  assertInitialized();
 
-    const enc = sodium.base64_variants.URLSAFE_NO_PADDING;
+  const enc = sodium.base64_variants.URLSAFE_NO_PADDING;
 
-    const recipientPubKey = sodium.from_base64(recipientExchangePublicKeyB64, enc);
+  const recipientPubKey = sodium.from_base64(
+    recipientExchangePublicKeyB64,
+    enc,
+  );
 
-    // 1. Random DEK (256-bit)
-    const dek   = sodium.randombytes_buf(32);
-    // 2. Random nonce (192-bit / 24 bytes — XSalsa20 requirement)
-    const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
+  // 1. Random DEK (256-bit)
+  const dek = sodium.randombytes_buf(32);
+  // 2. Random nonce (192-bit / 24 bytes — XSalsa20 requirement)
+  const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
 
-    // 3. Encrypt file
-    const encrypted = sodium.crypto_secretbox_easy(fileBytes, nonce, dek);
+  // 3. Encrypt file
+  const encrypted = sodium.crypto_secretbox_easy(fileBytes, nonce, dek);
 
-    // 4. Integrity hash of plaintext
-    const fileHash = sodium.to_hex(sodium.crypto_generichash(32, fileBytes));
+  // 4. Integrity hash of plaintext
+  const fileHash = sodium.to_hex(sodium.crypto_generichash(32, fileBytes));
 
-    // 5. Seal DEK for recipient (anonymous sender / sealed box)
-    const dekBundle = sodium.crypto_box_seal(dek, recipientPubKey);
+  // 5. Seal DEK for recipient (anonymous sender / sealed box)
+  const dekBundle = sodium.crypto_box_seal(dek, recipientPubKey);
 
-    // 6. Wipe DEK — must happen before return
-    sodium.memzero(dek);
+  // 6. Wipe DEK — must happen before return
+  sodium.memzero(dek);
 
-    return {
-        encryptedRecord: sodium.to_base64(encrypted, enc),
-        nonce:           sodium.to_base64(nonce,     enc),
-        dekBundle:       sodium.to_base64(dekBundle, enc),
-        fileHash,
-    };
+  return {
+    encryptedRecord: sodium.to_base64(encrypted, enc),
+    nonce: sodium.to_base64(nonce, enc),
+    dekBundle: sodium.to_base64(dekBundle, enc),
+    fileHash,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -329,45 +359,61 @@ function encryptRecord(fileBytes, recipientExchangePublicKeyB64) {
  *                        record authentication fails (tampered ciphertext)
  */
 function decryptShare(encryptedRecordB64, nonceB64, dekBundleB64) {
-    assertUnlocked();
+  assertUnlocked();
 
-    const enc           = sodium.base64_variants.URLSAFE_NO_PADDING;
-    const encryptedRecord = sodium.from_base64(encryptedRecordB64, enc);
-    const nonce           = sodium.from_base64(nonceB64,           enc);
-    const dekBundle       = sodium.from_base64(dekBundleB64,       enc);
+  const enc = sodium.base64_variants.URLSAFE_NO_PADDING;
+  const encryptedRecord = sodium.from_base64(encryptedRecordB64, enc);
+  const nonce = sodium.from_base64(nonceB64, enc);
+  const dekBundle = sodium.from_base64(dekBundleB64, enc);
 
-    // 1. Open sealed DEK — requires our exchange keypair
-    const dek = sodium.crypto_box_seal_open(
-        dekBundle,
-        _state.exchangePubKey,
-        _state.exchangePrivKey
+  // 1. Open sealed DEK — requires our exchange keypair
+  let dek;
+  try {
+    dek = sodium.crypto_box_seal_open(
+      dekBundle,
+      _state.exchangePubKey,
+      _state.exchangePrivKey,
     );
+  } catch (err) {
+    throw new KeysetError(
+      ERRORS.DECRYPTION_FAILED,
+      "DEK decryption failed — wrong recipient key or tampered DEK bundle",
+    );
+  }
 
-    if (!dek) {
-        throw new KeysetError(
-            ERRORS.DECRYPTION_FAILED,
-            'DEK decryption failed — wrong recipient key or tampered DEK bundle'
-        );
-    }
+  if (!dek) {
+    throw new KeysetError(
+      ERRORS.DECRYPTION_FAILED,
+      "DEK decryption failed — wrong recipient key or tampered DEK bundle",
+    );
+  }
 
-    // 2. Decrypt record — wipe DEK in finally regardless of success or failure
-    let plaintext;
+  // 2. Decrypt record — wipe DEK in finally regardless of success or failure
+  let plaintext;
+  try {
     try {
-        plaintext = sodium.crypto_secretbox_open_easy(encryptedRecord, nonce, dek);
-        if (!plaintext) {
-            throw new KeysetError(
-                ERRORS.DECRYPTION_FAILED,
-                'Record decryption failed — ciphertext may be tampered'
-            );
-        }
-    } finally {
-        // IMPROVEMENT: DEK is always wiped, even if decryption throws.
-        // In the original spec this memzero was at the end and would be
-        // skipped on any thrown error, leaving the DEK in memory.
-        sodium.memzero(dek);
+      plaintext = sodium.crypto_secretbox_open_easy(
+        encryptedRecord,
+        nonce,
+        dek,
+      );
+    } catch (err) {
+      throw new KeysetError(
+        ERRORS.DECRYPTION_FAILED,
+        "Record decryption failed — ciphertext may be tampered",
+      );
     }
+    if (!plaintext) {
+      throw new KeysetError(
+        ERRORS.DECRYPTION_FAILED,
+        "Record decryption failed — ciphertext may be tampered",
+      );
+    }
+  } finally {
+    sodium.memzero(dek);
+  }
 
-    return plaintext;
+  return plaintext;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -391,17 +437,23 @@ function decryptShare(encryptedRecordB64, nonceB64, dekBundleB64) {
  * }}
  */
 function signPayload(payloadObject) {
-    assertUnlocked();
+  assertUnlocked();
 
-    const payloadCanon = canonicalJSON(payloadObject);
-    const payloadBytes = sodium.from_string(payloadCanon);
-    const signature    = sodium.crypto_sign_detached(payloadBytes, _state.signingPrivKey);
+  const payloadCanon = canonicalJSON(payloadObject);
+  const payloadBytes = sodium.from_string(payloadCanon);
+  const signature = sodium.crypto_sign_detached(
+    payloadBytes,
+    _state.signingPrivKey,
+  );
 
-    return {
-        payload:      payloadObject,
-        payloadCanon,
-        signature: sodium.to_base64(signature, sodium.base64_variants.URLSAFE_NO_PADDING),
-    };
+  return {
+    payload: payloadObject,
+    payloadCanon,
+    signature: sodium.to_base64(
+      signature,
+      sodium.base64_variants.URLSAFE_NO_PADDING,
+    ),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -421,18 +473,19 @@ function signPayload(payloadObject) {
  * @returns {boolean}
  */
 function verifySignature(payloadOrCanon, signatureB64, signerPubKeyB64) {
-    assertInitialized();
+  assertInitialized();
 
-    const enc = sodium.base64_variants.URLSAFE_NO_PADDING;
+  const enc = sodium.base64_variants.URLSAFE_NO_PADDING;
 
-    const payloadStr   = typeof payloadOrCanon === 'string'
-        ? payloadOrCanon
-        : canonicalJSON(payloadOrCanon);
-    const payloadBytes = sodium.from_string(payloadStr);
-    const signature    = sodium.from_base64(signatureB64,   enc);
-    const pubKey       = sodium.from_base64(signerPubKeyB64, enc);
+  const payloadStr =
+    typeof payloadOrCanon === "string"
+      ? payloadOrCanon
+      : canonicalJSON(payloadOrCanon);
+  const payloadBytes = sodium.from_string(payloadStr);
+  const signature = sodium.from_base64(signatureB64, enc);
+  const pubKey = sodium.from_base64(signerPubKeyB64, enc);
 
-    return sodium.crypto_sign_verify_detached(signature, payloadBytes, pubKey);
+  return sodium.crypto_sign_verify_detached(signature, payloadBytes, pubKey);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -448,13 +501,13 @@ function verifySignature(payloadOrCanon, signatureB64, signerPubKeyB64) {
  * }}
  */
 function getPublicKeys() {
-    assertUnlocked();
-    return _publicKeysResult(
-        _state.signingPubKey,
-        _state.exchangePubKey,
-        _state.userIdHex,
-        _state.username
-    );
+  assertUnlocked();
+  return _publicKeysResult(
+    _state.signingPubKey,
+    _state.exchangePubKey,
+    _state.userIdHex,
+    _state.username,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -462,14 +515,14 @@ function getPublicKeys() {
 // ─────────────────────────────────────────────────────────────────
 
 export const KeysetManager = {
-    init,
-    createUser,
-    loginUser,
-    logoutUser,
-    encryptRecord,
-    decryptShare,
-    signPayload,
-    verifySignature,
-    getPublicKeys,
-    isLocked: () => _state.locked,
+  init,
+  createUser,
+  loginUser,
+  logoutUser,
+  encryptRecord,
+  decryptShare,
+  signPayload,
+  verifySignature,
+  getPublicKeys,
+  isLocked: () => _state.locked,
 };
