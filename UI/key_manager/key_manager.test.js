@@ -370,18 +370,17 @@ describe("encryptRecord()", () => {
       KeysetManager.encryptRecord(new Uint8Array(0), aliceExchangePubKeyB64),
     ).not.toThrow();
   });
-
-  it('encrypts large file (1 MB)', () => {
-      const largeFile = sodium.randombytes_buf(1_048_576);  // 1 MB
-      expect(() =>
-          KeysetManager.encryptRecord(largeFile, aliceExchangePubKeyB64)
-      ).not.toThrow();
-  }, 30000);  // 30 second timeout
+  it("encrypts large file (1 MB)", () => {
+    const largeFile = sodium.randombytes_buf(1_048_576); // 1 MB
+    expect(() =>
+      KeysetManager.encryptRecord(largeFile, aliceExchangePubKeyB64),
+    ).not.toThrow();
+  }, 30000); // 30 second timeout
+}); // <-- ADD THIS MISSING CLOSING BRACE
 
 // ─────────────────────────────────────────────────────────────────
 // Suite 9 — decryptShare()
 // ─────────────────────────────────────────────────────────────────
-
 describe("decryptShare()", () => {
   let aliceExchangePubKeyB64;
   const originalText = "super secret medical data 🏥";
