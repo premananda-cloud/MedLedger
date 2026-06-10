@@ -1,0 +1,9 @@
+{
+  "type": "module",
+  "dependencies": {
+    "libsodium-wrappers-sumo": "^0.8.4"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.8"
+  }
+}
