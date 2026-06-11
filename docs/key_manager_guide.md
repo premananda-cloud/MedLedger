@@ -136,8 +136,6 @@ Generates a random keypair, unlocks the session, and returns **both public and p
 }
 ```
 
-> **Note:** The current implementation returns public keys only from `_publicKeysResult`. App.js must also retrieve private keys via `getPublicKeys()` or the return value needs extending to include them. Confirm with the team before wiring up registration.
-
 **Registration flow**
 
 ```js
@@ -341,7 +339,7 @@ Verifies an Ed25519 signature. Does **not** require an unlocked session.
 
 **Returns** `boolean`.
 
-**Throws** `KeysetError(SIGNATURE_INVALID)` if inputs are malformed (bad base64, wrong key length, etc.). A structurally valid but cryptographically incorrect signature returns `false` — it does not throw.
+Returns `false` for both cryptographically invalid signatures and malformed inputs (bad base64, wrong key length, etc.). This method never throws — all errors from libsodium are caught internally and collapsed to `false`.
 
 ```js
 // Self-verify before sending to server
@@ -425,10 +423,9 @@ try {
 | `KEYSET_NOT_INITIALIZED` | `ERRORS.NOT_INITIALIZED` | Any method called before `init()` |
 | `KEYSET_SESSION_LOCKED` | `ERRORS.SESSION_LOCKED` | Private-key method called while locked |
 | `KEYSET_DECRYPTION_FAILED` | `ERRORS.DECRYPTION_FAILED` | Wrong key, tampered ciphertext, or wrong nonce in `decryptShare` |
-| `KEYSET_SIGNATURE_INVALID` | `ERRORS.SIGNATURE_INVALID` | Malformed input to `verifySignature` |
 | `KEYSET_BAD_KEY_FORMAT` | `ERRORS.BAD_KEY_FORMAT` | Missing or malformed keypair passed to `loginUser` |
 
-> `KEYSET_DERIVATION_FAILED` remains defined for forward compatibility but is not thrown by any current method — derivation was removed in v2.0.
+> `ERRORS.SIGNATURE_INVALID` is defined in the `ERRORS` object but is not currently thrown by any method. `verifySignature` returns `false` for all failure cases — including malformed inputs — rather than throwing.
 
 ---
 
