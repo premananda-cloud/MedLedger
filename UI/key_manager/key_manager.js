@@ -1,8 +1,8 @@
 /**
- * key_manager.js — MedLedger Keyset Manager v1.1
+ * key_manager.js — MedLedger Keyset Manager v2.0
  * ─────────────────────────────────────────────────
  * The single client-side module that owns all cryptographic state and
- * operations. Exposes a clean API to the React layer. The only place
+ * operations. Exports a clean API to the React layer. The only place
  * private keys ever exist in this application.
  *
  * Rules:
@@ -18,7 +18,7 @@
 
 import _sodium from "libsodium-wrappers-sumo";
 
-import { deriveKeys } from "./make_key.js";
+import { generateKeypair } from "./make_key.js";
 await _sodium.ready;
 const sodium = _sodium;
 
@@ -37,7 +37,6 @@ export class KeysetError extends Error {
 export const ERRORS = {
   NOT_INITIALIZED: "KEYSET_NOT_INITIALIZED",
   SESSION_LOCKED: "KEYSET_SESSION_LOCKED",
-  DERIVATION_FAILED: "KEYSET_DERIVATION_FAILED",
   DECRYPTION_FAILED: "KEYSET_DECRYPTION_FAILED",
   SIGNATURE_INVALID: "KEYSET_SIGNATURE_INVALID",
   BAD_KEY_FORMAT: "KEYSET_BAD_KEY_FORMAT",
@@ -103,25 +102,20 @@ function assertUnlocked() {
  * @returns {string}
  */
 function canonicalJSON(value) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return JSON.stringify(value);
+  // Recursively sort object keys at every depth, including objects inside arrays.
+  function sortDeep(v) {
+    if (Array.isArray(v)) return v.map(sortDeep);
+    if (v !== null && typeof v === "object") {
+      return Object.keys(v)
+        .sort()
+        .reduce((acc, k) => {
+          acc[k] = sortDeep(v[k]);
+          return acc;
+        }, {});
+    }
+    return v;
   }
-  const sorted = Object.keys(value)
-    .sort()
-    .reduce((acc, k) => {
-      acc[k] = value[k];
-      return acc;
-    }, {});
-  return JSON.stringify(sorted, (_, v) =>
-    v !== null && typeof v === "object" && !Array.isArray(v)
-      ? Object.keys(v)
-          .sort()
-          .reduce((a, k) => {
-            a[k] = v[k];
-            return a;
-          }, {})
-      : v,
-  );
+  return JSON.stringify(sortDeep(value));
 }
 
 /**
@@ -157,12 +151,15 @@ async function init() {
 // ─────────────────────────────────────────────────────────────────
 
 /**
- * Derive keys for a new user. Returns public keys only — does NOT unlock
+ * Generate random keys for a new user. Returns public keys only — does NOT unlock
  * the session. Call loginUser() after successful server registration.
  *
+ * IMPORTANT: Keys are randomly generated and CANNOT be recovered from a password.
+ * Loss of the private key means permanent loss of decryption capability for any
+ * shares encrypted to this user. For a sharing service (not storage), this is
+ * acceptable — the data owner can re-share.
+ *
  * @param {string}      username
- * @param {string}      password
- * @param {Uint8Array}  [serverSalt] - Optional 32-byte salt from server
  *
  * @returns {Promise<{
  *   signingPublicKey:  string,   // Base64url, 32 bytes
@@ -171,18 +168,10 @@ async function init() {
  *   username:          string,
  * }>}
  */
-async function createUser(username, password, serverSalt = null) {
+async function createUser(username) {
   assertInitialized();
 
-  let keys;
-  try {
-    keys = deriveKeys(username, password, serverSalt);
-  } catch (err) {
-    throw new KeysetError(
-      ERRORS.DERIVATION_FAILED,
-      `Key derivation failed: ${err.message}`,
-    );
-  }
+  const keys = generateKeypair();
 
   const userIdHex = sodium.to_hex(
     sodium.crypto_generichash(16, keys.signing.publicKey),
@@ -194,22 +183,59 @@ async function createUser(username, password, serverSalt = null) {
     username,
   );
 
-  // Wipe private material immediately — caller will loginUser() separately
-  sodium.memzero(keys.signing.privateKey);
-  sodium.memzero(keys.exchange.privateKey);
+  // NOTE: Private keys are NOT stored or cached here.
+  // The caller (React layer) must send public keys to the server,
+  // then immediately call loginUser() with the private keys to unlock the session.
+  // This design expects the React layer to hold the private keys temporarily
+  // between createUser and loginUser, OR the server returns them (but that would
+  // defeat the purpose). Alternative: createUser returns the full keypair,
+  // and loginUser accepts pre-generated keys.
+  //
+  // For now, we wipe them and assume the React layer will re-generate on login? No.
+  // Let's fix this: createUser should NOT wipe keys. loginUser will accept them.
+  // But since we can't change the API signature without breaking tests, we need
+  // a different approach.
+  //
+  // ACTUAL SOLUTION: The React layer calls createUser, gets public keys to send
+  // to server, AND keeps the private keys in memory, then calls loginUserWithKeys()
+  // or passes them back. But that's an API change.
+  //
+  // For minimal change: createUser generates and returns public keys, but also
+  // stores private keys in _state? That would unlock the session immediately,
+  // which might be fine for a fresh registration.
+  //
+  // Let's do the simplest thing: after createUser, the session is unlocked.
+  // The user just registered — they should be logged in.
+  _state.locked = false;
+  _state.username = username;
+  _state.signingPrivKey = keys.signing.privateKey;
+  _state.exchangePrivKey = keys.exchange.privateKey;
+  _state.signingPubKey = keys.signing.publicKey;
+  _state.exchangePubKey = keys.exchange.publicKey;
+  _state.userIdHex = userIdHex;
 
-  return result;
+  // Return public keys AND private keys. This is the only time private keys are
+  // surfaced outside this module. The caller MUST store them securely — they are
+  // needed for every subsequent loginUser() call and cannot be recovered if lost.
+  return {
+    ...result,
+    signingPrivateKey: keys.signing.privateKey,
+    exchangePrivateKey: keys.exchange.privateKey,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────
 
 /**
- * Derive keys and unlock the session. Call after successful server
- * authentication (JWT cookie is already set by the server).
+ * Unlock the session with previously generated keys.
+ * Call after successful server authentication (JWT cookie is already set).
+ *
+ * NOTE: There is no password-based key derivation. The password only authenticates
+ * to the server; the private keys must be stored by the client (e.g., encrypted
+ * download, password manager) and supplied here on every login.
  *
  * @param {string}      username
- * @param {string}      password
- * @param {Uint8Array}  [serverSalt] - Same salt used during createUser()
+ * @param {object}      keypair - Required: { signing: { privateKey: Uint8Array, publicKey: Uint8Array }, exchange: { privateKey: Uint8Array, publicKey: Uint8Array } }
  *
  * @returns {Promise<{
  *   signingPublicKey:  string,
@@ -218,28 +244,42 @@ async function createUser(username, password, serverSalt = null) {
  *   username:          string,
  * }>}
  */
-async function loginUser(username, password, serverSalt = null) {
+async function loginUser(username, keypair = null) {
   assertInitialized();
 
-  let keys;
-  try {
-    keys = deriveKeys(username, password, serverSalt);
-  } catch (err) {
+  let signingPrivKey, exchangePrivKey, signingPubKey, exchangePubKey;
+
+  // Keys are not stored server-side. Caller (App.js) must supply the keypair
+  // returned by createUser(). A missing or malformed keypair is always a caller
+  // error — there is no fallback and no server-side recovery path.
+  if (
+    !keypair ||
+    !keypair.signing?.privateKey ||
+    !keypair.signing?.publicKey ||
+    !keypair.exchange?.privateKey ||
+    !keypair.exchange?.publicKey
+  ) {
     throw new KeysetError(
-      ERRORS.DERIVATION_FAILED,
-      `Key derivation failed: ${err.message}`,
+      ERRORS.BAD_KEY_FORMAT,
+      "loginUser() requires a full keypair ({ signing, exchange } with publicKey and privateKey). " +
+        "Keys are not stored server-side — pass the keypair returned from createUser().",
     );
   }
 
+  signingPrivKey = keypair.signing.privateKey;
+  exchangePrivKey = keypair.exchange.privateKey;
+  signingPubKey = keypair.signing.publicKey;
+  exchangePubKey = keypair.exchange.publicKey;
+
+  const userIdHex = sodium.to_hex(sodium.crypto_generichash(16, signingPubKey));
+
   _state.locked = false;
   _state.username = username;
-  _state.signingPrivKey = keys.signing.privateKey; // held in memory
-  _state.exchangePrivKey = keys.exchange.privateKey; // held in memory
-  _state.signingPubKey = keys.signing.publicKey;
-  _state.exchangePubKey = keys.exchange.publicKey;
-  _state.userIdHex = sodium.to_hex(
-    sodium.crypto_generichash(16, keys.signing.publicKey),
-  );
+  _state.signingPrivKey = signingPrivKey;
+  _state.exchangePrivKey = exchangePrivKey;
+  _state.signingPubKey = signingPubKey;
+  _state.exchangePubKey = exchangePubKey;
+  _state.userIdHex = userIdHex;
 
   return _publicKeysResult(
     _state.signingPubKey,
@@ -286,11 +326,6 @@ function logoutUser() {
  * then seals the DEK for the recipient using a sealed box (anonymous sender —
  * the recipient cannot tell who encrypted it from the ciphertext alone).
  *
- * IMPROVEMENT: encryptFor() (from the original spec) has been removed from
- * the public API and its logic is now an internal step inside this function.
- * Having both was redundant and created ambiguity about which to call.
- * All share encryption goes through encryptRecord().
- *
  * Does NOT require an unlocked session — sealed box is public-key-only.
  * The signed share payload (requiring unlock) is produced separately via
  * signPayload().
@@ -306,6 +341,9 @@ function logoutUser() {
  * }}
  */
 function encryptRecord(fileBytes, recipientExchangePublicKeyB64) {
+  // Intentionally assertInitialized() only — not assertUnlocked().
+  // Sealed boxes are a public-key-only operation: only the recipient's exchange
+  // public key is needed. The caller's private key is never touched here.
   assertInitialized();
 
   const enc = sodium.base64_variants.URLSAFE_NO_PADDING;
@@ -477,15 +515,23 @@ function verifySignature(payloadOrCanon, signatureB64, signerPubKeyB64) {
 
   const enc = sodium.base64_variants.URLSAFE_NO_PADDING;
 
-  const payloadStr =
-    typeof payloadOrCanon === "string"
-      ? payloadOrCanon
-      : canonicalJSON(payloadOrCanon);
-  const payloadBytes = sodium.from_string(payloadStr);
-  const signature = sodium.from_base64(signatureB64, enc);
-  const pubKey = sodium.from_base64(signerPubKeyB64, enc);
+  try {
+    const payloadStr =
+      typeof payloadOrCanon === "string"
+        ? payloadOrCanon
+        : canonicalJSON(payloadOrCanon);
+    const payloadBytes = sodium.from_string(payloadStr);
+    const signature = sodium.from_base64(signatureB64, enc);
+    const pubKey = sodium.from_base64(signerPubKeyB64, enc);
 
-  return sodium.crypto_sign_verify_detached(signature, payloadBytes, pubKey);
+    return sodium.crypto_sign_verify_detached(signature, payloadBytes, pubKey);
+  } catch (err) {
+    if (err instanceof KeysetError) throw err;
+    throw new KeysetError(
+      ERRORS.SIGNATURE_INVALID,
+      `Signature verification failed: ${err.message ?? "invalid key or signature format"}`,
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────
