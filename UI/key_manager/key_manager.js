@@ -217,10 +217,17 @@ async function createUser(username) {
   // Return public keys AND private keys. This is the only time private keys are
   // surfaced outside this module. The caller MUST store them securely — they are
   // needed for every subsequent loginUser() call and cannot be recovered if lost.
+  //
+  // CRITICAL: return .slice() copies of the private key Uint8Arrays, NOT the
+  // live references stored in _state. logoutUser() calls sodium.memzero() on
+  // the _state buffers in-place. If the caller holds the same reference,
+  // their copy is silently zeroed on logout — causing every subsequent
+  // loginUser() call to load an all-zeros private key and making
+  // crypto_box_seal_open fail with a wrong-key error.
   return {
-    ...result,
-    signingPrivateKey: keys.signing.privateKey,
-    exchangePrivateKey: keys.exchange.privateKey,
+      ...result,
+      signingPrivateKey: keys.signing.privateKey.slice(),
+      exchangePrivateKey: keys.exchange.privateKey.slice(),
   };
 }
 
@@ -527,10 +534,11 @@ function verifySignature(payloadOrCanon, signatureB64, signerPubKeyB64) {
     return sodium.crypto_sign_verify_detached(signature, payloadBytes, pubKey);
   } catch (err) {
     if (err instanceof KeysetError) throw err;
-    throw new KeysetError(
-      ERRORS.SIGNATURE_INVALID,
-      `Signature verification failed: ${err.message ?? "invalid key or signature format"}`,
-    );
+    // A well-formed but invalid signature returns false from libsodium without
+    // throwing. If we land here, the inputs were malformed (bad base64, wrong
+    // key length). Return false rather than throwing so callers get a consistent
+    // boolean — only re-throw if it was already a KeysetError (checked above).
+    return false;
   }
 }
 
