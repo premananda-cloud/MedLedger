@@ -1,6 +1,6 @@
 # MedLedger Architecture
 
-**Version:** 1.0 | **Date:** June 2026 | **Status:** Draft — Production Architecture
+**Version:** 2.0 | **Date:** June 2026 | **Status:** Draft — Production Architecture
 
 ---
 
@@ -9,6 +9,12 @@
 MedLedger is a **low-trust, ephemeral sharing conduit** for patient-controlled medical records. The patient holds their physical records. MedLedger provides the cryptographic infrastructure to share them securely with doctors, specialists, or family — without ever seeing the plaintext, without holding the keys, and without storing data permanently.
 
 **Core Principle:** *We are a means, not a vault. We store ciphertext we cannot read, for a limited time, at the patient's discretion. We cannot be compelled to decrypt what we do not possess.*
+
+**Implementation Reality:** The system is split into two independent domains that communicate through a thin integration layer:
+- **Auth Domain** (`auth/`): Traditional multi-step registration (POW, email, TOTP, username/password)
+- **Crypto Domain** (`key_manager/`): libsodium-based key operations (Ed25519, X25519, sealed-box encryption)
+
+These domains are bridged at registration time: the auth system creates the user account, then the crypto system generates a keypair that becomes the user's cryptographic identity.
 
 ---
 
@@ -31,12 +37,12 @@ MedLedger is a **low-trust, ephemeral sharing conduit** for patient-controlled m
 ┌─────────────────────────────────────────────────────────────────┐
 │  LAYER 2: KEYSET (Patient-Sovereign, Non-Recoverable)           │
 │  ───────────────────────────────────────────────────────          │
-│  • P-256 Keypair generated in browser (Web Crypto API)            │
-│  • Private key encrypted with patient password, held client-side  │
+│  • Ed25519/X25519 Keypair generated in browser (libsodium.js)   │
+│  • Private key held client-side only (memory, or keypair file)  │
 │  • Public key hash = identity anchor for all server interactions  │
 │  • Server knows: public key hash, encrypted blob (optional)     │
-│  • Server never knows: private key, password, plaintext DEK      │
-│  • Lost keyset = locked forever. No recovery. Delete & restart. │
+│  • Server never knows: private key, password, plaintext DEK     │
+│  • Lost keyset = locked forever. No recovery. Delete & restart.  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -59,23 +65,30 @@ MedLedger is a **low-trust, ephemeral sharing conduit** for patient-controlled m
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         BROWSER (Client)                            │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐  │
-│  │  React + Vite   │  │  Keyset Manager │  │  Web Crypto API     │  │
-│  │  UI Layer       │  │  (JS Module)    │  │  (SubtleCrypto)     │  │
+│  │  React + Vite   │  │  Key Manager    │  │  libsodium.js       │  │
+│  │  UI Layer       │  │  (JS Module)    │  │  (Ed25519/X25519)   │  │
 │  │                 │  │                 │  │                     │  │
-│  │  • Login Page   │  │  • generate()   │  │  • P-256 keygen     │  │
-│  │  • Share UI     │  │  • load()       │  │  • ECDH / ECIES     │  │
-│  │  • Inbox/Outbox │  │  • sign()       │  │  • ECDSA sign       │  │
-│  │  • Keyset Modal │  │  • encrypt()    │  │  • AES-256-GCM      │  │
-│  │  • Download Flow│  │  • decrypt()    │  │  • PBKDF2           │  │
+│  │  • Login Page   │  │  • createUser() │  │  • Ed25519 keygen   │  │
+│  │  • Share UI     │  │  • loginUser()  │  │  • X25519 keygen    │  │
+│  │  • Inbox/Outbox │  │  • signPayload()│  │  • Sealed boxes     │  │
+│  │  • Keypair Modal│  │  • encryptRecord│  │  • XSalsa20-Poly1305│  │
+│  │  • Download Flow│  │  • decryptShare │  │  • BLAKE2b hashing  │  │
 │  └─────────────────┘  └─────────────────┘  └─────────────────────┘  │
 │           │                    │                    │               │
 │           └────────────────────┴────────────────────┘               │
+│                              │                                      │
+│  ┌─────────────────────────────────────────────────────────────────┐│
+│  │  Integration Layer (shared/)                                     ││
+│  │  • registerBridge.js — wires auth → key_manager                ││
+│  │  • loginBridge.js — loads keypair, unlocks vault              ││
+│  │  • apiClient.js — JWT cookie handling, fetch wrapper           ││
+│  └─────────────────────────────────────────────────────────────────┘│
 │                              │                                      │
 │                         HTTPS / JSON                                │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
 ┌──────────────────────────────┼──────────────────────────────────────┐
-│                         SERVER (FastAPI)                            │
+│                         SERVER (FastAPI / Node.js)                  │
 │  ┌─────────────────┐  ┌──────┴──────────┐  ┌─────────────────────┐  │
 │  │  API Router     │  │  Gate Service   │  │  Share Service      │  │
 │  │  (Endpoints)    │  │  (Layer 1)      │  │  (Layer 2 aware)    │  │
@@ -89,10 +102,10 @@ MedLedger is a **low-trust, ephemeral sharing conduit** for patient-controlled m
 │           └────────────────────┴────────────────────┘               │
 │                              │                                      │
 │  ┌───────────────────────────────────────────────────────────────── │
-│  │  Store Layer (PostgreSQL)                                        │ │
-│  │  • users (email, public_key_hash, encrypted_blob, timestamps)    │ │
-│  │  • active_shares (ciphertext, DEK bundle, TTL, expiry)         │ │
-│  │  • audit_log (immutable, 7-year retention)                       │ │
+│  │  Store Layer (PostgreSQL / JSON file)                            │
+│  │  • users (email, public_key_hash, password_hash, pubkeys, ts)     │
+│  │  • active_shares (ciphertext, DEK bundle, TTL, expiry)          │
+│  │  • audit_log (immutable, 7-year retention)                       │
 │  └─────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -107,67 +120,90 @@ MedLedger is a **low-trust, ephemeral sharing conduit** for patient-controlled m
 |-----------|------|----------------|
 | **React SPA** | Vite + TanStack Router | UI rendering, routing, state management |
 | **TanStack Query** | React hooks | API calls, caching, background refresh |
-| **Keyset Manager** | Vanilla JS module | All crypto operations, key lifecycle, memory management |
-| **Web Crypto API** | Browser native | P-256, ECDH, ECDSA, AES-GCM, PBKDF2 |
+| **Keyset Manager** | libsodium.js module | All crypto operations, key lifecycle, memory management |
+| **Integration Layer** | Vanilla JS | Bridges auth state and crypto state |
 
-The Keyset Manager is **encapsulated**. The React layer calls it via a defined API — never directly manipulates CryptoKey objects or raw buffers.
+The Keyset Manager is **encapsulated**. The React layer calls it via a defined API — never directly manipulates Uint8Array key material.
 
-### 4.2 Backend
-
-| Component | Tech | Responsibility |
-|-----------|------|----------------|
-| **FastAPI** | Python 3.12+ | HTTP routing, dependency injection, OpenAPI docs |
-| **Gate Service** | JWT + CAPTCHA + PoW | Layer 1: anti-spam, rate limiting, session management |
-| **Share Service** | PostgreSQL | Layer 2: ciphertext storage, TTL enforcement, deletion |
-| **Store Layer** | psycopg2 / asyncpg | Typed dataclasses, atomic writes, query interface |
-
-### 4.3 CLI Companion
+### 4.2 Auth Domain (`auth/`)
 
 | Component | Tech | Responsibility |
 |-----------|------|----------------|
-| **client.py** | Python + requests | Standalone CLI for power users, same keyset format, same API |
+| **Auth Flow** | Node.js orchestrator | Multi-step registration: POW → Email → TOTP → User/Pass |
+| **POW Module** | SHA-256 | Anti-spam challenge generation/verification |
+| **Email Module** | crypto.randomInt | 6-digit code generation (currently used for verification) |
+| **TOTP Module** | speakeasy + qrcode | 2FA enrollment and verification |
+| **User Module** | PBKDF2-SHA512 | Password validation and hashing |
+| **Storage** | JSON file | User record persistence |
+
+**Note:** The auth domain is a standalone system. It knows nothing about cryptography. It produces a user record that the integration layer then extends with cryptographic identity.
+
+### 4.3 Crypto Domain (`key_manager/`)
+
+| Component | Tech | Responsibility |
+|-----------|------|----------------|
+| **make_key.js** | libsodium.js | Pure key derivation/generation function |
+| **key_manager.js** | libsodium.js | Session state machine, all crypto operations |
+| **Tests** | Vitest | Unit tests for key derivation, encryption, signing |
+
+**Key design principle:** Keys are randomly generated — not derived from a password. The user receives their private keypair once at registration and must store it securely. Lost keys mean lost access to past shares.
+
+### 4.4 Integration Layer (`shared/`)
+
+| Component | Responsibility |
+|-----------|-------------|
+| **registerBridge.js** | Calls authFlow.createAccount() → KeysetManager.createUser() → prompts keypair download → stores public keys server-side |
+| **loginBridge.js** | Loads keypair file → KeysetManager.loginUser() → verifies against server public keys → unlocks vault |
+| **apiClient.js** | fetch wrapper with credentials: 'include', JWT refresh logic, CSRF token handling |
 
 ---
 
 ## 5. Data Flows
 
-### 5.1 Registration (Layer 1 + Keyset Generation)
+### 5.1 Registration (Layer 1 + Keypair Generation)
 
 ```
 Browser → User enters email + password
        → Completes CAPTCHA (Turnstile)
        → Browser solves PoW (~1 second, background)
-       → Browser calls Keyset Manager.generate(password)
-           1. Web Crypto API: generateKey(ECDSA, P-256) → keypair
-           2. Export private key as JWK
-           3. PBKDF2: derive AES key from password + random salt (310k+ iter)
-           4. AES-256-GCM: encrypt private key JWK
-           5. Package: { version, public_key_hex, public_key_hash, encrypted_private_key, created_at }
-       → Browser triggers download: "medledger-keyset-2026.json"
-       → Browser calls POST /api/register
-           Body: { email, password_hash, public_key_hash, encrypted_blob, captcha_token, pow_nonce, pow_solution }
+       → Browser calls authFlow.createAccount(username, password)
+           1. Auth domain validates username uniqueness
+           2. PBKDF2: hash password with random salt (600k iter)
+           3. Store user record in data/users.json
+           4. Return { userId, username }
 
-Server → Validate CAPTCHA token
-       → Validate PoW solution
-       → Check rate limits (IP + email domain)
-       → Hash password (Argon2id)
-       → Create user record
-       → Return JWT (HttpOnly, SameSite=Strict, Secure cookie)
+       → Integration layer calls KeysetManager.createUser(username)
+           1. libsodium.js: crypto_sign_keypair() → Ed25519 keypair
+           2. libsodium.js: crypto_box_keypair() → X25519 keypair
+           3. Return: { signingPublicKey, exchangePublicKey, userIdHex,
+                        signingPrivateKey, exchangePrivateKey }
 
-→ User is now logged in. Vault shows "Locked" until keyset is loaded.
+       → Browser triggers download: "alice.medledger-key.json"
+           { version, username, userIdHex, publicKeys, privateKeys }
+
+       → Browser calls POST /api/register/keys
+           Headers: Bearer <JWT>
+           Body: { username, userIdHex, signingPublicKey, exchangePublicKey }
+
+Server → Verify JWT
+       → Store public keys in user record
+       → Return: { registered: true }
+
+→ User is now logged in (Layer 1). Vault shows "Locked" until keypair is loaded.
 ```
 
-### 5.2 Keyset Loading (Unlocking Layer 2)
+### 5.2 Keypair Loading (Unlocking Layer 2)
 
 ```
 Browser → User clicks "Unlock Vault"
-       → Uploads keyset file + enters password
-       → Keyset Manager.load(keysetFile, password)
-           1. Read JSON package
-           2. PBKDF2 with stored salt → derive AES key
-           3. AES-256-GCM decrypt → private key JWK
-           4. Import into Web Crypto API → CryptoKey object (non-extractable)
-           5. Hold in memory only
+       → Uploads .medledger-key.json file + enters password (if encrypted)
+       → Integration layer reads file, reconstructs keypair
+       → KeysetManager.loginUser(username, keypair)
+           1. Validate keypair format (correct lengths, valid base64)
+           2. Derive userIdHex from signingPublicKey (BLAKE2b)
+           3. Verify userIdHex matches server-stored value
+           4. Store private keys in module memory (Uint8Array)
+           5. Mark session as unlocked
        → Dashboard shows "Unlocked"
        → Share / download operations now available
 ```
@@ -176,20 +212,27 @@ Browser → User clicks "Unlock Vault"
 
 ```
 Browser → User selects file
-       → User enters recipient's public key (or scans QR)
-       → Keyset Manager.encryptFor(file, recipient_public_key_hex)
-           1. Generate random 256-bit DEK (CryptoKey, extractable=false)
-           2. AES-256-GCM encrypt file → { iv, ciphertext }
-           3. ECDH: derive shared secret from ephemeral_private + recipient_public
-           4. HKDF-SHA256(shared_secret, "MedLedger-DEK-v1") → wrap key
-           5. AES-256-GCM encrypt DEK with wrap key → dek_bundle
-           6. Return: { ciphertext_hex, iv_hex, dek_bundle, filename, tags }
+       → User enters recipient's username (or scans QR)
+       → Server lookup: recipient username → exchangePublicKey
+       → KeysetManager.encryptRecord(fileBytes, recipientExchangePublicKey)
+           1. Generate random 256-bit DEK (libsodium randombytes_buf)
+           2. XSalsa20-Poly1305 encrypt file → { nonce, ciphertext }
+           3. crypto_box_seal: encrypt DEK with recipient's X25519 public key
+           4. Wipe DEK from memory (sodium.memzero)
+           5. Return: { encryptedRecord, nonce, dekBundle, fileHash }
+
+       → KeysetManager.signPayload(grantMetadata)
+           1. Canonical-JSON serialize payload
+           2. Ed25519 sign with sender's private key
+           3. Return: { payloadCanon, signature }
 
 Browser → POST /api/share
        Headers: Bearer <JWT>
-       Body: { ciphertext_hex, iv_hex, dek_bundle, recipient_public_key_hash, filename, mime_type, size_bytes, ttl_days, delete_on_download }
+       Body: { encryptedRecord, nonce, dekBundle, recipientUserIdHex,
+               filename, mime_type, size_bytes, ttl_days, signature, payloadCanon }
 
-Server → Verify JWT, extract public_key_hash
+Server → Verify JWT, extract user_id
+       → Verify Ed25519 signature against sender's public key
        → Store in active_shares table
        → Set expires_at = NOW() + ttl_days (max 90, default 30)
        → Return: { share_id, short_url, expires_at }
@@ -201,22 +244,22 @@ Server → Verify JWT, extract public_key_hash
 
 ```
 Browser → Recipient clicks short_url
-       → Prompted to upload keyset file + password
-       → Keyset Manager.load(keysetFile, password)
+       → Prompted to upload .medledger-key.json file
+       → Integration layer loads keypair → KeysetManager.loginUser()
        → Browser calls POST /api/share/:id/retrieve
            Headers: Bearer <JWT>
+           Body: { signature: Ed25519(retrievalPayload) }
 
-Server → Verify JWT, check if recipient_public_key_hash matches share
-       → Return: { ciphertext_hex, iv_hex, dek_bundle, filename, mime_type }
+Server → Verify JWT, check if recipient matches share.grantee
+       → Verify Ed25519 signature
+       → Return: { encryptedRecord, nonce, dekBundle, filename, mime_type }
        → If delete_on_download: mark row for deletion (or hard delete)
 
-Browser → Keyset Manager.decrypt(ciphertext_hex, iv_hex, dek_bundle)
-           1. ECDH: derive shared secret from recipient_private + ephemeral_public (from dek_bundle)
-           2. HKDF-SHA256 → unwrap key
-           3. AES-256-GCM decrypt DEK bundle → DEK (CryptoKey)
-           4. AES-256-GCM decrypt ciphertext with DEK → plaintext
-           5. Zero DEK from memory
-           6. Trigger browser download of decrypted file
+Browser → KeysetManager.decryptShare(encryptedRecord, nonce, dekBundle)
+           1. crypto_box_seal_open: decrypt DEK with recipient's X25519 private key
+           2. crypto_secretbox_open_easy: decrypt file with DEK
+           3. Wipe DEK from memory (sodium.memzero)
+           4. Trigger browser download of decrypted file
 
 → Server never sees plaintext. Decryption happens entirely in browser.
 ```
@@ -228,13 +271,14 @@ Browser → User clicks "Delete My Account"
        → Type "DELETE" to confirm
        → Browser calls DELETE /api/account
            Headers: Bearer <JWT>
+           Body: { password_confirmation }
 
-Server → Verify JWT
-       → Hard delete: user record, all active_shares, encrypted blobs
-       → Audit logs: anonymize (strip email, keep action type for compliance)
+Server → Verify JWT, verify password (Argon2id or PBKDF2)
+       → Hard delete: user record, all active_shares, keypair data
+       → Audit logs: anonymize (strip email, keep action type)
        → Invalidate JWT cookie
 
-Browser → Clear JWT, clear keyset from memory, redirect to landing page
+Browser → Clear JWT, clear keypair from memory, redirect to landing page
 
 → Old recipients lose access immediately. Patient can register again with new keypair.
 ```
@@ -251,13 +295,13 @@ Browser → Clear JWT, clear keyset from memory, redirect to landing page
                            ▼
                     ┌─────────────┐
                     │  ACCOUNT +  │
-                    │  KEYSET     │
+                    │  KEYPAIR    │
                     │  Vault: LOCKED│
                     └──────┬──────┘
-                           │ Upload Keyset + Password
+                           │ Upload Keypair File
                            ▼
                     ┌─────────────┐
-                    │  KEYSET     │
+                    │  KEYPAIR    │
                     │  Vault: UNLOCKED│
                     └──────┬──────┘
                            │
@@ -286,13 +330,14 @@ Browser → Clear JWT, clear keyset from memory, redirect to landing page
 | Column | Type | Notes |
 |--------|------|-------|
 | user_id | UUID | PK |
-| email | VARCHAR(255) | Verified, rate-limiting key, no recovery |
-| email_hash | VARCHAR(64) | SHA-256 of email (for lookups without exposing plaintext) |
-| password_hash | VARCHAR(255) | Argon2id |
-| public_key_hash | VARCHAR(64) | UNIQUE. Identity anchor. SHA-256 of public_key_hex. |
-| encrypted_private_key_blob | JSONB | Optional. Encrypted private key for re-download. |
-| captcha_token_used | TEXT | Prevent replay |
-| pow_nonce | VARCHAR(64) | Proof-of-work nonce |
+| username | VARCHAR(30) | UNIQUE, case-insensitive, no recovery |
+| email | VARCHAR(255) | For rate-limiting, not verification |
+| email_hash | VARCHAR(64) | SHA-256 of email (for lookups) |
+| password_hash | VARCHAR(255) | PBKDF2-SHA512 (current) or Argon2id (target) |
+| salt | VARCHAR(64) | 16 random bytes, hex |
+| signing_public_key | VARCHAR(64) | Ed25519 public key, base64url |
+| exchange_public_key | VARCHAR(64) | X25519 public key, base64url |
+| user_id_hex | VARCHAR(32) | BLAKE2b(signingPublicKey, 16), identity anchor |
 | created_at | TIMESTAMP | UTC |
 | last_login | TIMESTAMP | UTC |
 | deleted_at | TIMESTAMP | NULL if active |
@@ -302,13 +347,17 @@ Browser → Clear JWT, clear keyset from memory, redirect to landing page
 | Column | Type | Notes |
 |--------|------|-------|
 | share_id | UUID | PK |
-| owner_key_hash | VARCHAR(64) | FK → users.public_key_hash |
-| grantee_key_hash | VARCHAR(64) | FK → users.public_key_hash |
-| ciphertext | BYTEA | AES-256-GCM encrypted file |
-| dek_bundle | JSONB | ECIES-wrapped DEK for grantee |
+| owner_user_id_hex | VARCHAR(32) | FK → users.user_id_hex |
+| grantee_user_id_hex | VARCHAR(32) | FK → users.user_id_hex |
+| ciphertext | BYTEA | XSalsa20-Poly1305 encrypted file |
+| dek_bundle | TEXT | crypto_box_seal encrypted DEK |
+| nonce | TEXT | XSalsa20 nonce, base64url |
 | filename | VARCHAR(255) | Original filename |
 | mime_type | VARCHAR(100) | File type |
 | size_bytes | INTEGER | Original size |
+| file_hash | VARCHAR(64) | BLAKE2b-256 of plaintext (integrity) |
+| signature | TEXT | Ed25519 signature of grant metadata |
+| payload_canon | TEXT | Canonical JSON that was signed |
 | created_at | TIMESTAMP | UTC |
 | expires_at | TIMESTAMP | UTC. NOW() + ttl_days. |
 | downloaded_at | TIMESTAMP | NULL if not yet downloaded |
@@ -320,7 +369,7 @@ Browser → Clear JWT, clear keyset from memory, redirect to landing page
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | PK |
-| actor_key_hash | VARCHAR(64) | Who did it (anonymized if account deleted) |
+| actor_user_id_hex | VARCHAR(32) | Who did it (anonymized if account deleted) |
 | action | VARCHAR(50) | register, login, share, retrieve, delete_account |
 | share_id | UUID | FK, nullable |
 | detail | JSONB | Contextual data (no PHI, no emails) |
@@ -335,10 +384,12 @@ Browser → Clear JWT, clear keyset from memory, redirect to landing page
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | /api/register | None | CAPTCHA + PoW + keyset registration |
-| POST | /api/login | None | Email + password → JWT |
+| POST | /api/pow-challenge | None | Generate SHA-256 PoW challenge |
+| POST | /api/register | None | CAPTCHA + PoW + auth registration |
+| POST | /api/register/keys | Bearer | Store public keys after registration |
+| POST | /api/login | None | Username + password → JWT |
 | POST | /api/logout | Bearer | Invalidate session |
-| GET | /api/me | Bearer | Current user profile |
+| GET | /api/me | Bearer | Current user profile + public keys |
 | DELETE | /api/account | Bearer | Absolute deletion |
 | GET | /api/health | None | Health check |
 
@@ -354,38 +405,33 @@ Browser → Clear JWT, clear keyset from memory, redirect to landing page
 
 ---
 
-## 9. Keyset Package Format (v1)
+## 9. Keypair File Format (v1)
 
 ```json
 {
-  "version": "medledger-keyset-v1",
-  "public_key_hex": "04a1b2c3...",
-  "public_key_hash": "sha256:abc123...",
-  "encrypted_private_key": {
-    "algorithm": "AES-256-GCM",
-    "key_derivation": "PBKDF2",
-    "pbkdf2_iterations": 310000,
-    "salt": "base64_or_hex",
-    "iv": "base64_or_hex",
-    "ciphertext": "base64_or_hex",
-    "tag": "base64_or_hex"
-  },
-  "key_algorithm": "ECDSA-P256",
+  "version": "medledger-keypair-v1",
+  "username": "alice",
+  "user_id_hex": "a1b2c3d4...",
+  "signing_public_key": "base64url...",
+  "exchange_public_key": "base64url...",
+  "signing_private_key": "base64url...",
+  "exchange_private_key": "base64url...",
   "created_at": "2026-06-07T23:10:00Z",
   "metadata": {
     "generated_by": "MedLedger Keyset Manager",
-    "generator_version": "1.0"
+    "generator_version": "2.0"
   }
 }
 ```
 
 **Constraints:**
-- `public_key_hex` is always uncompressed (65 bytes = 130 hex chars)
-- `public_key_hash` is SHA-256 of `public_key_hex`
-- `encrypted_private_key` uses AES-256-GCM with 12-byte IV, 16-byte tag
-- PBKDF2 iterations: minimum 310,000 (OWASP 2023)
-- Salt: 32 bytes (256 bits), random per keyset
-- File extension: `.medledger-keyset.json` or `.mlk`
+- `signing_public_key` is Ed25519, 32 bytes (43 chars base64url)
+- `exchange_public_key` is X25519, 32 bytes (43 chars base64url)
+- `user_id_hex` is BLAKE2b-128 of signingPublicKey, 16 bytes (32 hex chars)
+- Private keys are base64url-encoded raw bytes (not encrypted in v1)
+- File extension: `.medledger-key.json`
+
+**Security note:** In a future version, the private keys may be encrypted with a user password before storage. For now, the user is responsible for securing the file.
 
 ---
 
@@ -396,7 +442,7 @@ Browser → Clear JWT, clear keyset from memory, redirect to landing page
 │   Vercel        │         │   Railway         │
 │   (Frontend)    │         │   (Backend)       │
 │                 │         │                 │
-│  React SPA      │◄──────►│  FastAPI          │
+│  React SPA      │◄──────►│  FastAPI/Node.js  │
 │  Static build   │  HTTPS  │  PostgreSQL       │
 │  Edge CDN       │         │  Redis (sessions) │
 └─────────────────┘         └─────────────────┘
@@ -415,24 +461,25 @@ Browser → Clear JWT, clear keyset from memory, redirect to landing page
 **Cookies:**
 - JWT stored in HttpOnly, SameSite=Strict, Secure cookie
 - Domain: `api.medledger.com`
-- Keyset state: NOT in cookies — purely client-side memory
+- Keypair state: NOT in cookies — purely client-side memory or file
 
 ---
 
 ## 11. Invariants (Non-Negotiable)
 
-1. **Private keys never leave the browser.** Generated in Web Crypto API, exported only as encrypted blob.
+1. **Private keys never leave the browser.** Not in cookies, not in storage, not in logs.
 2. **Server stores only public material and ciphertext.** Public keys, ciphertext, encrypted DEK bundles, signatures.
 3. **We cannot decrypt medical data.** Mathematical guarantee, not policy.
-4. **Every share is cryptographically targeted.** DEK is ECIES-wrapped for a specific recipient public key.
-5. **DEKs are always ECIES-wrapped.** Plaintext DEK never exists server-side.
-6. **No account recovery.** Lost email, password, or keyset = delete account and start over. We cannot help.
-7. **Email is anti-spam only.** Verified for filtering, not for recovery. Disposable emails allowed.
+4. **Every share is cryptographically targeted.** DEK is sealed for a specific recipient public key.
+5. **DEKs are always sealed.** Plaintext DEK never exists server-side.
+6. **No account recovery.** Lost email, password, or keypair = delete account and start over. We cannot help.
+7. **Email is anti-spam only.** Used for rate-limiting, not for recovery. Disposable emails allowed.
 8. **All shares have TTL.** Maximum 90 days, default 30 days. After expiry, server deletes.
 9. **Account deletion is absolute.** Hard delete all shares, anonymize audit logs.
 10. **Audit everything.** Every share, every retrieve, every registration logged.
-11. **Honest UI.** "We cannot recover your keyset. We cannot read your data. We are not a storage company."
+11. **Honest UI.** "We cannot recover your keypair. We cannot read your data. We are not a storage company."
 
 ---
 
-*Document: 01-ARCHITECTURE.md | Author: Premananda (Team Praxis) | Status: Draft v1.0*
+*Document: 01-ARCHITECTURE.md | Author: Premananda (Team Praxis) | Status: Draft v2.0*
+*Updated: June 2026 to reflect actual two-domain implementation*

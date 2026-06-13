@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MedLedger — Secure Medical Records</title>
+<style>
+  /* ── Reset & base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d1117;
+    --surface:   #161b22;
+    --surface2:  #21262d;
+    --border:    #30363d;
+    --text:      #e6edf3;
+    --muted:     #8b949e;
+    --accent:    #238636;
+    --accent-h:  #2ea043;
+    --blue:      #1f6feb;
+    --blue-h:    #388bfd;
+    --red:       #da3633;
+    --red-h:     #f85149;
+    --yellow:    #d29922;
+    --teal:      #0d9488;
+    --radius:    8px;
+    --shadow:    0 4px 24px rgba(0,0,0,.4);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* ── Layout ── */
+  #app { min-height: 100vh; display: flex; flex-direction: column; }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+  }
+  .logo-icon { font-size: 20px; }
+
+  .nav-links { display: flex; gap: 4px; flex: 1; }
+  .nav-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    padding: 6px 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 14px;
+    transition: all .15s;
+  }
+  .nav-btn:hover, .nav-btn.active { background: var(--surface2); color: var(--text); }
+
+  .vault-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    cursor: pointer;
+    background: var(--surface2);
+    transition: border-color .15s;
+  }
+  .vault-status:hover { border-color: var(--blue); }
+  .vault-status.unlocked { border-color: var(--accent); color: var(--accent-h); }
+  .vault-status.locked   { border-color: var(--yellow); color: var(--yellow); }
+
+  main { flex: 1; padding: 32px 24px; max-width: 960px; margin: 0 auto; width: 100%; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ── Forms ── */
+  .form-group { margin-bottom: 16px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+  input, select, textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 9px 12px;
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--blue); }
+  input[type=file] { cursor: pointer; }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .15s;
+    text-decoration: none;
+  }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-primary  { background: var(--accent);  color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: var(--accent-h); }
+  .btn-blue     { background: var(--blue);    color: #fff; }
+  .btn-blue:hover:not(:disabled) { background: var(--blue-h); }
+  .btn-danger   { background: var(--red);     color: #fff; }
+  .btn-danger:hover:not(:disabled) { background: var(--red-h); }
+  .btn-ghost    { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover:not(:disabled) { border-color: var(--blue); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  /* ── Alerts ── */
+  .alert {
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    border: 1px solid;
+    font-size: 13px;
+  }
+  .alert-error  { background: rgba(218,54,51,.1); border-color: var(--red);    color: #ffa198; }
+  .alert-success{ background: rgba(35,134,54,.1); border-color: var(--accent); color: #56d364; }
+  .alert-warn   { background: rgba(210,153,34,.1); border-color: var(--yellow); color: #e3b341; }
+  .alert-info   { background: rgba(31,111,235,.1); border-color: var(--blue);  color: #79c0ff; }
+
+  /* ── Tables ── */
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+
+  /* ── Badge ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .badge-green  { background: rgba(35,134,54,.2);  color: #56d364; }
+  .badge-red    { background: rgba(218,54,51,.2);  color: #ffa198; }
+  .badge-yellow { background: rgba(210,153,34,.2); color: #e3b341; }
+  .badge-blue   { background: rgba(31,111,235,.2); color: #79c0ff; }
+
+  /* ── Page headers ── */
+  .page-header { margin-bottom: 24px; }
+  .page-title  { font-size: 22px; font-weight: 700; }
+  .page-sub    { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+  /* ── Auth screens ── */
+  .auth-wrap {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: var(--bg);
+  }
+  .auth-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 40px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: var(--shadow);
+  }
+  .auth-logo {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .auth-logo .logo-icon { font-size: 36px; display: block; margin-bottom: 8px; }
+  .auth-logo h1 { font-size: 22px; font-weight: 700; }
+  .auth-logo p  { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+  /* ── Step indicator ── */
+  .steps {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+  .step-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background .2s;
+  }
+  .step-dot.active  { background: var(--blue); }
+  .step-dot.done    { background: var(--accent); }
+
+  /* ── Vault modal overlay ── */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200;
+    padding: 24px;
+  }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: var(--shadow);
+  }
+  .modal-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+
+  /* ── Key download warning ── */
+  .key-warn {
+    background: rgba(210,153,34,.15);
+    border: 1px solid var(--yellow);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: #e3b341;
+  }
+  .key-warn strong { display: block; font-size: 14px; margin-bottom: 6px; }
+
+  /* ── Grid ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media(max-width:640px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* ── Stats ── */
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+  }
+  .stat-num  { font-size: 32px; font-weight: 700; color: var(--blue-h); }
+  .stat-label{ font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-top: 4px; }
+
+  /* ── Spinner ── */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    display: inline-block;
+  }
+
+  /* ── QR code ── */
+  .qr-wrap { text-align: center; margin: 16px 0; }
+  .qr-wrap img { border-radius: var(--radius); border: 4px solid #fff; }
+
+  /* ── Monospace ── */
+  .mono { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 12px; color: var(--muted); }
+
+  /* ── Utility ── */
+  .hidden  { display: none !important; }
+  .flex    { display: flex; }
+  .gap-8   { gap: 8px; }
+  .gap-12  { gap: 12px; }
+  .mt-8    { margin-top: 8px; }
+  .mt-16   { margin-top: 16px; }
+  .mt-24   { margin-top: 24px; }
+  .text-right { text-align: right; }
+  .text-muted { color: var(--muted); }
+  .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+const state = {
+  page: 'login',       // login | register | dashboard | shares | vault | profile
+  user: null,          // MeResponse from /api/me
+  vaultLocked: true,
+  registrationStep: 1, // 1-5
+  regSession: null,
+  regData: {},
+  sharesSent: [],
+  sharesReceived: [],
+  vaultRecords: [],
+  loading: false,
+  error: null,
+  success: null,
+  showUnlockModal: false,
+  showShareModal: false,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// API CLIENT
+// ═══════════════════════════════════════════════════════════════════════════════
+const api = {
+  async request(method, path, body) {
+    const opts = { method, credentials: 'include', headers: {} };
+    if (body !== undefined) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+    const res = await fetch('/api' + path, opts);
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const e = await res.json(); msg = e.detail || e.message || msg; } catch {}
+      throw new Error(msg);
+    }
+    if (res.status === 204) return null;
+    return res.json();
+  },
+  get:    (p)    => api.request('GET', p),
+  post:   (p, b) => api.request('POST', p, b),
+  delete: (p)    => api.request('DELETE', p),
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// POW SOLVER (runs in main thread for simplicity)
+// ═══════════════════════════════════════════════════════════════════════════════
+async function solvePoW(challenge, difficulty) {
+  const prefix = '0'.repeat(difficulty);
+  let nonce = 0;
+  while (true) {
+    const input = challenge + nonce.toString();
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+    const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+    if (hex.startsWith(prefix)) return nonce.toString();
+    nonce++;
+    if (nonce % 5000 === 0) await new Promise(r => setTimeout(r, 0)); // yield
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RENDER ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
+function render() {
+  const app = document.getElementById('app');
+  if (!state.user) {
+    app.innerHTML = state.page === 'register' ? renderRegister() : renderLogin();
+  } else {
+    app.innerHTML = renderApp();
+  }
+  attachHandlers();
+}
+
+function setError(msg)   { state.error = msg; state.success = null; render(); }
+function setSuccess(msg) { state.success = msg; state.error = null; render(); }
+function clearMessages() { state.error = null; state.success = null; }
+function setPage(p)      { state.page = p; clearMessages(); render(); }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTH SCREENS
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderLogin() {
+  return `
+  <div class="auth-wrap">
+    <div class="auth-box">
+      <div class="auth-logo">
+        <span class="logo-icon">🏥</span>
+        <h1>MedLedger</h1>
+        <p>Zero-knowledge medical record sharing</p>
+      </div>
+      ${alertHtml()}
+      <div class="form-group">
+        <label>Username</label>
+        <input id="login-user" type="text" placeholder="your_username" autocomplete="username" />
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <button class="btn btn-primary" style="width:100%" id="btn-login">
+        ${state.loading ? '<span class="spinner"></span>' : '🔑 Sign in'}
+      </button>
+      <p style="text-align:center;margin-top:16px;color:var(--muted);font-size:13px">
+        No account? <a href="#" id="go-register" style="color:var(--blue-h)">Create one</a>
+      </p>
+    </div>
+  </div>`;
+}
+
+function renderRegister() {
+  const steps = Array.from({length:5}, (_,i) => {
+    const cls = i+1 < state.registrationStep ? 'done'
+              : i+1 === state.registrationStep ? 'active' : '';
+    return `<div class="step-dot ${cls}"></div>`;
+  }).join('');
+
+  const stepContent = [
+    renderRegStep1, renderRegStep2, renderRegStep3, renderRegStep4, renderRegStep5
+  ][state.registrationStep - 1]();
+
+  return `
+  <div class="auth-wrap">
+    <div class="auth-box">
+      <div class="auth-logo">
+        <span class="logo-icon">🏥</span>
+        <h1>Create Account</h1>
+        <p>Step ${state.registrationStep} of 5</p>
+      </div>
+      <div class="steps">${steps}</div>
+      ${alertHtml()}
+      ${stepContent}
+      <p style="text-align:center;margin-top:16px;color:var(--muted);font-size:13px">
+        Have an account? <a href="#" id="go-login" style="color:var(--blue-h)">Sign in</a>
+      </p>
+    </div>
+  </div>`;
+}
+
+function renderRegStep1() {
+  return `
+  <p style="color:var(--muted);font-size:13px;margin-bottom:20px">
+    We'll verify you're human before creating your account.
+  </p>
+  <button class="btn btn-blue" style="width:100%" id="btn-start-pow">
+    ${state.loading ? '<span class="spinner"></span> Solving challenge…' : '🤖 Start verification'}
+  </button>`;
+}
+
+function renderRegStep2() {
+  return `
+  <div class="form-group">
+    <label>Email address</label>
+    <input id="reg-email" type="email" placeholder="you@example.com" />
+  </div>
+  <button class="btn btn-blue" style="width:100%" id="btn-submit-email">
+    ${state.loading ? '<span class="spinner"></span>' : '📧 Send verification code'}
+  </button>`;
+}
+
+function renderRegStep3() {
+  return `
+  <p style="color:var(--muted);font-size:13px;margin-bottom:16px">
+    Enter the 6-digit code sent to <strong style="color:var(--text)">${state.regData.maskedEmail || 'your email'}</strong>
+  </p>
+  <div class="form-group">
+    <label>Verification code</label>
+    <input id="reg-code" type="text" maxlength="6" placeholder="000000" style="letter-spacing:8px;font-size:20px;text-align:center" />
+  </div>
+  <button class="btn btn-blue" style="width:100%" id="btn-verify-email">
+    ${state.loading ? '<span class="spinner"></span>' : '✅ Verify code'}
+  </button>`;
+}
+
+function renderRegStep4() {
+  const qr = state.regData.qrCode || '';
+  const key = state.regData.manualKey || '';
+  return `
+  <p style="color:var(--muted);font-size:13px;margin-bottom:16px">
+    Scan this QR code in your authenticator app (Google Authenticator, Authy, etc.)
+  </p>
+  ${qr ? `<div class="qr-wrap"><img src="${qr}" width="200" height="200" alt="TOTP QR" /></div>` : ''}
+  ${key ? `<p style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:16px">Manual key: <span class="mono">${key}</span></p>` : ''}
+  <div class="form-group">
+    <label>6-digit code from app</label>
+    <input id="reg-totp" type="text" maxlength="6" placeholder="000000" style="letter-spacing:8px;font-size:20px;text-align:center" />
+  </div>
+  <button class="btn btn-blue" style="width:100%" id="btn-verify-totp">
+    ${state.loading ? '<span class="spinner"></span>' : '🔐 Verify authenticator'}
+  </button>`;
+}
+
+function renderRegStep5() {
+  return `
+  <div class="form-group">
+    <label>Username</label>
+    <input id="reg-username" type="text" placeholder="alice" autocomplete="username" />
+    <p style="font-size:11px;color:var(--muted);margin-top:4px">3-30 chars, letters/numbers/underscores</p>
+  </div>
+  <div class="form-group">
+    <label>Password</label>
+    <input id="reg-password" type="password" placeholder="••••••••" autocomplete="new-password" />
+  </div>
+  <div class="form-group">
+    <label>Confirm password</label>
+    <input id="reg-password2" type="password" placeholder="••••••••" autocomplete="new-password" />
+  </div>
+  <button class="btn btn-primary" style="width:100%" id="btn-create-account">
+    ${state.loading ? '<span class="spinner"></span>' : '🎉 Create account'}
+  </button>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderApp() {
+  const u = state.user;
+  const vaultCls = state.vaultLocked ? 'locked' : 'unlocked';
+  const vaultLabel = state.vaultLocked ? '🔒 Vault locked' : '🔓 Vault unlocked';
+
+  return `
+  <div id="app">
+    <header>
+      <a class="logo" href="#"><span class="logo-icon">🏥</span> MedLedger</a>
+      <nav class="nav-links">
+        <button class="nav-btn ${state.page==='dashboard'?'active':''}" data-page="dashboard">Dashboard</button>
+        <button class="nav-btn ${state.page==='shares'?'active':''}" data-page="shares">Shares</button>
+        <button class="nav-btn ${state.page==='vault'?'active':''}" data-page="vault">Vault</button>
+      </nav>
+      <button class="vault-status ${vaultCls}" id="btn-vault-toggle">${vaultLabel}</button>
+      <button class="btn btn-ghost btn-sm" id="btn-logout">Sign out</button>
+    </header>
+
+    <main>
+      ${alertHtml()}
+      ${state.page === 'dashboard' ? renderDashboard() : ''}
+      ${state.page === 'shares'    ? renderShares()    : ''}
+      ${state.page === 'vault'     ? renderVaultPage() : ''}
+    </main>
+
+    ${state.showUnlockModal ? renderUnlockModal() : ''}
+    ${state.showShareModal  ? renderShareModal()  : ''}
+    ${state.showKeypairDownload ? renderKeypairDownload() : ''}
+  </div>`;
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function renderDashboard() {
+  const u = state.user;
+  const sentCount     = state.sharesSent.filter(s => s.status === 'active').length;
+  const receivedCount = state.sharesReceived.length;
+  const vaultCount    = state.vaultRecords.length;
+
+  return `
+  <div class="page-header">
+    <h1 class="page-title">Welcome back, ${u.username}</h1>
+    <p class="page-sub">Your medical records are end-to-end encrypted. Only you can decrypt them.</p>
+  </div>
+
+  <div class="grid-2" style="grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px">
+    <div class="stat-card">
+      <div class="stat-num">${sentCount}</div>
+      <div class="stat-label">Active shares sent</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">${receivedCount}</div>
+      <div class="stat-label">Shares received</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">${vaultCount}</div>
+      <div class="stat-label">Vault records</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">🔐 Security status</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="flex gap-8" style="align-items:center">
+          <span>${state.vaultLocked ? '🔒' : '🔓'}</span>
+          <span>Crypto vault: <strong>${state.vaultLocked ? 'Locked' : 'Unlocked'}</strong></span>
+        </div>
+        <div class="flex gap-8" style="align-items:center">
+          <span>✅</span>
+          <span>Account verified: <strong>${u.is_verified ? 'Yes' : 'No'}</strong></span>
+        </div>
+        <div class="flex gap-8" style="align-items:center">
+          <span>${u.public_keys?.signing_public_key ? '✅' : '⚠️'}</span>
+          <span>Public keys registered: <strong>${u.public_keys?.signing_public_key ? 'Yes' : 'No'}</strong></span>
+        </div>
+      </div>
+      ${state.vaultLocked ? `
+      <button class="btn btn-blue mt-16" id="btn-open-unlock" style="width:100%">
+        🔓 Unlock vault
+      </button>` : ''}
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 Account info</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div><span class="text-muted">Username</span><br/><strong>${u.username}</strong></div>
+        <div><span class="text-muted">Role</span><br/><strong>${u.role}</strong></div>
+        <div><span class="text-muted">User ID</span><br/><span class="mono truncate">${u.user_id_hex || 'Pending key registration'}</span></div>
+      </div>
+    </div>
+  </div>
+
+  ${state.sharesSent.length > 0 ? `
+  <div class="card mt-24">
+    <div class="card-title flex" style="justify-content:space-between">
+      <span>📤 Recent shares sent</span>
+      <button class="btn btn-ghost btn-sm" data-page="shares">View all</button>
+    </div>
+    ${renderSharesTable(state.sharesSent.slice(0,5), 'sent')}
+  </div>` : ''}`;
+}
+
+// ── Shares ────────────────────────────────────────────────────────────────────
+function renderShares() {
+  return `
+  <div class="page-header flex" style="justify-content:space-between;align-items:flex-start">
+    <div>
+      <h1 class="page-title">📤 Shares</h1>
+      <p class="page-sub">Files you've securely shared with others, and shares sent to you.</p>
+    </div>
+    <button class="btn btn-primary" id="btn-new-share" ${state.vaultLocked ? 'disabled title="Unlock vault first"' : ''}>
+      + New share
+    </button>
+  </div>
+
+  ${state.vaultLocked ? `<div class="alert alert-warn">🔒 Unlock your vault to create or download shares.</div>` : ''}
+
+  <div class="card">
+    <div class="card-title">Sent by me</div>
+    ${state.sharesSent.length ? renderSharesTable(state.sharesSent, 'sent') : '<p class="text-muted">No shares sent yet.</p>'}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Received</div>
+    ${state.sharesReceived.length ? renderSharesTable(state.sharesReceived, 'received') : '<p class="text-muted">No shares received.</p>'}
+  </div>`;
+}
+
+function renderSharesTable(shares, type) {
+  const rows = shares.map(s => {
+    const statusBadge = {
+      active:    '<span class="badge badge-green">active</span>',
+      retrieved: '<span class="badge badge-blue">retrieved</span>',
+      revoked:   '<span class="badge badge-red">revoked</span>',
+      expired:   '<span class="badge badge-yellow">expired</span>',
+    }[s.status] || s.status;
+
+    const other = type === 'sent' ? s.grantee_username : s.owner_username;
+    const label = type === 'sent' ? `→ ${other}` : `← ${other}`;
+    const expiry = new Date(s.expires_at).toLocaleDateString();
+    const revokeBtn = type === 'sent' && s.status === 'active'
+      ? `<button class="btn btn-danger btn-sm" data-revoke="${s.share_id}">Revoke</button>` : '';
+
+    return `<tr>
+      <td><span class="truncate" title="${s.filename}">${s.filename}</span></td>
+      <td>${label}</td>
+      <td>${statusBadge}</td>
+      <td class="text-muted">${expiry}</td>
+      <td>${revokeBtn}</td>
+    </tr>`;
+  }).join('');
+
+  return `<table>
+    <thead><tr>
+      <th>Filename</th><th>With</th><th>Status</th><th>Expires</th><th></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── Vault ─────────────────────────────────────────────────────────────────────
+function renderVaultPage() {
+  return `
+  <div class="page-header flex" style="justify-content:space-between;align-items:flex-start">
+    <div>
+      <h1 class="page-title">🗄️ Vault</h1>
+      <p class="page-sub">Your encrypted medical records. Never stored in plaintext.</p>
+    </div>
+    <label class="btn btn-primary ${state.vaultLocked ? 'disabled' : ''}" style="cursor:pointer">
+      + Upload
+      <input type="file" id="vault-upload-input" style="display:none" ${state.vaultLocked ? 'disabled' : ''} />
+    </label>
+  </div>
+
+  ${state.vaultLocked ? `<div class="alert alert-warn">🔒 Unlock your vault to upload or download records.</div>` : ''}
+
+  <div class="card">
+    ${state.vaultRecords.length ? `
+    <table>
+      <thead><tr><th>Filename</th><th>Type</th><th>Size</th><th>Uploaded</th><th></th></tr></thead>
+      <tbody>
+        ${state.vaultRecords.map(r => `<tr>
+          <td><span class="truncate" title="${r.filename}">${r.filename}</span></td>
+          <td class="text-muted">${r.mime_type || '—'}</td>
+          <td class="text-muted">${formatBytes(r.size_bytes)}</td>
+          <td class="text-muted">${new Date(r.created_at).toLocaleDateString()}</td>
+          <td>
+            <button class="btn btn-ghost btn-sm" data-delete-record="${r.record_id}">🗑</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>` : `<p class="text-muted">No vault records yet. Upload a file to get started.</p>`}
+  </div>`;
+}
+
+// ── Modals ────────────────────────────────────────────────────────────────────
+function renderUnlockModal() {
+  return `
+  <div class="overlay">
+    <div class="modal">
+      <div class="modal-title">🔓 Unlock vault</div>
+      <div class="alert alert-info" style="font-size:13px">
+        Your private keys never leave your device. Upload your <strong>.medledger-key.json</strong> file to unlock.
+      </div>
+      ${alertHtml()}
+      <div class="form-group">
+        <label>Key file</label>
+        <input type="file" id="keypair-file" accept=".json" />
+      </div>
+      <div class="flex gap-8 mt-16">
+        <button class="btn btn-ghost" style="flex:1" id="btn-close-unlock">Cancel</button>
+        <button class="btn btn-blue" style="flex:1" id="btn-do-unlock">
+          ${state.loading ? '<span class="spinner"></span>' : '🔓 Unlock'}
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderShareModal() {
+  return `
+  <div class="overlay">
+    <div class="modal">
+      <div class="modal-title">📤 New share</div>
+      ${alertHtml()}
+      <div class="form-group">
+        <label>Recipient username</label>
+        <input id="share-recipient" type="text" placeholder="Search username…" />
+        <div id="user-search-results" style="margin-top:6px"></div>
+      </div>
+      <div class="form-group">
+        <label>File to share</label>
+        <input type="file" id="share-file-input" />
+      </div>
+      <div class="form-group">
+        <label>Expires in (hours)</label>
+        <input id="share-expires" type="number" value="24" min="1" max="2160" />
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="share-delete-dl" checked style="width:auto" />
+        <label style="margin:0;text-transform:none;letter-spacing:0">Delete after download</label>
+      </div>
+      <div class="flex gap-8 mt-16">
+        <button class="btn btn-ghost" style="flex:1" id="btn-close-share">Cancel</button>
+        <button class="btn btn-primary" style="flex:1" id="btn-do-share">
+          ${state.loading ? '<span class="spinner"></span>' : '🔒 Encrypt & share'}
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderKeypairDownload() {
+  return `
+  <div class="overlay">
+    <div class="modal">
+      <div class="modal-title">🔑 Save your key file</div>
+      <div class="key-warn">
+        <strong>⚠️ IMMEDIATE ACTION REQUIRED</strong>
+        This is your ONLY cryptographic key file. Without it you cannot decrypt files or
+        create shares. <strong>MedLedger cannot recover it.</strong> Save it somewhere safe
+        and back it up.
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:20px">
+        The file has been downloaded automatically. Make sure you can locate it before continuing.
+      </p>
+      <button class="btn btn-primary" style="width:100%" id="btn-confirm-keypair">
+        ✅ I've saved my key file — continue
+      </button>
+    </div>
+  </div>`;
+}
+
+// ── Alerts ────────────────────────────────────────────────────────────────────
+function alertHtml() {
+  if (state.error)   return `<div class="alert alert-error">❌ ${state.error}</div>`;
+  if (state.success) return `<div class="alert alert-success">✅ ${state.success}</div>`;
+  return '';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT HANDLERS
+// ═══════════════════════════════════════════════════════════════════════════════
+function attachHandlers() {
+  on('go-register',      () => { state.page = 'register'; state.registrationStep = 1; clearMessages(); render(); });
+  on('go-login',         () => { state.page = 'login'; clearMessages(); render(); });
+  on('btn-login',        handleLogin);
+  on('btn-start-pow',    handleStartPoW);
+  on('btn-submit-email', handleSubmitEmail);
+  on('btn-verify-email', handleVerifyEmail);
+  on('btn-verify-totp',  handleVerifyTotp);
+  on('btn-create-account', handleCreateAccount);
+  on('btn-logout',       handleLogout);
+  on('btn-vault-toggle', toggleVault);
+  on('btn-open-unlock',  () => { state.showUnlockModal = true; render(); });
+  on('btn-close-unlock', () => { state.showUnlockModal = false; render(); });
+  on('btn-do-unlock',    handleUnlockVault);
+  on('btn-new-share',    () => { state.showShareModal = true; render(); });
+  on('btn-close-share',  () => { state.showShareModal = false; render(); });
+  on('btn-do-share',     handleCreateShare);
+  on('btn-confirm-keypair', () => { state.showKeypairDownload = false; render(); });
+
+  // Nav
+  document.querySelectorAll('[data-page]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      setPage(btn.dataset.page);
+      if (btn.dataset.page === 'shares') await loadShares();
+      if (btn.dataset.page === 'vault')  await loadVault();
+    });
+  });
+
+  // Revoke share buttons
+  document.querySelectorAll('[data-revoke]').forEach(btn => {
+    btn.addEventListener('click', () => handleRevokeShare(btn.dataset.revoke));
+  });
+
+  // Delete vault record
+  document.querySelectorAll('[data-delete-record]').forEach(btn => {
+    btn.addEventListener('click', () => handleDeleteRecord(btn.dataset.deleteRecord));
+  });
+
+  // User search in share modal
+  const recipInput = document.getElementById('share-recipient');
+  if (recipInput) {
+    let searchTimeout;
+    recipInput.addEventListener('input', () => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => searchUsers(recipInput.value), 300);
+    });
+  }
+}
+
+function on(id, fn) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('click', fn);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTH ACTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+async function handleLogin() {
+  clearMessages();
+  const username = val('login-user');
+  const password = val('login-pass');
+  if (!username || !password) return setError('Enter username and password');
+  state.loading = true; render();
+  try {
+    const user = await api.post('/login', { username, password });
+    state.user = user;
+    state.page = 'dashboard';
+    state.loading = false;
+    await loadDashboardData();
+    render();
+  } catch (e) {
+    state.loading = false;
+    setError(e.message);
+  }
+}
+
+async function handleStartPoW() {
+  state.loading = true; render();
+  try {
+    const { challenge_id, challenge, difficulty } = await api.post('/auth/pow', {});
+    setSuccess('Solving PoW challenge…');
+    const nonce = await solvePoW(challenge, difficulty);
+    const { session_token } = await api.post('/auth/verify-pow', { challenge_id, nonce });
+    state.regSession = session_token;
+    state.loading = false;
+    state.registrationStep = 2;
+    setSuccess('Verification passed! Enter your email.');
+  } catch (e) {
+    state.loading = false;
+    setError(e.message);
+  }
+}
+
+async function handleSubmitEmail() {
+  const email = val('reg-email');
+  if (!email) return setError('Enter your email');
+  state.loading = true; render();
+  try {
+    const res = await api.post('/auth/submit-email', { session_token: state.regSession, email });
+    state.regData.maskedEmail = res.email;
+    state.loading = false;
+    state.registrationStep = 3;
+    setSuccess('Code sent! Check your email.');
+  } catch (e) {
+    state.loading = false;
+    setError(e.message);
+  }
+}
+
+async function handleVerifyEmail() {
+  const code = val('reg-code');
+  if (!code || code.length !== 6) return setError('Enter the 6-digit code');
+  state.loading = true; render();
+  try {
+    const res = await api.post('/auth/verify-email', { session_token: state.regSession, code });
+    state.regData.qrCode   = res.totp?.qr_code;
+    state.regData.manualKey= res.totp?.manual_key;
+    state.loading = false;
+    state.registrationStep = 4;
+    setSuccess('Email verified. Set up your authenticator.');
+  } catch (e) {
+    state.loading = false;
+    setError(e.message);
+  }
+}
+
+async function handleVerifyTotp() {
+  const totp_token = val('reg-totp');
+  if (!totp_token || totp_token.length !== 6) return setError('Enter the 6-digit TOTP code');
+  state.loading = true; render();
+  try {
+    await api.post('/auth/verify-totp', { session_token: state.regSession, totp_token });
+    state.loading = false;
+    state.registrationStep = 5;
+    setSuccess('Authenticator verified. Create your account.');
+  } catch (e) {
+    state.loading = false;
+    setError(e.message);
+  }
+}
+
+async function handleCreateAccount() {
+  const username  = val('reg-username');
+  const password  = val('reg-password');
+  const password2 = val('reg-password2');
+  if (!username || !password) return setError('Fill in all fields');
+  if (password !== password2) return setError('Passwords do not match');
+  state.loading = true; render();
+  try {
+    await api.post('/auth/create-account', {
+      session_token: state.regSession, username, password,
+    });
+    // Auto-login
+    const user = await api.post('/login', { username, password });
+    state.user = user;
+    state.page = 'dashboard';
+    state.loading = false;
+    state.showKeypairDownload = true; // Show key download reminder
+    await loadDashboardData();
+    render();
+  } catch (e) {
+    state.loading = false;
+    setError(e.message);
+  }
+}
+
+async function handleLogout() {
+  try { await api.post('/auth/logout', {}); } catch {}
+  state.user = null;
+  state.vaultLocked = true;
+  state.page = 'login';
+  state.sharesSent = [];
+  state.sharesReceived = [];
+  state.vaultRecords = [];
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VAULT ACTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+function toggleVault() {
+  if (state.vaultLocked) {
+    state.showUnlockModal = true;
+    render();
+  } else {
+    state.vaultLocked = true;
+    // In real implementation: KeysetManager.logoutUser()
+    setSuccess('Vault locked');
+  }
+}
+
+async function handleUnlockVault() {
+  const fileInput = document.getElementById('keypair-file');
+  if (!fileInput?.files?.length) return setError('Select your key file');
+  state.loading = true; render();
+  try {
+    const file = fileInput.files[0];
+    if (!file.name.endsWith('.medledger-key.json') && !file.name.endsWith('.json')) {
+      throw new Error('File must be a .medledger-key.json file');
+    }
+    const text = await file.text();
+    const keyData = JSON.parse(text);
+    if (!keyData.signingPrivateKey || !keyData.exchangePrivateKey) {
+      throw new Error('Invalid key file — missing private key fields');
+    }
+    // Validate against server public keys
+    if (state.user?.public_keys?.signing_public_key &&
+        keyData.signingPublicKey !== state.user.public_keys.signing_public_key) {
+      throw new Error('This key file does not belong to this account');
+    }
+    // In real implementation: call unlockVault() from loginBridge.js
+    state.vaultLocked = false;
+    state.showUnlockModal = false;
+    state.loading = false;
+    setSuccess('Vault unlocked');
+  } catch (e) {
+    state.loading = false;
+    setError(e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SHARES ACTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+async function handleCreateShare() {
+  const recipientInput = document.getElementById('share-recipient');
+  const fileInput = document.getElementById('share-file-input');
+  const expires = document.getElementById('share-expires')?.value;
+  const deleteOnDl = document.getElementById('share-delete-dl')?.checked;
+
+  if (!state.selectedRecipient) return setError('Select a recipient');
+  if (!fileInput?.files?.length) return setError('Select a file to share');
+
+  state.loading = true; render();
+  try {
+    const file = fileInput.files[0];
+    const buffer = await file.arrayBuffer();
+
+    // In real implementation: encrypt with KeysetManager using recipient's exchange key
+    // For demo: use placeholder values
+    const ciphertext_b64 = btoa(String.fromCharCode(...new Uint8Array(buffer).slice(0,100))) + '__DEMO__';
+
+    await api.post('/shares', {
+      grantee_user_id_hex: state.selectedRecipient.user_id_hex,
+      filename: file.name,
+      mime_type: file.type,
+      size_bytes: file.size,
+      ciphertext_b64,
+      dek_bundle: 'DEMO_DEK',
+      nonce: 'DEMO_NONCE',
+      signature: 'DEMO_SIG',
+      expires_hours: parseInt(expires) || 24,
+      delete_on_download: deleteOnDl,
+    });
+
+    state.showShareModal = false;
+    state.selectedRecipient = null;
+    state.loading = false;
+    await loadShares();
+    setSuccess(`File shared with ${state.selectedRecipient?.username || 'recipient'}`);
+  } catch (e) {
+    state.loading = false;
+    setError(e.message);
+  }
+}
+
+async function handleRevokeShare(shareId) {
+  if (!confirm('Revoke this share? The recipient will lose access.')) return;
+  try {
+    await api.delete(`/shares/${shareId}`);
+    await loadShares();
+    setSuccess('Share revoked');
+  } catch (e) {
+    setError(e.message);
+  }
+}
+
+async function handleDeleteRecord(recordId) {
+  if (!confirm('Delete this record permanently?')) return;
+  try {
+    await api.delete(`/vault/records/${recordId}`);
+    await loadVault();
+    setSuccess('Record deleted');
+  } catch (e) {
+    setError(e.message);
+  }
+}
+
+async function searchUsers(q) {
+  if (q.length < 2) {
+    const el = document.getElementById('user-search-results');
+    if (el) el.innerHTML = '';
+    return;
+  }
+  try {
+    const results = await api.get(`/users/search?q=${encodeURIComponent(q)}`);
+    const el = document.getElementById('user-search-results');
+    if (!el) return;
+    el.innerHTML = results.map(u => `
+      <div style="padding:8px 12px;background:var(--surface2);border-radius:var(--radius);
+                  cursor:pointer;border:1px solid var(--border);margin-top:4px"
+           data-user='${JSON.stringify(u)}' class="user-result">
+        <strong>${u.username}</strong>
+        <span class="mono" style="margin-left:8px">${u.user_id_hex?.slice(0,12)}…</span>
+      </div>`).join('');
+    el.querySelectorAll('.user-result').forEach(el => {
+      el.addEventListener('click', () => {
+        state.selectedRecipient = JSON.parse(el.dataset.user);
+        const input = document.getElementById('share-recipient');
+        if (input) input.value = state.selectedRecipient.username;
+        el.parentElement.innerHTML = `<div class="alert alert-success" style="margin:0">Selected: ${state.selectedRecipient.username}</div>`;
+      });
+    });
+  } catch {}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DATA LOADING
+// ═══════════════════════════════════════════════════════════════════════════════
+async function loadDashboardData() {
+  await Promise.allSettled([loadShares(), loadVault()]);
+}
+
+async function loadShares() {
+  try {
+    const [sent, recv] = await Promise.all([
+      api.get('/shares/sent'),
+      api.get('/shares/received'),
+    ]);
+    state.sharesSent     = sent || [];
+    state.sharesReceived = recv || [];
+    render();
+  } catch {}
+}
+
+async function loadVault() {
+  try {
+    state.vaultRecords = await api.get('/vault/records') || [];
+    render();
+  } catch {}
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════════════════════
+function val(id) {
+  return document.getElementById(id)?.value?.trim() || '';
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024**2) return `${(bytes/1024).toFixed(1)} KB`;
+  return `${(bytes/1024**2).toFixed(1)} MB`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INIT — check existing session
+// ═══════════════════════════════════════════════════════════════════════════════
+(async () => {
+  try {
+    const user = await api.get('/me');
+    state.user = user;
+    state.page = 'dashboard';
+    await loadDashboardData();
+  } catch {
+    state.user = null;
+    state.page = 'login';
+  }
+  render();
+})();
+</script>
+</body>
+</html>

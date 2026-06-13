@@ -1,6 +1,6 @@
 # MedLedger Authentication Specification
 
-**Version:** 1.0 | **Date:** June 2026 | **Status:** Draft — Aligned with 01-ARCHITECTURE.md + 02-SECURITY_SPEC.md**
+**Version:** 2.0 | **Date:** June 2026 | **Status:** Draft — Aligned with 01-ARCHITECTURE-v2.md**
 
 **Architecture:** BFF (Backend-for-Frontend) + HttpOnly Cookies + CSRF Protection
 **Primary Client:** Confidential web application (browser-based SPA)
@@ -31,6 +31,7 @@
 | **JWT in Authorization header** | Requires custom header handling, XSS risk if leaked |
 | **Email verification links** | Violates "email is anti-spam only" principle; adds recovery vector |
 | **Password reset flow** | Violates "no account recovery" principle |
+| **TOTP 2FA** | Keypair possession IS the second factor; TOTP creates recovery path |
 
 ### 1.3 Architecture Diagram
 
@@ -38,13 +39,13 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                        BROWSER (SPA)                              │
 │  ┌─────────────┐      ┌─────────────┐      ┌─────────────────┐ │
-│  │  React UI   │      │ Keyset Mgr  │      │  Web Crypto API │ │
+│  │  React UI   │      │ Key Manager │      │  libsodium.js   │ │
 │  │             │      │ (JS Module) │      │                 │ │
-│  │ • Register  │      │ • generate()│      │ • P-256 keygen  │ │
-│  │ • Login     │      │ • load()    │      │ • ECDSA sign    │ │
-│  │ • Share UI  │      │ • encrypt() │      │ • ECDH / ECIES  │ │
-│  │ • Inbox     │      │ • decrypt() │      │ • AES-256-GCM   │ │
-│  │ • Download  │      │ • clear()   │      │ • PBKDF2        │ │
+│  │ • Register  │      │ • createUser│      │ • Ed25519 sign  │ │
+│  │ • Login     │      │ • loginUser │      │ • X25519 ECDH   │ │
+│  │ • Share UI  │      │ • sign()    │      │ • XSalsa20      │ │
+│  │ • Inbox     │      │ • encrypt() │      │ • Sealed boxes  │ │
+│  │ • Download  │      │ • decrypt() │      │ • BLAKE2b       │ │
 │  └──────┬──────┘      └──────┬──────┘      └─────────────────┘ │
 │         │                    │                                   │
 │         └────────────────────┘                                   │
@@ -54,7 +55,7 @@
 └────────────────────┬────────────────────────────────────────────┘
                      │
 ┌────────────────────┼────────────────────────────────────────────┐
-│               BFF BACKEND (FastAPI)                               │
+│               BFF BACKEND (FastAPI / Node.js)                     │
 │  ┌─────────────────┴─────────────────┐  ┌─────────────────────┐ │
 │  │         Gate Router               │  │    Share Router       │ │
 │  │  /api/*                           │  │  /api/share/*         │ │
@@ -70,8 +71,8 @@
 │         └────────────────────────────────────┘                    │
 │                      │                                            │
 │  ┌───────────────────┴─────────────────────────────────────────┐ │
-│  │  Store Layer (PostgreSQL)                                    │ │
-│  │  • users (email_hash, password_hash, public_key_hash)        │ │
+│  │  Store Layer (PostgreSQL)                                      │ │
+│  │  • users (email_hash, password_hash, public_keys, user_id_hex)│ │
 │  │  • active_shares (ciphertext, DEK bundle, TTL)              │ │
 │  │  • refresh_tokens (token_hash, user_id, expiry, revoked)    │ │
 │  │  • audit_log (immutable actions)                             │ │
@@ -148,38 +149,30 @@
 Browser → User enters email + password
        → Completes CAPTCHA (Turnstile)
        → Browser solves PoW (~1 second, background)
-       → Browser calls Keyset Manager.generate(password)
-           1. Web Crypto API: generateKey(ECDSA, P-256) → keypair
-           2. Export private key as JWK
-           3. PBKDF2: derive AES key from password + random salt (310k+ iter)
-           4. AES-256-GCM: encrypt private key JWK
-           5. Package: { version, public_key_hex, public_key_hash, encrypted_private_key, created_at }
-       → Browser triggers download: "medledger-keyset-{timestamp}.json"
-       → Browser calls POST /api/register
-           Body:
-           {
-             "email": "alice@example.com",
-             "password": "correct-horse-battery-staple",
-             "public_key_hash": "sha256:abc123...",
-             "encrypted_private_key_blob": { salt, iv, ciphertext, tag, pbkdf2_iterations },
-             "captcha_token": "turnstile_token_123...",
-             "pow_nonce": "server_provided_nonce_456...",
-             "pow_solution": "found_solution_789..."
-           }
+       → Browser calls authFlow.createAccount(username, password)
+           1. Auth domain validates username uniqueness
+           2. PBKDF2 (current) or Argon2id (target): hash password
+           3. Store user record in data/users.json
+           4. Return { userId, username }
+
+       → Integration layer calls KeysetManager.createUser(username)
+           1. libsodium.js: crypto_sign_keypair() → Ed25519 keypair
+           2. libsodium.js: crypto_box_keypair() → X25519 keypair
+           3. Return: { signingPublicKey, exchangePublicKey, userIdHex,
+                        signingPrivateKey, exchangePrivateKey }
+
+       → Browser triggers download: "alice.medledger-key.json"
+           { version, username, userIdHex, publicKeys, privateKeys }
+
+       → Browser calls POST /api/register/keys
+           Headers: Bearer <JWT>
+           Body: { username, userIdHex, signingPublicKey, exchangePublicKey }
 
 Server → Validate CAPTCHA token with Turnstile
-       → Validate PoW solution (SHA-256(nonce || solution) has 20 leading zero bits)
-       → Check rate limits (IP: 5/day, email_domain: 20/day)
-       → Hash email → email_hash (SHA-256, for lookups)
-       → Check email_hash uniqueness
-       → Hash password with Argon2id (memory=64MB, iterations=3, parallelism=4)
-       → Create user record:
-           user_id, email_hash, password_hash, public_key_hash,
-           encrypted_private_key_blob, captcha_token_used, pow_nonce,
-           created_at, last_login
-       → Generate access_token (JWT, 15 min)
-       → Generate refresh_token (opaque, 7 days, store hash in DB)
-       → Generate csrf_token (opaque, 15 min)
+       → Validate PoW solution
+       → Check rate limits (IP + email domain)
+       → Store public keys alongside user record
+       → Return JWT (HttpOnly, SameSite=Lax, Secure cookie)
 
 Response: 201 Created + Set-Cookie headers
 Set-Cookie: access_token=<jwt>; HttpOnly; Secure; SameSite=Lax; Max-Age=900; Path=/
@@ -189,19 +182,18 @@ Set-Cookie: csrf_token=<opaque>; Secure; SameSite=Strict; Max-Age=900; Path=/
 Body:
 {
   "user_id": "uuid",
-  "public_key_hash": "sha256:abc123...",
+  "user_id_hex": "a1b2c3d4...",
+  "username": "alice",
   "status": "active",
-  "keyset_downloaded": true  // Reminder: browser already downloaded
+  "keypair_downloaded": true
 }
 
 Security Notes:
-• Email is NOT verified via link. It is verified syntactically and via MX check only.
-• Email is used for rate limiting and anti-spam, NOT for recovery.
-• The encrypted_private_key_blob is stored server-side for convenience
-  (patient can re-download if they lose the file while still logged in).
-  However, the server cannot decrypt it without the password.
-• The browser download of the keyset file happens BEFORE the API call,
+• Email is NOT verified via link. It is stored for rate-limiting only.
+• Email is used for anti-spam, NOT for recovery.
+• The keypair file download happens BEFORE the API call,
   ensuring the patient has a local copy even if registration fails.
+• TOTP is NOT used. Keypair possession IS the second factor.
 ```
 
 ### 3.2 Login Flow (Layer 1 Only)
@@ -212,16 +204,16 @@ Content-Type: application/json
 
 Body:
 {
-  "email": "alice@example.com",
+  "username": "alice",
   "password": "correct-horse-battery-staple"
 }
 
 Server Actions:
-1. Hash email → email_hash (SHA-256)
-2. Fetch user by email_hash (constant-time to prevent enumeration)
-3. Argon2id verify(password, stored_hash)
-4. If invalid: 401 + exponential backoff (1s, 2s, 4s, 8s, max 30s)
-5. If valid:
+1. Find user by username (case-insensitive)
+2. PBKDF2 verify(password, stored_hash) [current]
+   or Argon2id verify(password, stored_hash) [target]
+3. If invalid: 401 + exponential backoff (1s, 2s, 4s, 8s, max 30s)
+4. If valid:
    a. Generate access_token (JWT, 15 min)
    b. Generate refresh_token (opaque, 7 days, store hash in DB)
    c. Generate csrf_token (opaque, 15 min)
@@ -235,35 +227,39 @@ Set-Cookie: csrf_token=<opaque>; Secure; SameSite=Strict; Max-Age=900; Path=/
 Body:
 {
   "user_id": "uuid",
-  "public_key_hash": "sha256:abc123...",
-  "status": "active"
+  "user_id_hex": "a1b2c3d4...",
+  "username": "alice",
+  "status": "active",
+  "public_keys": {
+    "signing": "base64url...",
+    "exchange": "base64url..."
+  }
 }
 
 UI State After Login:
 • Dashboard shows: "Vault Locked"
 • Share operations disabled
-• Prompt: "Upload your keyset file to unlock"
+• Prompt: "Upload your keypair file to unlock"
 ```
 
-### 3.3 Keyset Loading (Unlocking Layer 2 — Client-Side Only)
+### 3.3 Keypair Loading (Unlocking Layer 2 — Client-Side Only)
 
 ```
 Browser → User clicks "Unlock Vault"
-       → Uploads keyset file + enters password
-       → Keyset Manager.load(keysetFile, password)
-           1. Read JSON package
-           2. PBKDF2 with stored salt → derive AES key
-           3. AES-256-GCM decrypt → private key JWK
-           4. Import into Web Crypto API → CryptoKey object (non-extractable)
-           5. Hold in memory only
-       → Keyset Manager verifies public_key_hash matches logged-in user's public_key_hash
-           (from /api/me response or JWT claim)
-       → If mismatch: "This keyset does not belong to this account"
+       → Uploads .medledger-key.json file
+       → Integration layer reads file, reconstructs keypair
+       → KeysetManager.loginUser(username, keypair)
+           1. Validate keypair format (correct key lengths)
+           2. Derive userIdHex from signingPublicKey (BLAKE2b-128)
+           3. Verify userIdHex matches server-stored value
+           4. Store private keys in module memory (Uint8Array)
+           5. Mark session as unlocked
+       → If mismatch: "This keypair does not belong to this account"
        → If match: Dashboard shows "Vault Unlocked"
        → Share / download operations now available
 
-NO SERVER CALL REQUIRED FOR KEYSET UNLOCK.
-This is intentional — the server never sees the private key, password, or decrypted keyset.
+NO SERVER CALL REQUIRED FOR KEYPAIR UNLOCK.
+This is intentional — the server never sees the private key.
 
 UI State After Unlock:
 • Dashboard shows: "Vault Unlocked"
@@ -285,7 +281,7 @@ UI State After Unlock:
                     │  (JWT active) │
                     │  Vault: LOCKED
                     └──────┬──────┘
-                           │ Upload Keyset + Password
+                           │ Upload Keypair File
                            ▼
                     ┌─────────────┐
                     │  FULLY ACTIVE │
@@ -313,8 +309,8 @@ UI State After Unlock:
 
 **State Transitions:**
 - `LOGGED OUT → LAYER 1 ONLY`: Register or Login (server validates credentials, sets JWT)
-- `LAYER 1 ONLY → FULLY ACTIVE`: Client-side keyset load (no server call)
-- `FULLY ACTIVE → LAYER 1 ONLY`: Lock vault (client-side, clears CryptoKey memory)
+- `LAYER 1 ONLY → FULLY ACTIVE`: Client-side keypair load (no server call)
+- `FULLY ACTIVE → LAYER 1 ONLY`: Lock vault (client-side, clears private key memory)
 - `FULLY ACTIVE → LOGGED OUT`: Logout (server revokes refresh token, clears cookies)
 - `LAYER 1 ONLY → LOGGED OUT`: Logout or token expiry without refresh
 
@@ -380,7 +376,8 @@ Response: 200 OK + Clear-Cookie headers
 
 Client-Side Actions:
 • React: clear all state (auth context, query cache)
-• Keyset Manager: delete CryptoKey references, clear memory, clear sessionStorage
+• Keyset Manager: KeysetManager.logoutUser() — memzero private keys
+• Clear sessionStorage
 • Redirect to /login
 ```
 
@@ -393,15 +390,19 @@ X-CSRF-Token: <csrf_from_cookie>
 
 Server Actions:
 1. Verify access_token (signature, expiry, not revoked)
-2. Extract claims: user_id, public_key_hash, email_hash
+2. Extract claims: user_id, user_id_hex, username
 3. If expired but refresh_token valid → auto-refresh (return new cookies)
 4. If fully expired → 401 (trigger login redirect)
 
 Response: 200 OK
 {
   "user_id": "uuid",
-  "public_key_hash": "sha256:abc123...",
-  "email_hash": "sha256:def456...",
+  "user_id_hex": "a1b2c3d4...",
+  "username": "alice",
+  "public_keys": {
+    "signing": "base64url...",
+    "exchange": "base64url..."
+  },
   "created_at": "2026-06-07T23:10:00Z",
   "last_login": "2026-06-09T10:30:00Z"
 }
@@ -419,8 +420,8 @@ The frontend tracks vault lock state independently (React state + sessionStorage
 ```json
 {
   "sub": "user_uuid",
-  "public_key_hash": "sha256:abc123...",
-  "email_hash": "sha256:def456...",
+  "user_id_hex": "a1b2c3d4...",
+  "username": "alice",
   "iat": 1717800000,
   "exp": 1717800900,
   "jti": "unique_token_id",
@@ -431,8 +432,8 @@ The frontend tracks vault lock state independently (React state + sessionStorage
 | Claim | Description |
 |-------|-------------|
 | `sub` | User UUID (subject) |
-| `public_key_hash` | Identity anchor — links JWT to keyset |
-| `email_hash` | For display/debug (not auth) |
+| `user_id_hex` | Identity anchor — BLAKE2b-128 of signing public key |
+| `username` | For display/debug (not auth) |
 | `iat` | Issued at (Unix timestamp) |
 | `exp` | Expires at (Unix timestamp, 15 min from iat) |
 | `jti` | JWT ID — for revocation lists |
@@ -535,12 +536,12 @@ def verify_pow(nonce: str, solution: str, difficulty: int) -> bool:
 ```
 
 **Parameters:**
-| Parameter | Value |
-|-----------|-------|
-| Difficulty | 20 (2^20 ≈ 1,048,576 iterations on average) |
-| Time cost | ~1 second on modern desktop, ~3-5 seconds on mobile |
-| Nonce expiry | 5 minutes |
-| Nonce reuse | Rejected (single-use) |
+| Parameter | Current | Target |
+|-----------|---------|--------|
+| Difficulty | 4 | 20 (2^20 ≈ 1,048,576 iterations) |
+| Time cost | ~1ms | ~1 second desktop, ~3-5 seconds mobile |
+| Nonce expiry | 5 minutes | 5 minutes |
+| Nonce reuse | Rejected | Rejected (single-use) |
 
 ---
 
@@ -590,8 +591,8 @@ Cookie: access_token + X-CSRF-Token
 Body: { old_password, new_password }
 
 Server Actions:
-1. Verify old_password (Argon2id)
-2. Hash new_password (Argon22id)
+1. Verify old_password (PBKDF2/Argon2id)
+2. Hash new_password (Argon2id)
 3. Update users.password_hash
 4. Revoke ALL refresh tokens for user (force re-login everywhere)
 5. Issue new access_token + refresh_token + csrf_token
@@ -602,15 +603,13 @@ Response: 200 OK + new cookies
   "sessions_revoked": 3
 }
 
-Keyset Impact:
-• Password change does NOT affect keyset (Layer 2).
-• Keyset is encrypted with the user's chosen password, NOT the account password.
-• If user wants to re-encrypt keyset with new password, they must:
-  1. Download current keyset file
-  2. Decrypt with old password
-  3. Re-encrypt with new password
-  4. Download new keyset file
-  5. This is a client-side Keyset Manager operation, not a server endpoint.
+Keypair Impact:
+• Password change does NOT affect keypair (Layer 2).
+• Keypair is independent of the account password.
+• If user wants to generate a new keypair, they must:
+  1. Delete account
+  2. Re-register with new keypair
+  3. This is by design — no key rotation without full account reset.
 ```
 
 ### 7.3 Account Deletion (Absolute)
@@ -621,7 +620,7 @@ Cookie: access_token + X-CSRF-Token
 Body: { password_confirmation }
 
 Server Actions:
-1. Verify password (Argon2id)
+1. Verify password (PBKDF2/Argon2id)
 2. Revoke ALL tokens
 3. Hard delete:
    - user record
@@ -629,7 +628,7 @@ Server Actions:
    - all refresh_tokens (cascade)
 4. Anonymize audit_log:
    - Replace user_id with hash of user_id
-   - Replace email_hash with hash of email_hash
+   - Replace user_id_hex with hash of user_id_hex
    - Keep action types and timestamps for compliance
 5. Clear all cookies (set expired)
 
@@ -648,13 +647,13 @@ Patient can immediately register a new account with a new keypair.
 
 | Layer | Timeout | Behavior |
 |-------|---------|----------|
-| **Keyset (Layer 2)** | 30 minutes idle | Clear private key from memory. Vault locks. Account still logged in. |
+| **Keypair (Layer 2)** | 30 minutes idle | Clear private keys from memory. Vault locks. Account still logged in. |
 | **Access token (Layer 1)** | 15 minutes | Auto-refresh via refresh token. User sees no interruption. |
 | **Refresh token (Layer 1)** | 7 days | If expired, user must re-login with password. |
 
 **UI Flow:**
 - 25 min idle: Warning modal "Vault will lock in 5 minutes. Stay active?"
-- 30 min idle: Vault locks. "Upload keyset to continue."
+- 30 min idle: Vault locks. "Upload keypair to continue."
 - 7 days: Full logout. "Session expired. Please log in."
 
 ---
@@ -729,7 +728,7 @@ allow_origins=[
 
 ## 10. Implementation Checklist
 
-### Backend (FastAPI)
+### Backend
 
 - [ ] Cookie parser middleware (extract cookies from request)
 - [ ] JWT verification middleware (RS256/ES256, check expiry, revocation)
@@ -740,33 +739,34 @@ allow_origins=[
 - [ ] Audit logging for all auth events
 - [ ] `/.well-known/jwks.json` endpoint (public key for JWT verification)
 - [ ] Secure cookie settings (HttpOnly, Secure, SameSite, Path, Domain)
-- [ ] Argon2id password hashing (verify against OWASP 2023 parameters)
-- [ ] CAPTCHA verification (Turnstile server-side check)
-- [ ] PoW challenge generation (32-byte nonce, 5-min expiry, single-use)
-- [ ] PoW solution verification (SHA-256, 20 leading zero bits)
+- [ ] Argon2id password hashing (verify against OWASP 2023 parameters) [Phase 2]
+- [ ] CAPTCHA verification (Turnstile server-side check) [Phase 2]
+- [ ] PoW challenge generation (32-byte nonce, 5-min expiry, single-use) [Phase 2]
+- [ ] PoW solution verification (SHA-256, 20 leading zero bits) [Phase 2]
 - [ ] Email domain classification (disposable vs free vs custom)
 
-### Frontend (React + Vite)
+### Frontend
 
 - [ ] `credentials: 'include'` on all `fetch` calls
 - [ ] CSRF token extraction from cookie (helper function)
 - [ ] TanStack Query interceptor: 401 → auto-refresh → retry
 - [ ] TanStack Query interceptor: refresh fails → redirect to login
-- [ ] Keyset Manager integration: generate on registration, load on unlock
+- [ ] Keyset Manager integration: createUser on registration, loginUser on unlock
 - [ ] Inactivity timer: 30-minute idle detection for vault lock
 - [ ] Logout handler: clear state, redirect, call /api/logout
 - [ ] Session check on app mount: call /api/me
-- [ ] "Vault Locked" UI state: prompt for keyset upload
+- [ ] "Vault Locked" UI state: prompt for keypair file upload
 - [ ] "Vault Unlocked" UI state: enable share operations
 - [ ] Password change form: old + new password, show sessions_revoked count
 - [ ] Account deletion form: password confirmation + type "DELETE", show consequences
+- [ ] Keypair download prompt: force download before allowing share operations
 
 ### Database
 
-- [ ] `users` table: email_hash, password_hash, public_key_hash, encrypted_private_key_blob, timestamps
+- [ ] `users` table: user_id_hex, username, email_hash, password_hash, public_keys, timestamps
 - [ ] `refresh_tokens` table: token_hash, user_id, session_id, expiry, revoked, used
-- [ ] `active_shares` table: owner_key_hash, grantee_key_hash, ciphertext, dek_bundle, TTL
-- [ ] `audit_log` table: actor_key_hash, action, IP, timestamp, details (anonymized)
+- [ ] `active_shares` table: owner_id_hex, grantee_id_hex, ciphertext, dek_bundle, TTL
+- [ ] `audit_log` table: actor_id_hex, action, IP, timestamp, details (anonymized)
 
 ---
 
@@ -777,10 +777,10 @@ allow_origins=[
 | Option | Pros | Cons | Status |
 |--------|------|------|--------|
 | **RS256 (RSA 2048)** | Widely supported, mature libraries | Slower, larger signatures | **Candidate** |
-| **ES256 (ECDSA P-256)** | Faster, smaller signatures, same curve as keyset | Slightly less library support | **Candidate** |
-| **EdDSA (Ed25519)** | Fastest, modern, no nonce issues | Newer, not in Web Crypto API | **Future** |
+| **ES256 (ECDSA P-256)** | Faster, smaller signatures | Slightly less library support | **Candidate** |
+| **EdDSA (Ed25519)** | Fastest, modern, no nonce issues | Newer, verify with libsodium | **Future** |
 
-**Decision needed:** ES256 aligns with our P-256 keyset curve but may complicate JWT libraries. RS256 is safest for v1.0.
+**Decision needed:** RS256 is safest for v1.0. Ed25519 would align with our crypto domain but may complicate JWT libraries.
 
 ### 11.2 Session Storage (Redis vs PostgreSQL)
 
@@ -791,27 +791,17 @@ allow_origins=[
 
 **Decision needed:** PostgreSQL sufficient for MVP. Redis if scaling beyond 10k concurrent sessions.
 
-### 11.3 Encrypted Private Key Blob on Server
+### 11.3 Keypair File Encryption
 
 | Option | Pros | Cons | Status |
 |--------|------|------|--------|
-| **Store on server** | User can re-download if they lose file while logged in | Server holds encrypted blob (brute-forceable if password weak) | **Current** |
-| **Client-side only** | Zero server responsibility for key recovery | User must never lose keyset file | **Alternative** |
+| **Plaintext keypair file** | Simple, no password needed at unlock | File theft = key theft | **Current** |
+| **Password-encrypted file** | File theft alone insufficient | Requires password at every unlock | **Future** |
+| **Deterministic derivation** | No file at all | Password change = new keys | **Phase 3** |
 
-**Decision needed:** Store on server for v1.0 (convenience). Consider client-side-only for v1.1 if threat model shifts.
+**Decision needed:** Plaintext file for v1.0 (simplicity). Consider password-encryption or deterministic derivation for v1.1.
 
-### 11.4 Multi-Factor Authentication (MFA)
-
-| Option | Pros | Cons | Status |
-|--------|------|------|--------|
-| **None (Layer 2 = MFA)** | Key possession is strong proof | No fallback if key lost | **Current** |
-| **TOTP (Google Authenticator)** | Industry standard, offline | Additional setup friction | **Future** |
-| **WebAuthn (FIDO2)** | Phishing-resistant, modern | Limited hardware support | **Future** |
-| **SMS** | Easy adoption | SIM swap attacks, insecure | **Rejected** |
-
-**Decision needed:** None for v1.0. The two-layer auth (password + key possession) is already strong MFA.
-
-### 11.5 Mobile App Authentication
+### 11.4 Mobile App Authentication
 
 | Option | Pros | Cons | Status |
 |--------|------|------|--------|
@@ -838,21 +828,22 @@ allow_origins=[
 
 ## 13. Alignment with Architecture Documents
 
-| Concept | 01-ARCHITECTURE.md | 02-SECURITY_SPEC.md | This Document |
-|---------|-------------------|---------------------|---------------|
+| Concept | 01-ARCHITECTURE-v2.md | 02-SECURITY_SPEC-v2.md | This Document |
+|---------|----------------------|------------------------|---------------|
 | **Email purpose** | Anti-spam only | Anti-spam only | Anti-spam only (no verification, no recovery) |
 | **Account recovery** | None | None | None (delete and restart) |
-| **Keyset generation** | Browser-side | Browser-side | Browser-side, during registration |
+| **Keypair generation** | Browser-side (libsodium) | Browser-side | Browser-side, during registration |
 | **Layer 2 unlock** | Client-side only | Client-side only | Client-side only (no server challenge) |
 | **Account deletion** | Absolute, immediate | Absolute, immediate | Absolute, immediate (no grace period) |
-| **JWT claims** | public_key_hash, email_hash | public_key_hash, email_hash | public_key_hash, email_hash (no role, no username) |
+| **JWT claims** | user_id_hex, username | user_id_hex, username | user_id_hex, username (no role, no email) |
 | **PoW** | 2^20 SHA-256 | 2^20 SHA-256 | 2^20 SHA-256, 5-min nonce expiry |
 | **CAPTCHA** | Turnstile | Turnstile | Turnstile, server-side verification |
-| **Password hashing** | Argon2id | Argon2id | Argon2id, 64MB, 3 iter, 4 parallel |
+| **Password hashing** | Argon2id (target) | Argon2id (target) | Argon2id, 64MB, 3 iter, 4 parallel (target) |
 | **Cookie security** | HttpOnly, Secure, SameSite | HttpOnly, Secure, SameSite | HttpOnly, Secure, SameSite=Lax/Strict |
+| **TOTP** | Removed | Removed | Not used (keypair = 2FA) |
 
 ---
 
-*Document: 03-AUTH_SPEC.md | Author: Premananda (Team Praxis) | Status: Draft v1.0 — Aligned*
+*Document: 03-AUTH_SPEC.md | Author: Premananda (Team Praxis) | Status: Draft v2.0 — Aligned*
 *Architecture: BFF + HttpOnly Cookies + CSRF Protection*
-*Aligned with: 01-ARCHITECTURE.md (Sharing Conduit) + 02-SECURITY_SPEC.md (Zero-Knowledge)*
+*Aligned with: 01-ARCHITECTURE-v2.md (Two-Domain) + 02-SECURITY_SPEC-v2.md (Zero-Knowledge)*
