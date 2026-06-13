@@ -241,8 +241,8 @@ async def create_account(body: RegisterStep5Request):
         pw_hash = hash_password(body.password)
         row = await conn.fetchrow(
             """
-            INSERT INTO users (username, email, password_hash, is_verified, is_active)
-            VALUES (lower($1), $2, $3, TRUE, TRUE)
+            INSERT INTO users (username, email, password_hash, is_verified, is_active, user_id_hex)
+            VALUES (lower($1), $2, $3, TRUE, TRUE, encode(gen_random_bytes(16), 'hex'))
             RETURNING id, user_id_hex, username
             """,
             body.username, session["email"], pw_hash,
