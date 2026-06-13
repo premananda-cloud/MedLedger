@@ -22,7 +22,7 @@ from jose import JWTError
 from src.services.database import DB
 from src.services.auth_service import (
     hash_password, verify_password,
-    create_access_token, decode_access_token,
+    create_access_token,
     revoke_token, create_refresh_token, rotate_refresh_token,
     revoke_all_refresh_tokens,
 )
@@ -263,20 +263,23 @@ async def upload_public_keys(
     body: PublicKeysUpload,
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    # Always scope the UPDATE to the authenticated user's own row.
+    # Never trust body.username or body.user_id_hex for the WHERE clause —
+    # a caller could otherwise overwrite any user's keys.
     async with DB() as conn:
-        await conn.execute(
+        result = await conn.execute(
             """
             UPDATE users
             SET signing_public_key  = $1,
-                exchange_public_key = $2,
-                user_id_hex         = $3
-            WHERE lower(username) = lower($4)
+                exchange_public_key = $2
+            WHERE user_id_hex = $3
             """,
             body.signing_public_key,
             body.exchange_public_key,
-            body.user_id_hex,
-            body.username,
+            current_user.user_id_hex,
         )
+    if result == "UPDATE 0":
+        raise HTTPException(404, "User not found")
     return {"message": "Public keys stored"}
 
 
@@ -369,21 +372,18 @@ async def logout(
     response: Response,
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # Revoke current access token
-    try:
-        payload = decode_access_token(
-            # We already validated in the dependency; just need exp for TTL
-            # Re-read from cookie isn't straightforward here, so we use current_user.jti
-            # and a far-future expires to ensure it's always stored
-        )
-    except Exception:
-        pass
-
     from datetime import datetime, timedelta, timezone
+    # Revoke the access token for the remainder of its TTL.
+    # current_user.jti was already validated by get_current_user; we use the
+    # configured access-token lifetime as the revocation horizon so the
+    # token_revocations table can be pruned by expiry later.
+    revoke_until = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.access_token_expire_minutes
+    )
     await revoke_token(
         current_user.jti,
         current_user.user_id_hex,
-        datetime.now(timezone.utc) + timedelta(hours=1),
+        revoke_until,
     )
     await revoke_all_refresh_tokens(current_user.user_id_hex)
 

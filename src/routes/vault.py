@@ -243,7 +243,7 @@ async def create_grant(
             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11)
             """,
             grant_id, body.record_id,
-            owner["public_key_hash"], body.grantee_key_hash if hasattr(body, "grantee_key_hash") else "",
+            owner["public_key_hash"], body.grantee_public_key_hex,  # derive grantee_key_hash from the public key they submitted
             body.grantee_user_id_hex, body.grantee_public_key_hex,
             body.permission_level, body.time_start, body.time_end,
             json.dumps(body.dek_bundle_grantee), body.signature_hex,

@@ -12,7 +12,7 @@ Share management routes:
 import logging
 import base64
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, HTTPException, Depends, Response
+from fastapi import APIRouter, HTTPException, Depends, Response, Request
 from fastapi.responses import StreamingResponse
 import io
 
@@ -35,6 +35,7 @@ def _now():
 @router.post("/shares", response_model=ShareDetail)
 async def create_share(
     body: CreateShareRequest,
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
 ):
     expires_at = _now() + timedelta(hours=body.expires_hours)
@@ -83,10 +84,11 @@ async def create_share(
         # Audit log
         await conn.execute(
             """INSERT INTO audit_log (actor_user_id_hex, action, share_id, detail, ip_address)
-               VALUES ($1, 'share_create', $2, $3, '0.0.0.0')""",
+               VALUES ($1, 'share_create', $2, $3, $4)""",
             current_user.user_id_hex,
             row["share_id"],
             '{"filename": "' + body.filename + '"}',
+            request.client.host if request.client else None,
         )
 
     share_id = str(row["share_id"])
@@ -196,6 +198,7 @@ async def get_share(
 @router.get("/shares/{share_id}/ciphertext")
 async def get_ciphertext(
     share_id: str,
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
 ):
     async with DB() as conn:
@@ -232,8 +235,9 @@ async def get_ciphertext(
                 )
             await conn.execute(
                 """INSERT INTO audit_log (actor_user_id_hex, action, share_id, detail, ip_address)
-                   VALUES ($1, 'share_retrieve', $2::uuid, '{}', '0.0.0.0')""",
+                   VALUES ($1, 'share_retrieve', $2::uuid, '{}', $3)""",
                 current_user.user_id_hex, share_id,
+                request.client.host if request.client else None,
             )
 
     mime = row["mime_type"] or "application/octet-stream"
@@ -255,6 +259,7 @@ async def get_ciphertext(
 @router.delete("/shares/{share_id}")
 async def revoke_share(
     share_id: str,
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
 ):
     async with DB() as conn:
@@ -271,8 +276,9 @@ async def revoke_share(
 
         await conn.execute(
             """INSERT INTO audit_log (actor_user_id_hex, action, share_id, detail, ip_address)
-               VALUES ($1, 'share_revoke', $2::uuid, '{}', '0.0.0.0')""",
+               VALUES ($1, 'share_revoke', $2::uuid, '{}', $3)""",
             current_user.user_id_hex, share_id,
+            request.client.host if request.client else None,
         )
     return {"message": "Share revoked"}
 
