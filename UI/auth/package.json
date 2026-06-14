@@ -1,19 +1,22 @@
 {
-  "name": "auth",
+  "name": "medledger-auth",
   "version": "1.0.0",
-  "main": "index.js",
-  "directories": {
-    "test": "tests"
-  },
+  "type": "module",
+  "main": "orchestrator/authFlow.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "qrcode": "^1.5.4",
-    "speakeasy": "^2.0.0"
+    "speakeasy": "^2.0.0",
+    "qrcode": "^1.5.3"
   },
-  "description": ""
+  "devDependencies": {
+    "vitest": "^1.0.0",
+    "@vitest/coverage-v8": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

@@ -1,229 +1,208 @@
-/**
- * User Module - Username & Password Management
- *
- * INPUT:
- *   - username: string (3-30 chars, alphanumeric)
- *   - password: string (min 8 chars, must have upper, lower, number)
- *   - email: string (associated email)
- *
- * OUTPUT:
- *   - created: boolean
- *   - message: string
- *   - userId: string (unique identifier)
- */
+// modules/user.js (add to existing file)
+import crypto from "node:crypto";
+import { getStorage, resetStorage } from "./storage.js";
 
-const crypto = require("crypto");
-const storage = require("./storage");
-
-class UserManager {
-  constructor() {
-    this.usernameMinLength = 3;
-    this.usernameMaxLength = 30;
-    this.passwordMinLength = 8;
+export class UserManager {
+  constructor(
+    minUsername = 3,
+    maxUsername = 30,
+    minPassword = 8,
+    pbkdf2Iterations = 600000,
+    pbkdf2KeyLength = 64,
+  ) {
+    this.minUsername = minUsername;
+    this.maxUsername = maxUsername;
+    this.minPassword = minPassword;
+    this.pbkdf2Iterations = pbkdf2Iterations;
+    this.pbkdf2KeyLength = pbkdf2KeyLength;
+    this.storage = getStorage();
   }
 
-  /**
-   * Validate username
-   * @param {string} username
-   * @returns {Object} { valid, message }
-   */
   validateUsername(username) {
     if (!username || typeof username !== "string") {
       return { valid: false, message: "Username is required" };
     }
 
-    if (username.length < this.usernameMinLength) {
+    if (username.length < this.minUsername) {
       return {
         valid: false,
-        message: `Username must be at least ${this.usernameMinLength} characters`,
+        message: `Username must be at least ${this.minUsername} characters`,
       };
     }
 
-    if (username.length > this.usernameMaxLength) {
+    if (username.length > this.maxUsername) {
       return {
         valid: false,
-        message: `Username must be less than ${this.usernameMaxLength} characters`,
+        message: `Username must be at most ${this.maxUsername} characters`,
       };
     }
 
-    // Alphanumeric and underscore only
-    const usernameRegex = /^[a-zA-Z0-9_]+$/;
-    if (!usernameRegex.test(username)) {
+    const validPattern = /^[a-zA-Z0-9_]+$/;
+    if (!validPattern.test(username)) {
       return {
         valid: false,
         message: "Username can only contain letters, numbers, and underscores",
       };
     }
 
-    // FIXED Bug 6: Case-insensitive username check
-    const normalizedUsername = username.toLowerCase();
-    if (storage.usernameExists(normalizedUsername)) {
+    if (this.storage.usernameExists(username)) {
       return { valid: false, message: "Username already taken" };
     }
 
     return { valid: true, message: "Username is valid" };
   }
 
-  /**
-   * Validate password strength
-   * @param {string} password
-   * @returns {Object} { valid, message, strength }
-   */
   validatePassword(password) {
     if (!password || typeof password !== "string") {
-      return { valid: false, message: "Password is required", strength: 0 };
-    }
-
-    if (password.length < this.passwordMinLength) {
       return {
         valid: false,
-        message: `Password must be at least ${this.passwordMinLength} characters`,
+        message: "Password is required",
         strength: 0,
+        strengthLabel: "invalid",
       };
     }
 
-    let strength = 0;
-    const checks = {
-      hasUpperCase: /[A-Z]/.test(password),
-      hasLowerCase: /[a-z]/.test(password),
-      hasNumbers: /\d/.test(password),
-      hasSpecialChars: /[!@#$%^&*(),.?":{}|<>]/.test(password),
-      isLongEnough: password.length >= 12,
-    };
+    let criteria = 0;
+    if (/[A-Z]/.test(password)) criteria++;
+    if (/[a-z]/.test(password)) criteria++;
+    if (/[0-9]/.test(password)) criteria++;
+    if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) criteria++;
+    if (password.length >= 12) criteria++;
 
-    // Calculate strength score
-    Object.values(checks).forEach((check) => {
-      if (check) strength++;
-    });
+    const meetsMinimum = criteria >= 3 && password.length >= this.minPassword;
 
-    // At least 3 of 5 criteria must be met
-    const passedChecks = Object.values(checks).filter((v) => v).length;
-    if (passedChecks < 3) {
-      return {
-        valid: false,
-        message:
-          "Password must contain at least 3 of: uppercase, lowercase, numbers, special characters, 12+ characters",
-        strength,
-      };
-    }
-
-    const strengthLabels = [
-      "Very Weak",
-      "Weak",
-      "Fair",
-      "Strong",
-      "Very Strong",
-    ];
+    let strengthLabel = "weak";
+    if (criteria >= 4 && password.length >= 12) strengthLabel = "strong";
+    else if (criteria >= 3 && password.length >= 10) strengthLabel = "good";
 
     return {
-      valid: true,
-      message: "Password is valid",
-      strength,
-      strengthLabel: strengthLabels[strength - 1] || "Weak",
+      valid: meetsMinimum,
+      message: meetsMinimum
+        ? "Password is valid"
+        : "Password must meet at least 3 of 5 complexity criteria",
+      strength: criteria,
+      strengthLabel,
     };
   }
 
-  /**
-   * FIXED Bug 3: Hash password using async PBKDF2 with proper iteration count
-   * @param {string} password
-   * @param {string} salt
-   * @returns {Promise<string>} Hashed password
-   */
-  hashPassword(password, salt) {
+  async hashPassword(password, salt = null) {
+    const actualSalt = salt || crypto.randomBytes(16);
+    const saltHex = actualSalt.toString("hex");
+
     return new Promise((resolve, reject) => {
-      // FIXED Bug 3: 600,000 iterations per OWASP 2023 recommendations
-      crypto.pbkdf2(password, salt, 600000, 64, "sha512", (err, key) => {
-        if (err) reject(err);
-        else resolve(key.toString("hex"));
-      });
+      crypto.pbkdf2(
+        password,
+        actualSalt,
+        this.pbkdf2Iterations,
+        this.pbkdf2KeyLength,
+        "sha512",
+        (err, derivedKey) => {
+          if (err) reject(err);
+          else
+            resolve({
+              hash: derivedKey.toString("hex"),
+              salt: saltHex,
+            });
+        },
+      );
     });
   }
 
-  /**
-   * Create user account
-   * FIXED Bug 3: Async to support PBKDF2
-   * FIXED Bug 6: Normalize username to lowercase
-   * @param {string} username
-   * @param {string} password
-   * @param {string} email
-   * @returns {Promise<Object>} { created, message, userId }
-   */
   async createUser(username, password, email) {
-    // FIXED Bug 6: Normalize username to lowercase
-    const normalizedUsername = username.toLowerCase();
-
-    // Validate username (with normalization)
-    const usernameCheck = this.validateUsername(normalizedUsername);
-    if (!usernameCheck.valid) {
-      return { created: false, message: usernameCheck.message, userId: null };
+    const usernameValid = this.validateUsername(username);
+    if (!usernameValid.valid) {
+      return { created: false, message: usernameValid.message, userId: null };
     }
 
-    // Validate password
-    const passwordCheck = this.validatePassword(password);
-    if (!passwordCheck.valid) {
-      return { created: false, message: passwordCheck.message, userId: null };
+    const passwordValid = this.validatePassword(password);
+    if (!passwordValid.valid) {
+      return { created: false, message: passwordValid.message, userId: null };
     }
 
-    // Generate salt and hash password
-    const salt = crypto.randomBytes(16).toString("hex");
-    const hashedPassword = await this.hashPassword(password, salt);
+    if (this.storage.emailExists(email)) {
+      return {
+        created: false,
+        message: "Email already registered",
+        userId: null,
+      };
+    }
 
-    // Create user with normalized username
+    const { hash, salt } = await this.hashPassword(password);
+    const userId = crypto.randomBytes(16).toString("hex");
+    const lowerUsername = username.toLowerCase();
+
     const user = {
-      userId: crypto.randomBytes(16).toString("hex"),
-      username: normalizedUsername, // FIXED Bug 6: Store lowercase
-      email,
-      passwordHash: hashedPassword,
+      userId,
+      username: lowerUsername,
+      email: email.toLowerCase(),
+      passwordHash: hash,
       salt,
       createdAt: Date.now(),
       totpEnabled: true,
       verified: true,
     };
 
-    const saved = storage.saveUser(user);
-
-    if (saved) {
+    const saved = await this.storage.saveUser(user);
+    if (!saved) {
       return {
-        created: true,
-        message: "Account created successfully",
-        userId: user.userId,
+        created: false,
+        message: "Username or email already exists",
+        userId: null,
       };
     }
 
     return {
-      created: false,
-      message: "Failed to create account",
-      userId: null,
+      created: true,
+      message: "User created successfully",
+      userId,
     };
   }
 
-  /**
-   * Verify password
-   * FIXED Bug 3: Now async
-   */
   async verifyPassword(username, password) {
-    const user = storage.getUserByUsername(username);
+    const user = this.storage.getUserByUsername(username);
     if (!user) return false;
 
-    const hash = await this.hashPassword(password, user.salt);
-    return hash === user.passwordHash;
+    const saltBuffer = Buffer.from(user.salt, "hex");
+    const { hash } = await this.hashPassword(password, saltBuffer);
+
+    return crypto.timingSafeEqual(
+      Buffer.from(hash, "hex"),
+      Buffer.from(user.passwordHash, "hex"),
+    );
   }
 
-  /**
-   * Get user info (safe, no sensitive data)
-   */
   getUserInfo(username) {
-    const user = storage.getUserByUsername(username);
+    const user = this.storage.getUserByUsername(username);
     if (!user) return null;
 
     return {
-      userId: user.userId,
       username: user.username,
       email: user.email,
+      userId: user.userId,
       createdAt: user.createdAt,
       totpEnabled: user.totpEnabled,
+      verified: user.verified,
     };
+  }
+
+  // Add reset method
+  async reset() {
+    await this.storage.reset();
   }
 }
 
-module.exports = new UserManager();
+let instance = null;
+
+export function getUserManager() {
+  if (!instance) {
+    instance = new UserManager();
+  }
+  return instance;
+}
+
+export async function resetUserManager() {
+  if (instance) {
+    await instance.reset();
+  }
+  instance = null;
+}

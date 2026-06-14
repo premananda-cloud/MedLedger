@@ -1,14 +1,1 @@
-{
-  "users": [
-    {
-      "userId": "e5ebad1a75baf8bf0ee62ec97ca20246",
-      "username": "testuser_1781255851861",
-      "email": "testuser@example.com",
-      "passwordHash": "d6154642f2613ca124d5ffa4d61662786cf0fc61b64168d23fcc93494e4965297e262e60d7df0988a5aeabdba5b998b9cabeed4018e12ee8254b528b3fd7a8cd",
-      "salt": "ad836d3e56ebdf6e9bc692834d59da4e",
-      "createdAt": 1781255853154,
-      "totpEnabled": true,
-      "verified": true
-    }
-  ]
-}
+[]

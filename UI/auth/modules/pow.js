@@ -1,125 +1,106 @@
-/**
- * POW Module - CAP.js Proof of Work Verification
- *
- * INPUT:
- *   - challenge: string (base64 encoded challenge)
- *   - nonce: number (client's solution)
- *   - difficulty: number (leading zeros required)
- *
- * OUTPUT:
- *   - success: boolean
- *   - message: string
- *   - sessionToken: string (if verified)
- */
+// modules/pow.js (add to existing file)
+import crypto from "node:crypto";
 
-const crypto = require("crypto");
-
-class POWVerifier {
-  constructor() {
-    this.activeChallenges = new Map(); // Store active challenges
-    this.difficulty = 4; // Default difficulty (leading zeros)
+export class PoW {
+  constructor(difficulty = 4, expiryMs = 5 * 60 * 1000) {
+    this.difficulty = difficulty;
+    this.expiryMs = expiryMs;
+    this.challenges = new Map();
+    this.cleanupInterval = setInterval(() => this.cleanup(), 60 * 1000);
   }
 
-  /**
-   * Generate a new challenge for client
-   * @returns {Object} { challenge, difficulty, timestamp }
-   */
   generateChallenge() {
+    const challengeId = crypto.randomBytes(16).toString("hex");
     const challenge = crypto.randomBytes(32).toString("base64");
     const timestamp = Date.now();
-    const challengeId = crypto.randomBytes(16).toString("hex");
 
-    this.activeChallenges.set(challengeId, {
+    this.challenges.set(challengeId, {
       challenge,
       timestamp,
-      difficulty: this.difficulty,
-      verified: false,
+      used: false,
     });
 
-    // Cleanup old challenges (older than 5 minutes)
-    this.cleanupOldChallenges();
-
     return {
-      challengeId,
+      challenge_id: challengeId,
       challenge,
       difficulty: this.difficulty,
       timestamp,
     };
   }
 
-  /**
-   * Verify the proof of work solution
-   * @param {string} challengeId - Challenge identifier
-   * @param {number} nonce - Client's solution
-   * @returns {Object} { success, message, sessionToken }
-   */
   verify(challengeId, nonce) {
-    const challengeData = this.activeChallenges.get(challengeId);
-
-    if (!challengeData) {
-      return {
-        success: false,
-        message: "Challenge expired or invalid",
-        sessionToken: null,
-      };
+    const record = this.challenges.get(challengeId);
+    if (!record) {
+      return { success: false, message: "Invalid or expired challenge" };
     }
 
-    if (challengeData.verified) {
-      return {
-        success: false,
-        message: "Challenge already used",
-        sessionToken: null,
-      };
+    if (record.used) {
+      return { success: false, message: "Challenge already used" };
     }
 
-    // Verify the proof of work
-    const hash = crypto
-      .createHash("sha256")
-      .update(challengeData.challenge + nonce)
-      .digest("hex");
-
-    const isValid = hash.startsWith("0".repeat(this.difficulty));
-
-    if (isValid) {
-      challengeData.verified = true;
-      const sessionToken = crypto.randomBytes(32).toString("hex");
-
-      return {
-        success: true,
-        message: "POW verified successfully",
-        sessionToken,
-      };
+    if (Date.now() - record.timestamp > this.expiryMs) {
+      this.challenges.delete(challengeId);
+      return { success: false, message: "Challenge expired" };
     }
+
+    const input = record.challenge + nonce;
+    const hash = crypto.createHash("sha256").update(input).digest("hex");
+    const prefix = "0".repeat(this.difficulty);
+
+    if (!hash.startsWith(prefix)) {
+      return { success: false, message: "Invalid proof of work" };
+    }
+
+    record.used = true;
+    const sessionToken = crypto.randomBytes(32).toString("hex");
 
     return {
-      success: false,
-      message: "Invalid proof of work",
-      sessionToken: null,
+      success: true,
+      message: "PoW verified",
+      sessionToken,
     };
   }
 
-  /**
-   * Cleanup challenges older than 5 minutes
-   */
-  cleanupOldChallenges() {
-    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
-    for (const [id, data] of this.activeChallenges) {
-      if (data.timestamp < fiveMinutesAgo) {
-        this.activeChallenges.delete(id);
+  cleanup() {
+    const now = Date.now();
+    for (const [id, record] of this.challenges) {
+      if (now - record.timestamp > this.expiryMs) {
+        this.challenges.delete(id);
       }
     }
   }
 
-  /**
-   * Get status of verification
-   * @returns {Object} Statistics
-   */
   getStatus() {
     return {
-      activeChallenges: this.activeChallenges.size,
+      activeChallenges: this.challenges.size,
       difficulty: this.difficulty,
     };
   }
+
+  destroy() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+    }
+  }
+
+  // Add reset method
+  reset() {
+    this.challenges.clear();
+  }
 }
 
-module.exports = new POWVerifier();
+let instance = null;
+
+export function getPoW() {
+  if (!instance) {
+    instance = new PoW();
+  }
+  return instance;
+}
+
+export function resetPoW() {
+  if (instance) {
+    instance.destroy();
+  }
+  instance = null;
+}

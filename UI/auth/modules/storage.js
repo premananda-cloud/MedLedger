@@ -1,114 +1,114 @@
-/**
- * Storage Module - Local File-based User Storage
- *
- * INPUT:
- *   - user: object (user data to save)
- *   - username: string (to lookup)
- *
- * OUTPUT:
- *   - saved: boolean
- *   - user: object (retrieved user data)
- */
+// modules/storage.js (add to existing file)
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const fs = require("fs");
-const path = require("path");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-class LocalStorage {
-  constructor() {
-    this.dataDir = path.join(__dirname, "..", "data");
-    this.usersFile = path.join(this.dataDir, "users.json");
-    this.ensureDataDirectory();
-    this.loadUsers();
+const DEFAULT_DATA_DIR = path.join(__dirname, "..", "data");
+const DEFAULT_USERS_FILE = "users.json";
+
+export class Storage {
+  constructor(dataDir = DEFAULT_DATA_DIR, fileName = DEFAULT_USERS_FILE) {
+    this.dataDir = dataDir;
+    this.filePath = path.join(dataDir, fileName);
+    this.users = new Map();
+    this.emailMap = new Map();
+    this.initialized = false;
   }
 
-  ensureDataDirectory() {
-    if (!fs.existsSync(this.dataDir)) {
-      fs.mkdirSync(this.dataDir, { recursive: true });
-    }
-    if (!fs.existsSync(this.usersFile)) {
-      fs.writeFileSync(this.usersFile, JSON.stringify({ users: [] }, null, 2));
-    }
-  }
+  async init() {
+    if (this.initialized) return;
 
-  loadUsers() {
     try {
-      const data = fs.readFileSync(this.usersFile, "utf8");
-      this.data = JSON.parse(data);
-    } catch (error) {
-      this.data = { users: [] };
+      await fs.mkdir(this.dataDir, { recursive: true });
+      const data = await fs.readFile(this.filePath, "utf-8").catch(() => "[]");
+      const users = JSON.parse(data);
+
+      for (const user of users) {
+        this.users.set(user.username.toLowerCase(), user);
+        if (user.email)
+          this.emailMap.set(
+            user.email.toLowerCase(),
+            user.username.toLowerCase(),
+          );
+      }
+    } catch (err) {
+      console.error("Storage init error:", err);
     }
+    this.initialized = true;
   }
 
-  saveToDisk() {
-    fs.writeFileSync(this.usersFile, JSON.stringify(this.data, null, 2));
+  async save() {
+    const usersArray = Array.from(this.users.values());
+    await fs.writeFile(this.filePath, JSON.stringify(usersArray, null, 2));
   }
 
-  /**
-   * Save user to storage
-   */
-  saveUser(user) {
-    // Check for duplicate username or email
-    if (this.usernameExists(user.username)) {
-      return false;
-    }
-    if (this.emailExists(user.email)) {
-      return false;
-    }
+  async saveUser(user) {
+    await this.init();
 
-    this.data.users.push(user);
-    this.saveToDisk();
+    const lowerUsername = user.username.toLowerCase();
+    if (this.users.has(lowerUsername)) return false;
+    if (user.email && this.emailMap.has(user.email.toLowerCase())) return false;
+
+    this.users.set(lowerUsername, user);
+    if (user.email) this.emailMap.set(user.email.toLowerCase(), lowerUsername);
+    await this.save();
     return true;
   }
 
-  /**
-   * Get user by username
-   * FIXED Bug 6: Case-insensitive comparison
-   */
   getUserByUsername(username) {
-    const lower = username.toLowerCase();
-    return this.data.users.find((u) => u.username === lower) || null;
+    return this.users.get(username?.toLowerCase()) || null;
   }
 
-  /**
-   * Get user by email
-   */
   getUserByEmail(email) {
-    return this.data.users.find((u) => u.email === email) || null;
+    const username = this.emailMap.get(email?.toLowerCase());
+    return username ? this.users.get(username) : null;
   }
 
-  /**
-   * Check if username exists
-   * FIXED Bug 6: Case-insensitive comparison
-   */
   usernameExists(username) {
-    const lower = username.toLowerCase();
-    return this.data.users.some((u) => u.username === lower);
+    return this.users.has(username?.toLowerCase());
   }
 
-  /**
-   * Check if email exists
-   */
   emailExists(email) {
-    return this.data.users.some((u) => u.email === email);
+    return this.emailMap.has(email?.toLowerCase());
   }
 
-  /**
-   * Get total user count
-   */
   getUserCount() {
-    return this.data.users.length;
+    return this.users.size;
   }
 
-  /**
-   * Get all users (without sensitive data)
-   */
   getAllUsers() {
-    return this.data.users.map((u) => ({
+    return Array.from(this.users.values()).map((u) => ({
       username: u.username,
       email: u.email,
       createdAt: u.createdAt,
     }));
   }
+
+  // Add reset method for testing
+  async reset() {
+    this.users.clear();
+    this.emailMap.clear();
+    this.initialized = false;
+    await fs.writeFile(this.filePath, "[]").catch(() => {});
+  }
 }
 
-module.exports = new LocalStorage();
+let instance = null;
+
+export function getStorage() {
+  if (!instance) {
+    instance = new Storage();
+  }
+  return instance;
+}
+
+// Add reset function for testing
+export async function resetStorage() {
+  if (instance) {
+    await instance.reset();
+  }
+  instance = null;
+}
