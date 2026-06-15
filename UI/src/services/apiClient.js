@@ -6,7 +6,8 @@
  * Responsibilities:
  *  - Attach Authorization: Bearer <jwt> on every request (when a token is held)
  *  - Parse the server's JSON envelope: { ok, data, error }
- *  - Throw ApiError (with .status and .code) on any non-2xx response
+ *  - Throw ApiError (with .status and .code) on any non-2xx response OR
+ *    when the envelope indicates failure (ok === false)
  *  - Expose setToken() / clearToken() so the login/register bridges can
  *    store the JWT after the server returns it, without touching localStorage
  *    themselves
@@ -77,7 +78,7 @@ export class ApiError extends Error {
  * @param {object} [body]   JSON-serializable request body (omit for GET)
  * @param {object} [opts]   Extra fetch options (e.g. signal for AbortController)
  * @returns {Promise<any>}  Parsed `data` field from the server envelope
- * @throws  {ApiError}      On any non-2xx response or network failure
+ * @throws  {ApiError}      On any non-2xx response, envelope failure, or network failure
  */
 async function request(method, path, body = null, opts = {}) {
   const headers = {
@@ -122,7 +123,9 @@ async function request(method, path, body = null, opts = {}) {
     );
   }
 
-  if (!response.ok) {
+  // ─── FIX: Check both HTTP status AND envelope ok field ────────────────────
+  // The server may return HTTP 200 with { ok: false, error: {...} }
+  if (!response.ok || envelope?.ok === false) {
     const message =
       envelope?.error?.message ?? envelope?.detail ?? `HTTP ${response.status}`;
     const code = envelope?.error?.code ?? null;

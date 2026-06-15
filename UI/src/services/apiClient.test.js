@@ -194,6 +194,58 @@ describe('api — error handling', () => {
     expect(err.message).toBe('HTTP 500')
     expect(err.status).toBe(500)
   })
+
+  // ─── NEW: envelope ok === false tests ─────────────────────────────────────
+
+  it('throws ApiError when HTTP 200 but envelope ok is false', async () => {
+    fetchMock.mockResolvedValue(
+      mockResponse(
+        { ok: false, error: { message: 'Rate limited', code: 'RATE_LIMIT' } },
+        { status: 200, ok: true }
+      )
+    )
+
+    const err = await api.get('/limited').catch((e) => e)
+    expect(err).toBeInstanceOf(ApiError)
+    expect(err.message).toBe('Rate limited')
+    expect(err.code).toBe('RATE_LIMIT')
+    expect(err.status).toBe(200)
+  })
+
+  it('throws ApiError with ok: false even when error object is minimal', async () => {
+    fetchMock.mockResolvedValue(
+      mockResponse(
+        { ok: false, detail: 'Something went wrong' },
+        { status: 200, ok: true }
+      )
+    )
+
+    const err = await api.post('/submit', {}).catch((e) => e)
+    expect(err.message).toBe('Something went wrong')
+    expect(err.status).toBe(200)
+    expect(err.code).toBeNull()
+  })
+
+  it('does not throw when ok is true and response is HTTP 200', async () => {
+    fetchMock.mockResolvedValue(
+      mockResponse(
+        { ok: true, data: { success: true } },
+        { status: 200, ok: true }
+      )
+    )
+
+    const result = await api.get('/success')
+    expect(result).toEqual({ success: true })
+  })
+
+  it('does not throw when ok field is absent (legacy envelope)', async () => {
+    fetchMock.mockResolvedValue(
+      mockResponse({ data: { legacy: true } }, { status: 200, ok: true })
+    )
+
+    const result = await api.get('/legacy')
+    expect(result).toEqual({ legacy: true })
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
