@@ -1,6 +1,5 @@
-// vite.config.js
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
@@ -9,16 +8,19 @@ export default defineConfig({
     open: true,
   },
   build: {
-    outDir: "dist",
+    outDir: 'dist',
     sourcemap: true,
-    target: "esnext",
+    target: 'esnext',
   },
   optimizeDeps: {
+    include: ['libsodium-wrappers-sumo'],
     esbuildOptions: {
-      target: "esnext",
+      target: 'esnext',
     },
   },
-  esbuild: {
-    target: "esnext",
+  resolve: {
+    alias: {
+      'libsodium-wrappers-sumo': 'libsodium-wrappers-sumo/dist/modules-sumo-esm/libsodium-wrappers.js'
+    }
   },
 });
