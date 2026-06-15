@@ -4,29 +4,36 @@
 
 1. [Overview](#overview)
 2. [Architecture](#architecture)
-3. [Modules](#modules)
-   - [POW (pow.js)](#pow-module)
+3. [Project Structure](#project-structure)
+4. [Modules](#modules)
+   - [PoW (pow.js)](#pow-module)
    - [Email Verifier (email.js)](#email-module)
    - [TOTP Manager (totp.js)](#totp-module)
    - [User Manager (user.js)](#user-module)
    - [Storage (storage.js)](#storage-module)
-4. [Authentication Flow](#authentication-flow)
-5. [API Reference](#api-reference)
-6. [Configuration](#configuration)
-7. [Running Tests](#running-tests)
-8. [Security Notes](#security-notes)
+5. [Authentication Flow](#authentication-flow)
+   - [Step-by-step API](#step-by-step-api)
+   - [Error Responses](#error-responses)
+   - [Session Status](#session-status)
+6. [API Reference](#api-reference)
+7. [Configuration](#configuration)
+8. [Running Tests](#running-tests)
+   - [Test Setup](#test-setup)
+   - [Coverage](#coverage)
+9. [Security Notes](#security-notes)
+10. [Changelog](#changelog)
 
 ---
 
 ## Overview
 
-This is a multi-step user registration and authentication system built in Node.js. It chains five verification stages before an account is created:
+This is a multi-step user registration and authentication system built in Node.js with ESM modules. It chains five verification stages before an account is created:
 
-1. **Proof of Work** — bot/spam deterrent
-2. **Email verification** — confirms ownership of a real email address
+1. **Proof of Work (PoW)** — bot/spam deterrent via SHA-256 computational challenge
+2. **Email verification** — confirms ownership of a real email address via 6-digit code
 3. **TOTP 2FA setup** — enrolls the user in time-based one-time passwords
-4. **Username/password creation** — sets credentials
-5. **Account persistence** — saves the verified user to disk
+4. **Username/password creation** — sets credentials with strength validation
+5. **Account persistence** — saves the verified user to disk (`data/users.json`)
 
 All state between steps is held in a server-side session map keyed by a cryptographically random session token.
 
@@ -34,29 +41,54 @@ All state between steps is held in a server-side session map keyed by a cryptogr
 
 ## Architecture
 
+The system uses a **singleton-per-module** pattern with explicit reset functions for testability. Each module exposes:
+
+- A class with configurable constructor parameters
+- A `getXxx()` factory that returns a cached singleton instance
+- A `resetXxx()` function that clears the singleton (and internal state)
+
+The orchestrator (`authFlow.js`) is the only public-facing interface. Individual modules should not be called directly by application code.
+
+---
+
+## Project Structure
+
 ```
 auth/
-├── orchestrator/
-│   └── authFlow.js       # Coordinates all steps; holds session state
+├── coverage/              # Vitest coverage reports
+├── data/
+│   └── users.json         # Persisted user records (auto-created)
 ├── modules/
-│   ├── pow.js            # Proof-of-work challenge/verification
-│   ├── email.js          # Email verification code generation/validation
-│   ├── totp.js           # TOTP secret generation, QR code, token verification
-│   ├── user.js           # Username/password validation and account creation
-│   └── storage.js        # File-based user persistence (data/users.json)
+│   ├── pow.js             # Proof-of-work challenge/verification
+│   ├── email.js           # Email verification code generation/validation
+│   ├── totp.js            # TOTP secret generation, QR code, token verification
+│   ├── user.js            # Username/password validation and account creation
+│   └── storage.js         # File-based user persistence
+├── orchestrator/
+│   └── authFlow.js        # Coordinates all steps; holds session state
 ├── tests/
-│   └── authTest.js       # End-to-end integration test
-└── data/
-    └── users.json        # Persisted user records
+│   └── auth.test.js       # End-to-end integration tests (Vitest)
+├── index.js               # Entry point / server (if applicable)
+├── package.json           # Dependencies: speakeasy, qrcode, vitest
+├── vitest.config.js       # Vitest configuration
+└── run_test.sh            # Convenience test runner script
 ```
 
-The orchestrator (`authFlow.js`) is the only public-facing interface. Modules are internal and should not be called directly by application code.
+### Dependencies
+
+| Package | Purpose |
+|---|---|
+| `speakeasy` | TOTP secret generation and token verification |
+| `qrcode` | QR code generation for TOTP enrollment |
+| `vitest` | Test framework (dev dependency) |
+
+All other APIs (`crypto`, `fs/promises`, `path`) are Node.js built-ins.
 
 ---
 
 ## Modules
 
-### POW Module
+### PoW Module
 
 **File:** `modules/pow.js`  
 **Purpose:** Generates and verifies SHA-256 proof-of-work challenges to deter automated registrations.
@@ -64,16 +96,25 @@ The orchestrator (`authFlow.js`) is the only public-facing interface. Modules ar
 Each challenge requires the client to find a `nonce` such that:
 
 ```
-SHA-256(challenge + nonce)  starts with  "0000"  (difficulty = 4)
+SHA-256(challenge + nonce) starts with "0000" (difficulty = 4)
 ```
 
 **Key methods:**
 
 | Method | Description |
 |---|---|
-| `generateChallenge()` | Returns a new `{ challengeId, challenge, difficulty, timestamp }`. Challenges older than 5 minutes are auto-purged. |
+| `generateChallenge()` | Returns a new `{ challenge_id, challenge, difficulty, timestamp }`. Challenges older than 5 minutes are auto-purged. |
 | `verify(challengeId, nonce)` | Returns `{ success, message, sessionToken }`. Each challenge can only be used once. |
+| `cleanup()` | Removes expired challenges (called automatically every 60s). |
 | `getStatus()` | Returns `{ activeChallenges, difficulty }` for diagnostics. |
+| `destroy()` | Clears the auto-purge interval (call on shutdown). |
+| `reset()` | Clears all in-memory challenges. |
+
+**Singleton exports:**
+
+```js
+import { getPoW, resetPoW } from "./modules/pow.js";
+```
 
 **Defaults:**
 
@@ -82,6 +123,8 @@ SHA-256(challenge + nonce)  starts with  "0000"  (difficulty = 4)
 | Difficulty (leading zeros) | `4` |
 | Challenge expiry | 5 minutes |
 | Challenge bytes | 32 (base64 encoded) |
+| Challenge ID bytes | 16 (hex encoded) |
+| Auto-cleanup interval | 60 seconds |
 
 ---
 
@@ -96,11 +139,18 @@ Codes are generated using `crypto.randomInt` (cryptographically secure). They ex
 
 | Method | Description |
 |---|---|
-| `generateCode(email)` | Generates and stores a code for the email. Returns `{ code, expiresIn, timestamp }`. |
+| `generateCode(email)` | Generates and stores a code for the email. Returns `{ code, expiresIn, timestamp }`. In non-test environments, logs the code to stdout. |
 | `verifyCode(email, code)` | Returns `{ verified, message, attemptsLeft }`. |
 | `isVerified(email)` | Returns `true` if the email has a verified code in memory. |
 | `getCodeForTesting(email)` | **Test-only.** Returns the stored code. Throws if `NODE_ENV !== 'test'`. |
 | `getStatus()` | Returns `{ activeCodes, expiryTime }`. |
+| `reset()` | Clears all in-memory codes. |
+
+**Singleton exports:**
+
+```js
+import { getEmailVerifier, resetEmailVerifier } from "./modules/email.js";
+```
 
 **Defaults:**
 
@@ -125,11 +175,18 @@ Uses `speakeasy` for TOTP operations and `qrcode` for QR image generation.
 
 | Method | Description |
 |---|---|
-| `generateSecret(email)` | Returns `{ secret, qrCodeUri, manualKey }`. Stores the secret keyed by email. |
+| `generateSecret(email)` | Returns `{ secret, qrCodeUri, manualKey }`. Stores the secret keyed by normalized email. |
 | `generateQRCode(otpauthUrl)` | Async. Returns a base64 data URL of the QR code image. |
 | `verifyToken(email, token)` | Returns `{ verified, remaining, message }`. Accepts tokens within ±1 window (30 seconds). |
 | `getCurrentToken(email)` | **Test/debug only.** Returns the currently valid token for the stored secret. |
 | `hasSecret(email)` | Returns `true` if a secret is stored for this email. |
+| `reset()` | Clears all in-memory secrets. |
+
+**Singleton exports:**
+
+```js
+import { getTOTPManager, resetTOTPManager } from "./modules/totp.js";
+```
 
 **Defaults:**
 
@@ -154,10 +211,17 @@ Passwords are hashed with PBKDF2-SHA512, 600,000 iterations, with a 16-byte rand
 |---|---|
 | `validateUsername(username)` | Returns `{ valid, message }`. Checks length, character set, and uniqueness (case-insensitive). |
 | `validatePassword(password)` | Returns `{ valid, message, strength, strengthLabel }`. Requires 3 of 5 complexity criteria. |
-| `hashPassword(password, salt)` | Async. Returns the hex-encoded PBKDF2 hash. |
+| `hashPassword(password, salt)` | Async. Returns `{ hash, salt }` with hex-encoded PBKDF2 hash. |
 | `createUser(username, password, email)` | Async. Validates, hashes, and persists the user. Returns `{ created, message, userId }`. |
-| `verifyPassword(username, password)` | Async. Returns `true` if the password matches the stored hash. |
+| `verifyPassword(username, password)` | Async. Returns `true` if the password matches the stored hash (timing-safe). |
 | `getUserInfo(username)` | Returns safe user info (no hash, no salt). |
+| `reset()` | Async. Clears storage (delegates to `storage.reset()`). |
+
+**Singleton exports:**
+
+```js
+import { getUserManager, resetUserManager } from "./modules/user.js";
+```
 
 **Username rules:**
 
@@ -165,8 +229,9 @@ Passwords are hashed with PBKDF2-SHA512, 600,000 iterations, with a 16-byte rand
 |---|---|
 | Min length | 3 characters |
 | Max length | 30 characters |
-| Allowed characters | Letters, numbers, underscores |
+| Allowed characters | Letters, numbers, underscores (`a-zA-Z0-9_`) |
 | Case sensitivity | Stored and compared in lowercase |
+| Uniqueness | Checked against both username and email |
 
 **Password strength criteria (need 3 of 5):**
 
@@ -197,13 +262,21 @@ Passwords are hashed with PBKDF2-SHA512, 600,000 iterations, with a 16-byte rand
 
 | Method | Description |
 |---|---|
-| `saveUser(user)` | Appends a user record. Returns `false` if username or email already exists. |
+| `init()` | Async. Creates `data/` directory and loads `users.json` into memory. Called automatically by `saveUser()`. |
+| `saveUser(user)` | Async. Appends a user record. Returns `false` if username or email already exists. |
 | `getUserByUsername(username)` | Case-insensitive lookup. Returns the full user object or `null`. |
 | `getUserByEmail(email)` | Returns the full user object or `null`. |
 | `usernameExists(username)` | Case-insensitive. Returns `boolean`. |
 | `emailExists(email)` | Returns `boolean`. |
 | `getUserCount()` | Returns total number of registered users. |
 | `getAllUsers()` | Returns an array of `{ username, email, createdAt }` (no secrets). |
+| `reset()` | Async. Clears in-memory users, resets initialization flag, and writes `"[]"` to disk. |
+
+**Singleton exports:**
+
+```js
+import { getStorage, resetStorage } from "./modules/storage.js";
+```
 
 **Stored user record shape:**
 
@@ -230,9 +303,9 @@ The complete registration flow is orchestrated by `authFlow.js`. All calls go th
 Client                          AuthFlow
   │                                │
   │──── initPOW() ────────────────▶│  Generate SHA-256 challenge
-  │◀─── { challengeId, challenge } │
+  │◀─── { challenge_id, challenge } │
   │                                │
-  │  [Client solves POW]           │
+  │  [Client solves PoW]           │
   │                                │
   │──── verifyPOW(id, nonce) ─────▶│  Validate hash, create session
   │◀─── { sessionToken }           │
@@ -252,15 +325,15 @@ Client                          AuthFlow
   │◀─── { userId, username }       │  Session is deleted
 ```
 
-### Step-by-step
+### Step-by-step API
 
-**Step 1 — Init POW**
+**Step 1 — Init PoW**
 ```js
 const step1 = authFlow.initPOW();
-// Returns: { step: "pow_challenge", data: { challengeId, challenge, difficulty, timestamp } }
+// Returns: { step: "pow_challenge", data: { challenge_id, challenge, difficulty, timestamp } }
 ```
 
-**Step 2 — Verify POW**
+**Step 2 — Verify PoW**
 ```js
 const step2 = authFlow.verifyPOW(challengeId, nonce);
 // Returns: { step: "pow_verified", data: { sessionToken, message } }
@@ -293,7 +366,7 @@ const step6 = await authFlow.createAccount(sessionToken, "myusername", "SecureP@
 // Session is destroyed on success.
 ```
 
-### Error responses
+### Error Responses
 
 Every step returns a consistent envelope. On failure:
 
@@ -301,13 +374,21 @@ Every step returns a consistent envelope. On failure:
 {
   "step": "error",
   "data": { "message": "Reason for failure" },
-  "next": null
+  "next": "retry" | "retry_code" | "retry_totp" | "restart" | null
 }
 ```
 
-The `next` field indicates what the client should do next (e.g. `"retry_code"`, `"restart"`, or `null` to abort).
+The `next` field indicates what the client should do next:
 
-### Session status (debug)
+| Value | Meaning |
+|---|---|
+| `"retry"` | Retry the same step (e.g., invalid email format) |
+| `"retry_code"` | Retry with a new email code |
+| `"retry_totp"` | Retry with a new TOTP token |
+| `"restart"` | Start over from Step 1 (session invalid/expired) |
+| `null` | Abort (fatal error) |
+
+### Session Status
 
 ```js
 authFlow.getSessionStatus(sessionToken);
@@ -317,69 +398,111 @@ authFlow.getSessionStatus(sessionToken);
 
 ---
 
+## API Reference
+
+### `AuthFlow` Class (`orchestrator/authFlow.js`)
+
+| Method | Async | Parameters | Returns | Description |
+|---|---|---|---|---|
+| `initPOW()` | No | — | `{ step, data }` | Generates a new PoW challenge. |
+| `verifyPOW(challengeId, nonce)` | No | `challengeId: string`, `nonce: string` | `{ step, data, next? }` | Verifies PoW, creates session. |
+| `submitEmail(sessionToken, email)` | No | `sessionToken: string`, `email: string` | `{ step, data, next? }` | Generates and sends email code. |
+| `verifyEmailCode(sessionToken, code)` | No | `sessionToken: string`, `code: string` | `{ step, data, next? }` | Verifies email code, generates TOTP secret. |
+| `verifyTOTP(sessionToken, totpToken)` | **Yes** | `sessionToken: string`, `totpToken: string` | `{ step, data, next? }` | Verifies TOTP token, generates QR code. |
+| `createAccount(sessionToken, username, password)` | **Yes** | `sessionToken: string`, `username: string`, `password: string` | `{ step, data, next? }` | Validates credentials, hashes password, saves user. Destroys session on success. |
+| `getSessionStatus(sessionToken)` | No | `sessionToken: string` | `{ exists, powVerified?, emailVerified?, totpVerified?, email? }` | Returns current session state with masked email. |
+| `reset()` | No | — | `void` | Clears all sessions and resets all module singletons. |
+
+### Singleton Exports
+
+```js
+// Get the orchestrator instance
+import { getAuthFlow } from "./orchestrator/authFlow.js";
+
+// Reset everything (useful for testing)
+import { resetAuthFlow } from "./orchestrator/authFlow.js";
+```
+
+---
+
 ## Configuration
 
-Configuration is currently hardcoded in each module. The relevant values and their locations:
+Configuration is currently hardcoded in each module constructor. The relevant values and their locations:
 
-| Setting | Default | Location |
-|---|---|---|
-| POW difficulty | `4` leading zeros | `pow.js` constructor |
-| Challenge expiry | 5 minutes | `pow.js → cleanupOldChallenges` |
-| Email code length | 6 digits | `email.js` constructor |
-| Email code expiry | 10 minutes | `email.js` constructor |
-| Email max attempts | 3 | `email.js → generateCode` |
-| TOTP issuer name | `"AuthSystem"` | `totp.js` constructor |
-| TOTP window | 1 (±30s) | `totp.js → verifyToken` |
-| Username min length | 3 | `user.js` constructor |
-| Username max length | 30 | `user.js` constructor |
-| Password min length | 8 | `user.js` constructor |
-| PBKDF2 iterations | 600,000 | `user.js → hashPassword` |
-| PBKDF2 key length | 64 bytes | `user.js → hashPassword` |
-| Storage file path | `data/users.json` | `storage.js` constructor |
+| Setting | Default | Module | Parameter |
+|---|---|---|---|
+| PoW difficulty | `4` leading zeros | `pow.js` | `difficulty` |
+| Challenge expiry | 5 minutes | `pow.js` | `expiryMs` |
+| Challenge bytes | 32 (base64) | `pow.js` | `crypto.randomBytes(32)` |
+| Email code length | 6 digits | `email.js` | `codeLength` |
+| Email code expiry | 10 minutes | `email.js` | `expiryMs` |
+| Email max attempts | 3 | `email.js` | `maxAttempts` |
+| TOTP issuer name | `"AuthSystem"` | `totp.js` | `issuer` |
+| TOTP window | 1 (±30s) | `totp.js` | `window` |
+| Username min length | 3 | `user.js` | `minUsername` |
+| Username max length | 30 | `user.js` | `maxUsername` |
+| Password min length | 8 | `user.js` | `minPassword` |
+| PBKDF2 iterations | 600,000 | `user.js` | `pbkdf2Iterations` |
+| PBKDF2 key length | 64 bytes | `user.js` | `pbkdf2KeyLength` |
+| Storage file path | `data/users.json` | `storage.js` | `dataDir`, `fileName` |
 
 ---
 
 ## Running Tests
 
-The test script runs a full end-to-end registration flow against the live modules.
+Tests are written with **Vitest** and located in `tests/auth.test.js`.
 
-**Requirements:** `NODE_ENV=test` must be set so that `getCodeForTesting()` is accessible.
+### Test Setup
 
 ```bash
 cd auth
-NODE_ENV=test node tests/authTest.js
+npm install        # if not already installed
+npm test           # or: npx vitest
 ```
 
-Expected output:
-
-```
-=== Auth Flow Test ===
-
-1. Getting POW challenge...
-2. Verifying POW...
-3. Submitting email...
-4. Verifying email code...
-5. Setting up TOTP...
-6. Creating account...
-7. Testing case-insensitive username (Bug 6 fix)...
-8. Session status...
-
-=== Test Complete ===
-
-✅ All fixes verified:
-   Bug 1: TOTP secret not regenerated
-   Bug 2: CSPRNG used for email codes
-   Bug 3: PBKDF2 with 600,000 iterations
-   Bug 4: Correct require path
-   Bug 5: No plaintext code leakage
-   Bug 6: Case-insensitive usernames
-```
-
-**Installing dependencies** (if not already installed):
+Or use the convenience script:
 
 ```bash
-npm install speakeasy qrcode
+bash run_test.sh
 ```
+
+### Test Configuration
+
+`vitest.config.js` (example):
+
+```js
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: "node",
+    coverage: {
+      reporter: ["text", "html"],
+      reportsDirectory: "./coverage",
+    },
+  },
+});
+```
+
+### Coverage
+
+```bash
+npx vitest --coverage
+```
+
+Reports are written to `./coverage/` in both text and HTML formats.
+
+### Test Structure
+
+| Suite | Tests |
+|---|---|
+| `Auth Flow` | Full registration flow, invalid PoW rejection, invalid email code rejection |
+| `User Validation` | Username validation rules, password strength criteria |
+
+### Test Environment
+
+`NODE_ENV=test` must be set so that `getCodeForTesting()` is accessible. The `beforeEach`/`afterEach` hooks reset all singletons to ensure test isolation.
 
 ---
 
@@ -389,20 +512,38 @@ npm install speakeasy qrcode
 
 - Cryptographically secure random number generation throughout (`crypto.randomBytes`, `crypto.randomInt`)
 - PBKDF2 password hashing at OWASP-recommended iteration count (600,000 × SHA-512)
+- Timing-safe password comparison via `crypto.timingSafeEqual`
 - Email codes are invalidated after 3 failed attempts
-- POW challenges are single-use (replay protection)
+- PoW challenges are single-use (replay protection)
 - Test-only code paths are gated behind `NODE_ENV === 'test'`
-- Usernames are normalized to lowercase to prevent `Admin` / `admin` conflicts
+- Usernames and emails are normalized to lowercase to prevent `Admin` / `admin` conflicts
 - Session is destroyed immediately after account creation
+- Email addresses are masked in API responses (e.g., `tes***@example.com`)
 
 ### Known limitations to address before production
 
 | Issue | Recommendation |
 |---|---|
-| Email code comparison uses `===` (timing-unsafe) | Replace with `crypto.timingSafeEqual` |
-| Sessions have no expiry check | Add a TTL check in each `verifyXxx` method |
-| No rate limiting on `initPOW` | Cap challenges per IP; limit map size |
+| Email code comparison uses `===` (timing-unsafe) | Replace with `crypto.timingSafeEqual` or constant-time comparison |
+| Sessions have no expiry check | Add a TTL check in each `verifyXxx` method (e.g., 30-minute session expiry) |
+| No rate limiting on `initPOW` | Cap challenges per IP; limit map size to prevent memory exhaustion |
 | `generateCode` returns the plaintext code | Remove `code` from the return value; use `getCodeForTesting` in tests only |
-| `users.json` is unencrypted on disk | Use a proper database with appropriate access controls |
-| `getSessionStatus` and `getCurrentToken` are unauthenticated | Remove or protect these endpoints in production |
-| No binding of session token to client fingerprint | Consider binding to IP/user-agent |
+| `users.json` is unencrypted on disk | Use a proper database (PostgreSQL, MongoDB) with appropriate access controls |
+| `getSessionStatus` and `getCurrentToken` are unauthenticated | Remove or protect these endpoints behind admin/auth in production |
+| No binding of session token to client fingerprint | Consider binding to IP/user-agent to prevent token theft/replay |
+| No HTTPS enforcement | All endpoints must run over TLS in production |
+| No audit logging | Log security events (failed logins, code attempts, account creation) |
+
+---
+
+## Changelog
+
+### Current Version
+
+- **ESM modules** — All files use `import`/`export` syntax with `.js` extensions
+- **Singleton reset functions** — Added `resetXxx()` to all modules for clean test isolation
+- **Vitest test suite** — Replaced ad-hoc test runner with structured Vitest tests
+- **Coverage reporting** — Added `coverage/` output via Vitest
+- **Project structure** — Added `orchestrator/`, `tests/`, `coverage/`, config files
+- **PoW destroy method** — Added `destroy()` to clear cleanup intervals on shutdown
+- **Storage reset** — Added `reset()` that clears memory and writes `"[]"` to disk
