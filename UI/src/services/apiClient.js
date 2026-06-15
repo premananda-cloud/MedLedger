@@ -20,7 +20,7 @@
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
-const BASE_URL = (import.meta.env?.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const BASE_URL = (import.meta.env?.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 // ─── Token store (in-memory only — never written to localStorage) ────────────
 
@@ -108,7 +108,7 @@ async function request(method, path, body = null, opts = {}) {
     throw new ApiError(
       `Network error: ${networkErr.message}`,
       0,
-      "NETWORK_ERROR"
+      "NETWORK_ERROR",
     );
   }
 
@@ -119,7 +119,7 @@ async function request(method, path, body = null, opts = {}) {
     throw new ApiError(
       `Server returned non-JSON response (HTTP ${response.status})`,
       response.status,
-      "PARSE_ERROR"
+      "PARSE_ERROR",
     );
   }
 
@@ -196,7 +196,11 @@ export const authApi = {
    * transmitted; the payload is signed client-side in loginBridge.
    */
   login: (payloadCanon, signature, username) =>
-    api.post("/auth/login", { payload_canon: payloadCanon, signature, username }),
+    api.post("/auth/login", {
+      payload_canon: payloadCanon,
+      signature,
+      username,
+    }),
 
   /** Explicit server-side logout (invalidates JWT) */
   logout: () => api.post("/auth/logout", {}),

@@ -52,7 +52,14 @@ function base64ToUint8Array(base64) {
   }
   // Normalize base64url → base64
   const normalized = base64.replace(/-/g, "+").replace(/_/g, "/");
-  const binary = atob(normalized);
+  let binary;
+  try {
+    binary = atob(normalized);
+  } catch (err) {
+    throw new Error(
+      `base64ToUint8Array: invalid base64 string (${err.message})`,
+    );
+  }
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
@@ -72,10 +79,24 @@ function base64ToUint8Array(base64) {
  * @returns {Promise<string>}  The winning nonce (decimal string)
  */
 async function solvePoW(challenge, difficulty = 4, signal) {
-  assert(difficulty <= MAX_POW_DIFFICULTY,
-    `PoW difficulty ${difficulty} exceeds max ${MAX_POW_DIFFICULTY}. Offload to a Worker.`);
+  const effectiveDifficulty = Math.max(
+    1,
+    Math.min(difficulty ?? 4, MAX_POW_DIFFICULTY),
+  );
 
-  const prefix = "0".repeat(difficulty);
+  // Reject server-sent difficulty that exceeds our safety limit
+  if ((difficulty ?? 4) > MAX_POW_DIFFICULTY) {
+    throw new Error(
+      `PoW difficulty ${difficulty} exceeds max ${MAX_POW_DIFFICULTY}. Offload to a Worker.`,
+    );
+  }
+
+  assert(
+    effectiveDifficulty <= MAX_POW_DIFFICULTY,
+    `PoW difficulty ${effectiveDifficulty} exceeds max ${MAX_POW_DIFFICULTY}. Offload to a Worker.`,
+  );
+
+  const prefix = "0".repeat(effectiveDifficulty);
   const encoder = new TextEncoder();
   let nonce = 0;
 
@@ -127,7 +148,7 @@ export class RegisterBridge {
   constructor() {
     this._sessionToken = null;
     this._totpInfo = null; // { qrCodeUri, manualKey } from step 4
-    this._keypair = null;  // held temporarily until createAccount resolves
+    this._keypair = null; // held temporarily until createAccount resolves
   }
 
   /**
@@ -140,7 +161,7 @@ export class RegisterBridge {
   async startPoW(opts = {}) {
     const { challenge_id, challenge, difficulty } = await authApi.initPoW();
 
-    const nonce = await solvePoW(challenge, difficulty ?? 4, opts.signal);
+    const nonce = await solvePoW(challenge, difficulty, opts.signal);
 
     const { sessionToken } = await authApi.verifyPoW(challenge_id, nonce);
     this._sessionToken = sessionToken;
@@ -157,7 +178,10 @@ export class RegisterBridge {
    */
   async submitEmail(email) {
     this._assertSession();
-    assert(typeof email === "string" && email.length > 0, "email must be a non-empty string");
+    assert(
+      typeof email === "string" && email.length > 0,
+      "email must be a non-empty string",
+    );
     assert(EMAIL_REGEX.test(email), "email format is invalid");
 
     return authApi.submitEmail(this._sessionToken, email);
@@ -225,10 +249,14 @@ export class RegisterBridge {
    */
   async createAccount(username, password) {
     this._assertSession();
-    assert(typeof username === "string" && username.length >= 2,
-      "username must be a string with at least 2 characters");
-    assert(typeof password === "string" && password.length >= 8,
-      "password must be at least 8 characters");
+    assert(
+      typeof username === "string" && username.length >= 2,
+      "username must be a string with at least 2 characters",
+    );
+    assert(
+      typeof password === "string" && password.length >= 8,
+      "password must be at least 8 characters",
+    );
 
     // Ensure libsodium is ready
     await KeysetManager.init();
@@ -277,7 +305,7 @@ export class RegisterBridge {
     // Register with server — public keys + credentials in one request
     // The server expects base64 strings for the public keys.
     const serverPublicKeys = {
-      signingPublicKey: signingPublicKey,  // keep original format for server
+      signingPublicKey: signingPublicKey, // keep original format for server
       exchangePublicKey: exchangePublicKey,
       userIdHex,
     };
@@ -286,7 +314,7 @@ export class RegisterBridge {
       this._sessionToken,
       username,
       password,
-      serverPublicKeys
+      serverPublicKeys,
     );
 
     // ─── FIX: Store JWT if the server returns one at registration ────────────
@@ -324,7 +352,7 @@ export class RegisterBridge {
   _assertSession() {
     if (!this._sessionToken) {
       throw new Error(
-        "RegisterBridge: no active session — call startPoW() first"
+        "RegisterBridge: no active session — call startPoW() first",
       );
     }
   }

@@ -26,7 +26,13 @@
  */
 
 import { authApi, setToken, clearToken } from "./apiClient.js";
-import { KeysetManager, KeysetError, ERRORS } from "../key_manager/key_manager.js";
+import { KeysetManager } from "../key_manager/key_manager.js";
+
+// ─── Input validation helper ─────────────────────────────────────────────────
+
+function assert(condition, message) {
+  if (!condition) throw new Error(`loginBridge: ${message}`);
+}
 
 // ─── Login ────────────────────────────────────────────────────────────────────
 
@@ -48,6 +54,24 @@ import { KeysetManager, KeysetError, ERRORS } from "../key_manager/key_manager.j
  * @throws {ApiError}    On server rejection (wrong key, expired timestamp, etc.)
  */
 export async function login(username, keypair) {
+  // Validate inputs before touching crypto
+  assert(
+    typeof username === "string" && username.length >= 2,
+    "username must be a string with at least 2 characters",
+  );
+  assert(
+    keypair !== null && typeof keypair === "object",
+    "keypair must be an object",
+  );
+  assert(
+    keypair.signing?.privateKey instanceof Uint8Array,
+    "signing private key must be a Uint8Array",
+  );
+  assert(
+    keypair.exchange?.privateKey instanceof Uint8Array,
+    "exchange private key must be a Uint8Array",
+  );
+
   // Ensure libsodium is ready
   await KeysetManager.init();
 
@@ -77,13 +101,13 @@ export async function login(username, keypair) {
   const selfCheckOk = KeysetManager.verifySignature(
     payloadCanon,
     signature,
-    publicKeys.signingPublicKey
+    publicKeys.signingPublicKey,
   );
   if (!selfCheckOk) {
     KeysetManager.logoutUser();
     clearToken();
     throw new Error(
-      "loginBridge: self-verification of login signature failed — keypair may be corrupt"
+      "loginBridge: self-verification of login signature failed — keypair may be corrupt",
     );
   }
 
@@ -103,9 +127,15 @@ export async function login(username, keypair) {
  * @returns {Promise<void>}
  */
 export async function logout() {
-  // Wipe private keys synchronously — this must happen even if the API call fails
-  KeysetManager.logoutUser();
+  // Clear the token FIRST — this must happen even if KeysetManager throws
   clearToken();
+
+  try {
+    // Wipe private keys synchronously
+    KeysetManager.logoutUser();
+  } catch {
+    // KeysetManager may throw if already locked — token is already cleared
+  }
 
   // Best-effort server-side invalidation — don't let a network failure
   // block the client from completing logout
