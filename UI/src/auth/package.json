@@ -1,21 +1,9 @@
 {
   "name": "medledger-auth",
   "version": "1.0.0",
+  "private": true,
   "type": "module",
   "main": "orchestrator/authFlow.js",
-  "scripts": {
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
-  },
-  "dependencies": {
-    "speakeasy": "^2.0.0",
-    "qrcode": "^1.5.3"
-  },
-  "devDependencies": {
-    "vitest": "^1.0.0",
-    "@vitest/coverage-v8": "^1.0.0"
-  },
   "engines": {
     "node": ">=18.0.0"
   }

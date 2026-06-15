@@ -1,252 +1,263 @@
 /**
  * useKeyset.js
  *
- * React hook that owns the KeysetManager session lifecycle.
- *
- * Provides:
- *  - locked / publicKeys state kept in sync with KeysetManager
- *  - login(username, keypair)  — calls KeysetManager.loginUser(), updates state
- *  - logout()                  — wipes keys, clears JWT, updates state
- *  - init() on mount           — idempotent; safe to call multiple times
- *  - beforeunload listener     — wipes keys synchronously on tab close
- *  - 30-minute inactivity lock — resets on any user interaction
- *  - encryptRecord / decryptShare / signPayload pass-throughs — so components
- *    never import KeysetManager directly
+ * Wraps the authKeyBridge crypto session.
+ * Mirrors the KeysetManager UNLOCKED / LOCKED / UNINITIALIZED state machine.
+ * React never receives raw private key material — only public keys are exposed.
  *
  * Usage:
- *   const { locked, publicKeys, login, logout, signPayload } = useKeyset();
- *
- * Wire to VaultStatus and VaultUnlock via the shared context (see below).
- * One instance per app — place at the root and pass values down via context
- * or props; do not call useKeyset() in multiple unrelated subtrees.
+ *   const {
+ *     vaultStatus,        // "uninitialized" | "locked" | "unlocked"
+ *     isLocked,           // shorthand boolean
+ *     publicKeys,         // available when unlocked
+ *     loading, error,
+ *     unlockSession,
+ *     lockSession,
+ *     encryptRecord,
+ *     decryptShare,
+ *     signPayload,
+ *     verifySignature,
+ *     clearError,
+ *   } = useKeyset();
  */
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import { KeysetManager, KeysetError, ERRORS } from "../key_manager/key_manager.js";
-import { clearToken } from "../shared/apiClient.js";
+import { useState, useCallback, useEffect } from "react";
+import { getAuthKeyBridge } from "../services/authKeyBridge.js";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+const VAULT_STATUS = {
+  UNINITIALIZED: "uninitialized",
+  LOCKED: "locked",
+  UNLOCKED: "unlocked",
+};
 
-const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+function deriveStatus(bridge) {
+  try {
+    if (bridge.isCryptoLocked()) return VAULT_STATUS.LOCKED;
+    return VAULT_STATUS.UNLOCKED;
+  } catch {
+    // isCryptoLocked throws if the bridge hasn't been init'd yet
+    return VAULT_STATUS.UNINITIALIZED;
+  }
+}
 
-const ACTIVITY_EVENTS = ["mousemove", "keydown", "click", "touchstart", "scroll"];
+export function useKeyset() {
+  const bridge = getAuthKeyBridge(); // singleton — safe to call repeatedly
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-
-/**
- * @param {object}   [options]
- * @param {number}   [options.inactivityTimeoutMs]  Override the 30-minute default
- * @param {Function} [options.onInactivityLock]     Called when the inactivity timer fires
- * @param {Function} [options.onError]              Called with a KeysetError if a crypto op fails
- *
- * @returns {{
- *   locked:         boolean,
- *   publicKeys:     { signingPublicKey, exchangePublicKey, userIdHex, username } | null,
- *   ready:          boolean,
- *   login:          (username: string, keypair: object) => Promise<object>,
- *   logout:         () => void,
- *   encryptRecord:  (fileBytes: Uint8Array, recipientPubKeyB64: string) => object,
- *   decryptShare:   (encB64: string, nonceB64: string, dekB64: string) => Uint8Array,
- *   signPayload:    (payloadObject: object) => { payloadCanon: string, signature: string },
- *   verifySignature:(payloadOrCanon: any, sig: string, pubKey: string) => boolean,
- *   getPublicKeys:  () => object | null,
- * }}
- */
-export function useKeyset({
-  inactivityTimeoutMs = INACTIVITY_TIMEOUT_MS,
-  onInactivityLock = null,
-  onError = null,
-} = {}) {
-  // true  = no private keys in memory
-  // false = session is active
-  const [locked, setLocked] = useState(true);
+  const [initialized, setInitialized] = useState(false);
+  const [vaultStatus, setVaultStatus] = useState(VAULT_STATUS.UNINITIALIZED);
   const [publicKeys, setPublicKeys] = useState(null);
-  // false until KeysetManager.init() resolves (libsodium wasm loaded)
-  const [ready, setReady] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const inactivityTimer = useRef(null);
+  // ─── Init libsodium once on mount ─────────────────────────────────────────
 
-  // ── Inactivity timer management ────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
 
-  const clearInactivityTimer = useCallback(() => {
-    if (inactivityTimer.current !== null) {
-      clearTimeout(inactivityTimer.current);
-      inactivityTimer.current = null;
+    async function init() {
+      try {
+        await bridge.init();
+        if (cancelled) return;
+        const status = deriveStatus(bridge);
+        setVaultStatus(status);
+        if (status === VAULT_STATUS.UNLOCKED) {
+          setPublicKeys(safeGetPublicKeys(bridge));
+        }
+        setInitialized(true);
+      } catch (err) {
+        if (!cancelled) {
+          setError("Failed to initialize crypto layer.");
+        }
+      }
     }
+
+    init();
+    return () => { cancelled = true; };
   }, []);
 
-  const resetInactivityTimer = useCallback(() => {
-    clearInactivityTimer();
-    inactivityTimer.current = setTimeout(() => {
-      // Only lock if still unlocked when the timer fires
-      if (!KeysetManager.isLocked()) {
-        KeysetManager.logoutUser();
-        clearToken();
-        setLocked(true);
-        setPublicKeys(null);
-        onInactivityLock?.();
-      }
-    }, inactivityTimeoutMs);
-  }, [clearInactivityTimer, inactivityTimeoutMs, onInactivityLock]);
+  // ─── Sync helper ─────────────────────────────────────────────────────────
 
-  // ── Mount / unmount effects ────────────────────────────────────────────────
-
-  useEffect(() => {
-    // Initialize libsodium once
-    KeysetManager.init().then(() => setReady(true));
-
-    // Wipe keys synchronously on tab close — last line of defense
-    const onUnload = () => {
-      KeysetManager.logoutUser();
-      clearToken();
-    };
-    window.addEventListener("beforeunload", onUnload);
-
-    return () => {
-      window.removeEventListener("beforeunload", onUnload);
-      clearInactivityTimer();
-    };
-  }, [clearInactivityTimer]);
-
-  // ── Inactivity listeners (only active when session is unlocked) ────────────
-
-  useEffect(() => {
-    if (locked) {
-      // Session is locked — no point tracking activity
-      clearInactivityTimer();
-      return;
+  function syncStatus() {
+    const status = deriveStatus(bridge);
+    setVaultStatus(status);
+    if (status === VAULT_STATUS.UNLOCKED) {
+      setPublicKeys(safeGetPublicKeys(bridge));
+    } else {
+      setPublicKeys(null);
     }
+  }
 
-    // Start the timer immediately on unlock
-    resetInactivityTimer();
-
-    // Reset it on any interaction
-    const handleActivity = () => resetInactivityTimer();
-    ACTIVITY_EVENTS.forEach((e) =>
-      window.addEventListener(e, handleActivity, { passive: true })
-    );
-
-    return () => {
-      ACTIVITY_EVENTS.forEach((e) =>
-        window.removeEventListener(e, handleActivity)
-      );
-      clearInactivityTimer();
-    };
-  }, [locked, resetInactivityTimer, clearInactivityTimer]);
-
-  // ── Session operations ─────────────────────────────────────────────────────
+  // ─── Actions ──────────────────────────────────────────────────────────────
 
   /**
-   * Load a keypair into KeysetManager and unlock the session.
-   * Returns the public keys so callers can update their own state.
+   * Unlocks the crypto session with the user's saved keypair.
+   * Sets vaultStatus → "unlocked" and surfaces publicKeys on success.
    *
    * @param {string} username
    * @param {{ signing: { publicKey: Uint8Array, privateKey: Uint8Array },
-   *            exchange: { publicKey: Uint8Array, privateKey: Uint8Array } }} keypair
-   * @returns {Promise<object>} publicKeys
-   * @throws {KeysetError} BAD_KEY_FORMAT if the keypair is malformed
+   *            exchange: { publicKey: Uint8Array, privateKey: Uint8Array } }} savedKeypair
+   * @returns {boolean} true on success, false on failure
    */
-  const login = useCallback(
-    async (username, keypair) => {
-      const keys = await KeysetManager.loginUser(username, keypair);
-      setLocked(false);
-      setPublicKeys(keys);
-      return keys;
-    },
-    []
-  );
-
-  /**
-   * Wipe private keys and clear the JWT.
-   * This is the canonical logout path — always call this, not KeysetManager directly.
-   */
-  const logout = useCallback(() => {
-    KeysetManager.logoutUser();
-    clearToken();
-    clearInactivityTimer();
-    setLocked(true);
-    setPublicKeys(null);
-  }, [clearInactivityTimer]);
-
-  // ── Crypto pass-throughs ──────────────────────────────────────────────────
-  //
-  // These wrap KeysetManager methods so the rest of the app never has to
-  // import key_manager.js directly. Errors are surfaced via onError if
-  // provided, and re-thrown so callers can still handle them.
-
-  const encryptRecord = useCallback(
-    (fileBytes, recipientExchangePublicKeyB64) => {
-      try {
-        return KeysetManager.encryptRecord(fileBytes, recipientExchangePublicKeyB64);
-      } catch (err) {
-        onError?.(err);
-        throw err;
-      }
-    },
-    [onError]
-  );
-
-  const decryptShare = useCallback(
-    (encryptedRecordB64, nonceB64, dekBundleB64) => {
-      try {
-        return KeysetManager.decryptShare(encryptedRecordB64, nonceB64, dekBundleB64);
-      } catch (err) {
-        onError?.(err);
-        throw err;
-      }
-    },
-    [onError]
-  );
-
-  const signPayload = useCallback(
-    (payloadObject) => {
-      try {
-        return KeysetManager.signPayload(payloadObject);
-      } catch (err) {
-        onError?.(err);
-        throw err;
-      }
-    },
-    [onError]
-  );
-
-  /**
-   * Verify an Ed25519 signature.
-   * Does not require an unlocked session.
-   * Returns false (never throws) for any verification failure.
-   */
-  const verifySignature = useCallback(
-    (payloadOrCanon, signatureB64, signerPubKeyB64) =>
-      KeysetManager.verifySignature(payloadOrCanon, signatureB64, signerPubKeyB64),
-    []
-  );
-
-  /**
-   * Returns public keys from the current session, or null if locked.
-   * Thin wrapper so callers don't need to handle KeysetError.
-   */
-  const getPublicKeys = useCallback(() => {
-    if (KeysetManager.isLocked()) return null;
+  const unlockSession = useCallback(async (username, savedKeypair) => {
+    setError(null);
+    setLoading(true);
     try {
-      return KeysetManager.getPublicKeys();
+      await bridge.unlockCryptoSession(username, savedKeypair);
+      syncStatus();
+      return true;
+    } catch (err) {
+      setError(formatError(err));
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
+   * Locks the crypto session (wipes private keys from KeysetManager).
+   * Sets vaultStatus → "locked".
+   */
+  const lockSession = useCallback(() => {
+    try {
+      bridge.logout();
     } catch {
+      // Best-effort — always update local state
+    }
+    setVaultStatus(VAULT_STATUS.LOCKED);
+    setPublicKeys(null);
+    setError(null);
+  }, []);
+
+  // ─── Crypto operations (require unlocked session) ─────────────────────────
+
+  /**
+   * Encrypts a file for a recipient using a sealed box.
+   * Throws (and sets error) if the session is locked.
+   *
+   * @param {Uint8Array} fileBytes
+   * @param {string} recipientPublicKey  Base64-encoded X25519 public key
+   * @returns {object | null}  Encrypted record object
+   */
+  const encryptRecord = useCallback(async (fileBytes, recipientPublicKey) => {
+    setError(null);
+    try {
+      return bridge.encryptRecord(fileBytes, recipientPublicKey);
+    } catch (err) {
+      setError(formatError(err));
       return null;
     }
   }, []);
 
+  /**
+   * Decrypts a received record share.
+   * Throws (and sets error) if the session is locked.
+   *
+   * @param {Uint8Array} encryptedRecord
+   * @param {Uint8Array} nonce
+   * @param {object}     dekBundle
+   * @returns {Uint8Array | null}  Decrypted plaintext bytes
+   */
+  const decryptShare = useCallback(async (encryptedRecord, nonce, dekBundle) => {
+    setError(null);
+    try {
+      return bridge.decryptShare(encryptedRecord, nonce, dekBundle);
+    } catch (err) {
+      setError(formatError(err));
+      return null;
+    }
+  }, []);
+
+  /**
+   * Signs a payload with the user's Ed25519 private key.
+   * Requires an unlocked session.
+   *
+   * @param {object} payload
+   * @returns {{ payloadCanon: string, signature: string } | null}
+   */
+  const signPayload = useCallback(async (payload) => {
+    setError(null);
+    try {
+      return bridge.signPayload(payload);
+    } catch (err) {
+      setError(formatError(err));
+      return null;
+    }
+  }, []);
+
+  /**
+   * Verifies a signature against a known public key.
+   * Does NOT require an unlocked session.
+   *
+   * @param {object} payload
+   * @param {string} signature
+   * @param {string} signerPublicKey  Base64-encoded Ed25519 public key
+   * @returns {boolean}
+   */
+  const verifySignature = useCallback((payload, signature, signerPublicKey) => {
+    try {
+      return bridge.verifySignature(payload, signature, signerPublicKey);
+    } catch (err) {
+      setError(formatError(err));
+      return false;
+    }
+  }, []);
+
+  const clearError = useCallback(() => setError(null), []);
+
   return {
-    /** True when no private keys are in memory */
-    locked,
-    /** Current session's public keys, or null when locked */
-    publicKeys,
-    /** True once libsodium has finished initializing */
-    ready,
-    login,
-    logout,
+    // State
+    vaultStatus,                                    // "uninitialized" | "locked" | "unlocked"
+    isLocked: vaultStatus !== VAULT_STATUS.UNLOCKED, // shorthand for common checks
+    isUnlocked: vaultStatus === VAULT_STATUS.UNLOCKED,
+    initialized,                                    // true once bridge.init() resolves
+    publicKeys,  // { signingPublicKey, exchangePublicKey, userIdHex } | null
+    loading,
+    error,
+
+    // Session management
+    unlockSession,
+    lockSession,
+
+    // Crypto operations
     encryptRecord,
     decryptShare,
     signPayload,
     verifySignature,
-    getPublicKeys,
+
+    // Utilities
+    clearError,
+
+    // Status constants for switch/comparison in components
+    VAULT_STATUS,
   };
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function safeGetPublicKeys(bridge) {
+  try {
+    return bridge.getPublicKeys();
+  } catch {
+    return null;
+  }
+}
+
+function formatError(err) {
+  if (!err) return "An unknown error occurred.";
+
+  if (err.name === "ApiError") {
+    if (err.status === 0) return "Network error — check your connection.";
+    return err.message || `Server error (${err.status}).`;
+  }
+
+  if (err.name === "KeysetError") {
+    const messages = {
+      BAD_KEY_FORMAT: "Invalid keypair — check your saved keys and try again.",
+      SESSION_LOCKED: "The vault is locked. Upload your keypair to unlock.",
+      UNINITIALIZED: "Crypto layer not ready. Refresh the page.",
+    };
+    return messages[err.code] || err.message || "Crypto error.";
+  }
+
+  return err.message || "An unexpected error occurred.";
 }

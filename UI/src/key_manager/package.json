@@ -1,14 +1,6 @@
 {
   "name": "key-manager",
   "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "test": "vitest"
-  },
-  "dependencies": {
-    "libsodium-wrappers-sumo": "^0.7.16"
-  },
-  "devDependencies": {
-    "vitest": "^1.0.0"
-  }
+  "private": true,
+  "type": "module"
 }
