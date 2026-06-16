@@ -225,9 +225,9 @@ async function createUser(username) {
   // loginUser() call to load an all-zeros private key and making
   // crypto_box_seal_open fail with a wrong-key error.
   return {
-      ...result,
-      signingPrivateKey: keys.signing.privateKey.slice(),
-      exchangePrivateKey: keys.exchange.privateKey.slice(),
+    ...result,
+    signingPrivateKey: keys.signing.privateKey.slice(),
+    exchangePrivateKey: keys.exchange.privateKey.slice(),
   };
 }
 
@@ -348,9 +348,6 @@ function logoutUser() {
  * }}
  */
 function encryptRecord(fileBytes, recipientExchangePublicKeyB64) {
-  // Intentionally assertInitialized() only — not assertUnlocked().
-  // Sealed boxes are a public-key-only operation: only the recipient's exchange
-  // public key is needed. The caller's private key is never touched here.
   assertInitialized();
 
   const enc = sodium.base64_variants.URLSAFE_NO_PADDING;
@@ -360,16 +357,19 @@ function encryptRecord(fileBytes, recipientExchangePublicKeyB64) {
     enc,
   );
 
+  // FIX: Force Uint8Array to ensure v0.7.15 compatibility
+  const fileBytesArray = new Uint8Array(fileBytes);
+
   // 1. Random DEK (256-bit)
   const dek = sodium.randombytes_buf(32);
   // 2. Random nonce (192-bit / 24 bytes — XSalsa20 requirement)
   const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
 
   // 3. Encrypt file
-  const encrypted = sodium.crypto_secretbox_easy(fileBytes, nonce, dek);
+  const encrypted = sodium.crypto_secretbox_easy(fileBytesArray, nonce, dek);
 
   // 4. Integrity hash of plaintext
-  const fileHash = sodium.to_hex(sodium.crypto_generichash(32, fileBytes));
+  const fileHash = sodium.to_hex(sodium.crypto_generichash(32, fileBytesArray));
 
   // 5. Seal DEK for recipient (anonymous sender / sealed box)
   const dekBundle = sodium.crypto_box_seal(dek, recipientPubKey);
@@ -486,8 +486,12 @@ function signPayload(payloadObject) {
 
   const payloadCanon = canonicalJSON(payloadObject);
   const payloadBytes = sodium.from_string(payloadCanon);
+
+  // FIX: Force Uint8Array
+  const payloadBytesArray = new Uint8Array(payloadBytes);
+
   const signature = sodium.crypto_sign_detached(
-    payloadBytes,
+    payloadBytesArray,
     _state.signingPrivKey,
   );
 
@@ -500,7 +504,6 @@ function signPayload(payloadObject) {
     ),
   };
 }
-
 // ─────────────────────────────────────────────────────────────────
 
 /**
@@ -531,17 +534,17 @@ function verifySignature(payloadOrCanon, signatureB64, signerPubKeyB64) {
     const signature = sodium.from_base64(signatureB64, enc);
     const pubKey = sodium.from_base64(signerPubKeyB64, enc);
 
-    return sodium.crypto_sign_verify_detached(signature, payloadBytes, pubKey);
+    // FIX: Wrap in new Uint8Array for v0.7.15 compatibility
+    return sodium.crypto_sign_verify_detached(
+      signature,
+      new Uint8Array(payloadBytes),
+      pubKey,
+    );
   } catch (err) {
     if (err instanceof KeysetError) throw err;
-    // A well-formed but invalid signature returns false from libsodium without
-    // throwing. If we land here, the inputs were malformed (bad base64, wrong
-    // key length). Return false rather than throwing so callers get a consistent
-    // boolean — only re-throw if it was already a KeysetError (checked above).
     return false;
   }
 }
-
 // ─────────────────────────────────────────────────────────────────
 
 /**

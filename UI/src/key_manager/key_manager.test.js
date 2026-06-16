@@ -10,20 +10,25 @@ import _sodium from "libsodium-wrappers-sumo";
 // loginUser(). createUser() surfaces the raw Uint8Array private keys; we
 // re-derive the matching public key bytes from them rather than trusting the
 // base64 string (which loginUser never receives directly).
+
 function keypairFromCreateResult(result) {
   const sodium = _sodium;
-  // Ed25519 private key is 64 bytes (seed || public). Public key = last 32 bytes.
-  const sigPub = result.signingPrivateKey.slice(32);
-  // X25519: derive public key from private key via scalar_mult_base.
-  const exchPub = sodium.crypto_scalarmult_base(result.exchangePrivateKey);
+
+  const sigPriv = result.signingPrivateKey;
+  // crypto_sign_ed25519_sk_to_pk extracts the 32-byte public key
+  const sigPub = sodium.crypto_sign_ed25519_sk_to_pk(sigPriv);
+
+  const exchPriv = result.exchangePrivateKey;
+  const exchPub = sodium.crypto_scalarmult_base(exchPriv);
+
   return {
     signing: {
       publicKey: sigPub,
-      privateKey: result.signingPrivateKey,
+      privateKey: sigPriv,
     },
     exchange: {
       publicKey: exchPub,
-      privateKey: result.exchangePrivateKey,
+      privateKey: exchPriv,
     },
   };
 }
@@ -240,7 +245,9 @@ describe("key_manager.js - KeysetManager", () => {
           encryptedData.nonce,
           encryptedData.dekBundle,
         );
-      }).toThrowError(expect.objectContaining({ code: ERRORS.DECRYPTION_FAILED }));
+      }).toThrowError(
+        expect.objectContaining({ code: ERRORS.DECRYPTION_FAILED }),
+      );
     });
 
     it("should throw SESSION_LOCKED when session is locked", () => {
@@ -393,7 +400,7 @@ describe("key_manager.js - KeysetManager", () => {
 
       const sodium = _sodium;
       const expectedHash = sodium.to_hex(
-        sodium.crypto_generichash(32, fileBytes),
+        sodium.crypto_generichash(32, new Uint8Array(fileBytes)),
       );
       expect(encrypted.fileHash).toBe(expectedHash);
     });

@@ -1,9 +1,6 @@
-// vitest.setup.js
-import { afterEach } from 'vitest';
-import { cleanup } from '@testing-library/react';
-import '@testing-library/jest-dom/vitest';
+import { webcrypto } from 'node:crypto'
 
-// Cleanup after each test
-afterEach(() => {
-  cleanup();
-});
+// Polyfill crypto.subtle for jsdom environment
+if (!globalThis.crypto?.subtle) {
+  globalThis.crypto = webcrypto
+}
