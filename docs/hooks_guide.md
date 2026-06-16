@@ -9,9 +9,9 @@ Reference for `useRegister`, `useAuth`, and `useKeyset` — the three hooks that
 ```
 Components
     │
-    ├── useRegister ──► RegisterBridge ──► apiClient + key_manager
-    ├── useAuth     ──► loginBridge    ──► apiClient + key_manager
-    └── useKeyset   ──► authKeyBridge  ──► authFlow + key_manager
+    ├── useRegister ──► RegisterBridge ──► apiClient + KeysetManager
+    ├── useAuth     ──► loginBridge    ──► apiClient + KeysetManager
+    └── useKeyset   ──► authKeyBridge  ──► authFlow + KeysetManager
 ```
 
 No component imports from `services/` directly. All state management, error formatting, and loading flags live in the hooks.
@@ -140,7 +140,7 @@ import { useRegister } from "../hooks/useRegister";
 function RegistrationFlow() {
   const {
     step, STEPS, loading, error,
-    startPoW, submitEmail,
+    startPoW, cancelPoW, submitEmail,
     verifyEmailCode, totpInfo,
     verifyTOTP, createAccount,
     keypair, publicKeys, clearKeypair,
@@ -174,24 +174,30 @@ function RegistrationFlow() {
         <button onClick={() => submitEmail(email)} disabled={loading}>
           {loading ? "Sending…" : "Send verification code"}
         </button>
+
+        {/* After email is submitted, show the 6-digit code input */}
+        {loading === false && error === null && email && (
+          <div>
+            <input
+              placeholder="6-digit email code"
+              value={emailCode}
+              onChange={e => setEmailCode(e.target.value)}
+              maxLength={6}
+            />
+            <button onClick={() => verifyEmailCode(emailCode)} disabled={loading || !emailCode}>
+              {loading ? "Verifying…" : "Verify code"}
+            </button>
+          </div>
+        )}
       </div>
     );
   }
 
-  // step === STEPS.TOTP — email verified, show code input + TOTP QR
+  // step === STEPS.TOTP — email verified, show TOTP QR + input
   if (step === STEPS.TOTP) {
     return (
       <div>
         {error && <p className="error">{error}</p>}
-        <input
-          placeholder="6-digit email code"
-          value={emailCode}
-          onChange={e => setEmailCode(e.target.value)}
-          maxLength={6}
-        />
-        <button onClick={() => verifyEmailCode(emailCode)} disabled={loading}>
-          {loading ? "Verifying…" : "Verify code"}
-        </button>
 
         {totpInfo && (
           <div>
@@ -203,7 +209,7 @@ function RegistrationFlow() {
               onChange={e => setTotpToken(e.target.value)}
               maxLength={6}
             />
-            <button onClick={() => verifyTOTP(totpToken)} disabled={loading}>
+            <button onClick={() => verifyTOTP(totpToken)} disabled={loading || !totpToken}>
               {loading ? "Verifying…" : "Verify TOTP"}
             </button>
           </div>
@@ -247,6 +253,7 @@ function RegistrationFlow() {
 - `totpInfo` is set automatically inside `verifyEmailCode()`. Render the QR code as soon as it's non-null.
 - `keypair` holds raw `Uint8Array` private keys. Render `<KeypairDownload>` immediately when `step === STEPS.KEYPAIR_READY`. Call `clearKeypair()` only after the user confirms they have saved the file.
 - `reset()` creates a fresh `RegisterBridge` instance — safe to call if the user cancels mid-flow.
+- `cancelPoW()` aborts an in-flight PoW request and resets the step back to `"idle"`.
 
 ### Error codes surfaced
 
@@ -407,6 +414,7 @@ All hooks expose a single `loading` boolean. Disable form buttons while loading:
 ```jsx
 <button disabled={loading || !someRequiredField}>
   {loading ? "Working…" : "Submit"}
+</button>
 ```
 
 ### Error display
