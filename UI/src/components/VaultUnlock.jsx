@@ -20,7 +20,7 @@
  */
 
 import { useState, useCallback, useRef } from "react";
-import { login } from "../shared/loginBridge.js";
+import { login } from "../services/loginBridge.js";
 
 // ─── Keypair file parser ──────────────────────────────────────────────────────
 
@@ -52,7 +52,7 @@ function parseKeypairFile(jsonText) {
 
   if (parsed._medledger !== "keypair-v1") {
     throw new Error(
-      "This doesn't look like a MedLedger keypair file. Make sure you're uploading the file downloaded at registration."
+      "This doesn't look like a MedLedger keypair file. Make sure you're uploading the file downloaded at registration.",
     );
   }
 
@@ -71,7 +71,7 @@ function parseKeypairFile(jsonText) {
 
   if (requiredFields.some((f) => !f || typeof f !== "string")) {
     throw new Error(
-      "Keypair file is incomplete — one or more key fields are missing."
+      "Keypair file is incomplete — one or more key fields are missing.",
     );
   }
 
@@ -89,7 +89,7 @@ function parseKeypairFile(jsonText) {
     };
   } catch {
     throw new Error(
-      "One or more keys in the file could not be decoded. The file may be corrupted."
+      "One or more keys in the file could not be decoded. The file may be corrupted.",
     );
   }
 
@@ -98,7 +98,12 @@ function parseKeypairFile(jsonText) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const MODES = { IDLE: "idle", LOADING: "loading", ERROR: "error", SUCCESS: "success" };
+const MODES = {
+  IDLE: "idle",
+  LOADING: "loading",
+  ERROR: "error",
+  SUCCESS: "success",
+};
 
 export function VaultUnlock({ onUnlocked, className = "" }) {
   const [mode, setMode] = useState(MODES.IDLE);
@@ -133,22 +138,22 @@ export function VaultUnlock({ onUnlocked, className = "" }) {
         // Translate technical errors to actionable messages
         if (err?.code === "KEYSET_BAD_KEY_FORMAT") {
           setErrorMsg(
-            "The keypair file is malformed or missing required key data."
+            "The keypair file is malformed or missing required key data.",
           );
         } else if (err?.status === 401) {
           setErrorMsg(
-            "The server rejected this keypair. Make sure you're using the keypair for this account."
+            "The server rejected this keypair. Make sure you're using the keypair for this account.",
           );
         } else if (err?.code === "NETWORK_ERROR") {
           setErrorMsg(
-            "Could not reach the server. Check your connection and try again."
+            "Could not reach the server. Check your connection and try again.",
           );
         } else {
           setErrorMsg(err?.message ?? "Login failed. Please try again.");
         }
       }
     },
-    [onUnlocked]
+    [onUnlocked],
   );
 
   // ── File input ───────────────────────────────────────────────────────────────
@@ -169,7 +174,7 @@ export function VaultUnlock({ onUnlocked, className = "" }) {
       };
       reader.readAsText(file);
     },
-    [unlock]
+    [unlock],
   );
 
   const handleFileChange = (e) => handleFile(e.target.files?.[0]);
@@ -180,7 +185,7 @@ export function VaultUnlock({ onUnlocked, className = "" }) {
       setDragging(false);
       handleFile(e.dataTransfer.files?.[0]);
     },
-    [handleFile]
+    [handleFile],
   );
 
   const handleDragOver = (e) => {
@@ -206,7 +211,13 @@ export function VaultUnlock({ onUnlocked, className = "" }) {
         {/* Logo / heading */}
         <div className="vu-header">
           <div className="vu-lock-anim" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               <circle cx="12" cy="16" r="1" fill="currentColor" />
@@ -221,7 +232,15 @@ export function VaultUnlock({ onUnlocked, className = "" }) {
         {/* Error banner */}
         {mode === MODES.ERROR && (
           <div className="vu-error" role="alert">
-            <svg className="vu-icon-error" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              className="vu-icon-error"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <circle cx="12" cy="12" r="10" />
               <line x1="12" y1="8" x2="12" y2="12" />
               <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -259,7 +278,15 @@ export function VaultUnlock({ onUnlocked, className = "" }) {
                 </div>
               ) : (
                 <>
-                  <svg className="vu-icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    className="vu-icon-upload"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                     <polyline points="17 8 12 3 7 8" />
                     <line x1="12" y1="3" x2="12" y2="15" />
@@ -269,7 +296,9 @@ export function VaultUnlock({ onUnlocked, className = "" }) {
                       ? "Drop to unlock"
                       : "Drop keypair file here, or click to browse"}
                   </span>
-                  <span className="vu-dropzone-hint">medledger-keypair-*.json</span>
+                  <span className="vu-dropzone-hint">
+                    medledger-keypair-*.json
+                  </span>
                 </>
               )}
             </button>

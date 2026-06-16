@@ -6,7 +6,7 @@
  * TOTP info, and the final keypair for download.
  *
  * Steps (in order):
- *   "idle" → "pow" → "email" → "emailVerify" → "totp" → "totpVerify" → "createAccount" → "keypairReady"
+ *   "idle" → "pow" → "emailVerify" → "totp" → "createAccount" → "keypairReady"
  *
  * Usage:
  *   const {
@@ -26,10 +26,8 @@ import { RegisterBridge } from "../services/registerBridge.js";
 const STEPS = {
   IDLE: "idle",
   POW: "pow",                     // PoW solving in progress / done
-  EMAIL: "email",                 // Waiting for email submission
   EMAIL_VERIFY: "emailVerify",    // Waiting for 6-digit email code
   TOTP: "totp",                   // Waiting for TOTP verification
-  TOTP_VERIFY: "totpVerify",      // TOTP being verified
   CREATE_ACCOUNT: "createAccount",// Account creation in progress
   KEYPAIR_READY: "keypairReady",  // Keys generated, awaiting user save
 };
@@ -95,12 +93,15 @@ export function useRegister() {
     const controller = new AbortController();
     powAbortRef.current = controller;
 
-    return run(STEPS.POW, async () => {
-      const bridge = getBridge();
-      const result = await bridge.startPoW({ signal: controller.signal });
+    try {
+      return await run(STEPS.POW, async () => {
+        const bridge = getBridge();
+        const result = await bridge.startPoW({ signal: controller.signal });
+        return result;
+      });
+    } finally {
       powAbortRef.current = null;
-      return result;
-    });
+    }
   }, []);
 
   /**

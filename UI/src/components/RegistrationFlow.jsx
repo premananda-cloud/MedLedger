@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { useAuthWithCrypto } from "../hooks/useAuthWithCrypto";
 import { KeypairSaveDialog } from "./KeypairSaveDialog";
-import QRCode from "qrcode.react";
+import { QRCodeSVG } from "qrcode.react";
 
 export function RegistrationFlow({ onComplete }) {
   const {

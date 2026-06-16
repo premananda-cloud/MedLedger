@@ -93,7 +93,7 @@ describe("Auth Flow", () => {
     }
     expect(step6.step).toBe("account_created");
     expect(step6.data.username).toBe(testUsername.toLowerCase());
-  }, 30000); // 30 second timeout
+  });
 
   it("should reject invalid PoW", () => {
     const step1 = authFlow.initPOW();
@@ -127,7 +127,7 @@ describe("Auth Flow", () => {
     authFlow.submitEmail(sessionToken, testEmail);
     const step4 = authFlow.verifyEmailCode(sessionToken, "000000");
     expect(step4.step).toBe("error");
-  }, 20000);
+  });
 });
 
 describe("User Validation", () => {

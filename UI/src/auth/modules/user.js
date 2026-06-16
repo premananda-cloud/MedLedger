@@ -7,7 +7,7 @@ export class UserManager {
     minUsername = 3,
     maxUsername = 30,
     minPassword = 8,
-    pbkdf2Iterations = 600000,
+    pbkdf2Iterations = process.env.NODE_ENV === "test" ? 1000 : 600000,
     pbkdf2KeyLength = 64,
   ) {
     this.minUsername = minUsername;
