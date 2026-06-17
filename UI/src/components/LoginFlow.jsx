@@ -1,148 +1,193 @@
 // components/LoginFlow.jsx
-import React, { useState } from "react";
-import { useAuthWithCrypto } from "../hooks/useAuthWithCrypto";
+import { useState, useCallback } from "react";
+import { useAuth } from "../hooks/useAuth";
 
+/**
+ * LoginFlow
+ *
+ * Auth flow per hooks_guide:
+ *   useAuth.login(username, keypair) → boolean
+ *
+ * The keypair file format is set by KeypairSaveDialog (version:1, hex-encoded keys)
+ * and KeypairDownload (_medledger:"keypair-v1", base64url-encoded keys).
+ * Both formats are supported here.
+ *
+ * Props:
+ *   onLogin — () => void   called after successful login
+ */
 export function LoginFlow({ onLogin }) {
-  const { login, unlockCrypto, cryptoLocked } = useAuthWithCrypto();
+  const { login, loading, error, clearError } = useAuth();
 
-  const [step, setStep] = useState("auth");
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [totpCode, setTotpCode] = useState("");
-  const [keypairFile, setKeypairFile] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [publicKeys, setPublicKeys] = useState(null);
+  const [keypair, setKeypair]   = useState(null);
+  const [fileError, setFileError] = useState(null);
+  const [fileName, setFileName]   = useState(null);
 
-  const handleAuthLogin = async () => {
-    setLoading(true);
-    const result = await login(username, password, totpCode);
+  const displayError = fileError || error;
 
-    if (result.success) {
-      if (result.requiresKeyUnlock) {
-        setPublicKeys(result.publicKeys);
-        setStep("unlock_crypto");
-      } else {
-        onLogin({ username, authenticated: true });
-      }
-    } else {
-      setError(result.error);
+  // ── Keypair file parsing ──────────────────────────────────────────────────
+
+  /** base64url → Uint8Array */
+  function fromBase64url(str) {
+    const b64 = str.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), "=");
+    return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+  }
+
+  /** hex → Uint8Array */
+  function fromHex(hex) {
+    if (!hex || hex.length % 2 !== 0) throw new Error("Invalid hex string.");
+    return new Uint8Array(hex.match(/.{2}/g).map((b) => parseInt(b, 16)));
+  }
+
+  /**
+   * Parses both keypair file variants:
+   *   - KeypairDownload: { _medledger: "keypair-v1", signing/exchange: base64url }
+   *   - KeypairSaveDialog: { version: 1, signing/exchange: hex }
+   */
+  function parseKeypairFile(jsonText) {
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch {
+      throw new Error("This file is not valid JSON.");
     }
-    setLoading(false);
-  };
 
-  const handleKeypairUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+    const isMedledger = parsed._medledger === "keypair-v1";
+    const isEnvoi     = parsed.version === 1 && parsed.signing?.privateKey;
 
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const keyData = JSON.parse(e.target.result);
+    if (!isMedledger && !isEnvoi) {
+      throw new Error(
+        "Unrecognised keypair file. Upload the file you downloaded at registration."
+      );
+    }
 
-        // Reconstruct Uint8Arrays from saved data
-        const keypair = {
+    const { username: fileUsername, signing, exchange } = parsed;
+
+    if (!signing?.privateKey || !exchange?.privateKey) {
+      throw new Error("Keypair file is incomplete — private key fields are missing.");
+    }
+
+    const decode = isMedledger ? fromBase64url : fromHex;
+
+    try {
+      return {
+        username: fileUsername ?? null,
+        keypair: {
           signing: {
-            publicKey: new Uint8Array(keyData.signingPublicKey || []),
-            privateKey: new Uint8Array(keyData.signingPrivateKey),
+            publicKey:  signing.publicKey  ? decode(signing.publicKey)  : new Uint8Array(0),
+            privateKey: decode(signing.privateKey),
           },
           exchange: {
-            publicKey: new Uint8Array(keyData.exchangePublicKey || []),
-            privateKey: new Uint8Array(keyData.exchangePrivateKey),
+            publicKey:  exchange.publicKey  ? decode(exchange.publicKey)  : new Uint8Array(0),
+            privateKey: decode(exchange.privateKey),
           },
-        };
+        },
+      };
+    } catch {
+      throw new Error("One or more keys could not be decoded. The file may be corrupted.");
+    }
+  }
 
-        const result = await unlockCrypto(username, keypair);
+  // ── File upload handler ───────────────────────────────────────────────────
 
-        if (result.unlocked) {
-          onLogin({
-            username,
-            authenticated: true,
-            cryptoUnlocked: true,
-            publicKeys: result.publicKeys,
-          });
-        } else {
-          setError(result.error);
-        }
+  const handleFile = useCallback((e) => {
+    setFileError(null);
+    clearError();
+    setKeypair(null);
+    setFileName(null);
+
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith(".json")) {
+      setFileError("Please select a .json keypair file.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => setFileError("Could not read the file.");
+    reader.onload  = (ev) => {
+      try {
+        const { username: fileUsername, keypair: parsed } = parseKeypairFile(ev.target.result);
+        // Pre-fill username from file if the field is still empty
+        if (fileUsername && !username) setUsername(fileUsername);
+        setKeypair(parsed);
+        setFileName(file.name);
       } catch (err) {
-        setError("Invalid keypair file format");
+        setFileError(err.message);
       }
     };
     reader.readAsText(file);
-  };
+  }, [username, clearError]);
+
+  // ── Submit ────────────────────────────────────────────────────────────────
+
+  const handleLogin = useCallback(async () => {
+    if (!keypair || !username.trim()) return;
+    clearError();
+    const success = await login(username.trim(), keypair);
+    if (success) onLogin?.();
+  }, [keypair, username, login, clearError, onLogin]);
+
+  const canSubmit = !!keypair && !!username.trim() && !loading;
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-lg">
-      <h2 className="text-2xl font-bold mb-6">Login</h2>
-
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4">
-          {error}
+    <div className="auth-root">
+      <div className="auth-card stack stack-20">
+        <div className="stack stack-4">
+          <h1 className="auth-title">Sign in</h1>
+          <p className="text-muted" style={{ fontSize: "0.875rem" }}>
+            Upload the keypair file you saved at registration.
+          </p>
         </div>
-      )}
 
-      {step === "auth" && (
-        <div className="space-y-4">
+        {displayError && (
+          <p className="error-msg" role="alert">{displayError}</p>
+        )}
+
+        {/* Username */}
+        <div className="field">
+          <label htmlFor="login-username">Username</label>
           <input
+            id="login-username"
             type="text"
-            placeholder="Username"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className="w-full px-3 py-2 border rounded"
+            onChange={(e) => { clearError(); setFileError(null); setUsername(e.target.value); }}
+            placeholder="your-username"
+            autoComplete="username"
+            spellCheck={false}
+            disabled={loading}
           />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-3 py-2 border rounded"
-          />
-          <input
-            type="text"
-            placeholder="TOTP Code"
-            value={totpCode}
-            onChange={(e) => setTotpCode(e.target.value)}
-            className="w-full px-3 py-2 border rounded"
-            maxLength={6}
-          />
-          <button
-            onClick={handleAuthLogin}
-            disabled={!username || !password || totpCode.length !== 6}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
-          >
-            {loading ? "Verifying..." : "Login"}
-          </button>
         </div>
-      )}
 
-      {step === "unlock_crypto" && (
-        <div className="space-y-4">
-          <div className="bg-blue-50 p-4 rounded">
-            <p className="text-sm text-blue-800">
-              ✓ Authentication successful! Your public keys:
-            </p>
-            <code className="text-xs block mt-2 break-all">
-              User ID: {publicKeys?.userIdHex}
-              <br />
-              Signing Key: {publicKeys?.signingPublicKey?.substring(0, 32)}...
-            </code>
-          </div>
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Upload Your Crypto Keypair File
-            </label>
-            <input
-              type="file"
-              accept=".json"
-              onChange={handleKeypairUpload}
-              className="w-full"
-            />
-            <p className="text-xs text-gray-500 mt-2">
-              Upload the key file you downloaded during registration
-            </p>
-          </div>
+        {/* Keypair file */}
+        <div className="field">
+          <label htmlFor="login-keypair">Keypair file</label>
+          <input
+            id="login-keypair"
+            type="file"
+            accept=".json"
+            onChange={handleFile}
+            disabled={loading}
+          />
+          {fileName && !fileError && (
+            <span className="text-faint" style={{ fontSize: "0.8125rem" }}>
+              ✓ {fileName}
+            </span>
+          )}
         </div>
-      )}
+
+        <button
+          className="btn btn--primary btn--full"
+          onClick={handleLogin}
+          disabled={!canSubmit}
+        >
+          {loading ? "Signing in…" : "Sign in"}
+        </button>
+      </div>
     </div>
   );
 }

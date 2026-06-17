@@ -1,253 +1,333 @@
 // components/RegistrationFlow.jsx
-import React, { useState } from "react";
-import { useAuthWithCrypto } from "../hooks/useAuthWithCrypto";
+import { useState, useEffect } from "react";
+import { useRegister } from "../hooks/useRegister";
 import { KeypairSaveDialog } from "./KeypairSaveDialog";
 import { QRCodeSVG } from "qrcode.react";
 
+/**
+ * RegistrationFlow
+ *
+ * Drives the six-step useRegister state machine:
+ *   idle → pow → emailVerify → totp → createAccount → keypairReady
+ *
+ * Per hooks_guide:
+ *   - useRegister owns all async state; no local sessionToken
+ *   - startPoW() called on mount (safe, aborts any in-flight PoW)
+ *   - KeypairSaveDialog receives `keypair` + `publicKeys` (not `keys`)
+ *   - onConfirmed fires clearKeypair() then calls onComplete
+ *
+ * Props:
+ *   onComplete — ({ username, email }) => void   called after keys are saved
+ */
 export function RegistrationFlow({ onComplete }) {
   const {
-    initialized,
-    registrationState,
-    startRegistration,
-    verifyPoW,
+    step,
+    STEPS,
+    loading,
+    error,
+    startPoW,
     submitEmail,
     verifyEmailCode,
+    totpInfo,
     verifyTOTP,
     createAccount,
-  } = useAuthWithCrypto();
+    keypair,
+    publicKeys,
+    clearKeypair,
+    reset,
+  } = useRegister();
 
-  const [step, setStep] = useState("init");
   const [email, setEmail] = useState("");
   const [emailCode, setEmailCode] = useState("");
-  const [totpCode, setTotpCode] = useState("");
+  const [totpToken, setTotpToken] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [sessionToken, setSessionToken] = useState(null);
-  const [totpInfo, setTotpInfo] = useState(null);
-  const [generatedKeys, setGeneratedKeys] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+  // Track whether the email submit has been sent so we can show the code input
+  const [emailSent, setEmailSent] = useState(false);
 
-  // Step 1: Get PoW challenge
-  const handleStart = () => {
-    const challenge = startRegistration();
-    setStep("pow");
-    solvePoW(challenge.data);
-  };
+  // Kick off PoW automatically — useRegister.startPoW() is safe to call on mount
+  useEffect(() => {
+    startPoW();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Simulate PoW solving (in production, this would be client-side computation)
-  const solvePoW = async (challenge) => {
-    setLoading(true);
-    // This would be actual PoW solving in production
-    // For demo, we'll simulate with a timeout
-    setTimeout(async () => {
-      const result = await verifyPoW(challenge.challenge_id, "simulated_nonce");
-      if (result.success) {
-        setSessionToken(result.sessionToken);
-        setStep("email");
-      } else {
-        setError(result.error);
-      }
-      setLoading(false);
-    }, 1000);
-  };
+  // ── Handlers ───────────────────────────────────────────────────────────────
 
-  // Step 2: Submit email
-  const handleSubmitEmail = async () => {
-    setLoading(true);
-    const result = await submitEmail(sessionToken, email);
-    if (result.success) {
-      setStep("verify_email");
-      alert(
-        `Verification code sent to ${email}. Check console for code (demo mode).`,
-      );
-    } else {
-      setError(result.error);
-    }
-    setLoading(false);
-  };
-
-  // Step 3: Verify email code
-  const handleVerifyEmail = async () => {
-    setLoading(true);
-    const result = await verifyEmailCode(sessionToken, emailCode);
-    if (result.success) {
-      setTotpInfo(result.totpInfo);
-      setStep("totp_setup");
-    } else {
-      setError(result.error);
-    }
-    setLoading(false);
-  };
-
-  // Step 4: Verify TOTP
-  const handleVerifyTOTP = async () => {
-    setLoading(true);
-    const result = await verifyTOTP(sessionToken, totpCode);
-    if (result.success) {
-      setStep("create_account");
-    } else {
-      setError(result.error);
-    }
-    setLoading(false);
-  };
-
-  // Step 5: Create account with keys
-  const handleCreateAccount = async () => {
-    setLoading(true);
-    const result = await createAccount(sessionToken, username, password);
-    if (result.success) {
-      setGeneratedKeys(result.keys);
-      setStep("save_keys");
-    } else {
-      setError(result.error);
-    }
-    setLoading(false);
-  };
-
-  const handleKeysSaved = () => {
-    onComplete({
-      username,
-      email,
-      keysSaved: true,
-    });
-  };
-
-  if (!initialized) {
-    return <div>Initializing secure environment...</div>;
+  async function handleSubmitEmail() {
+    const result = await submitEmail(email);
+    if (result) setEmailSent(true);
   }
 
-  return (
-    <div className="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-lg">
-      <h2 className="text-2xl font-bold mb-6">Create Account</h2>
+  async function handleVerifyEmail() {
+    await verifyEmailCode(emailCode);
+    // On success useRegister advances step to TOTP and sets totpInfo
+  }
 
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4">
-          {error}
-        </div>
-      )}
+  async function handleVerifyTOTP() {
+    await verifyTOTP(totpToken);
+  }
 
-      {step === "init" && (
-        <button
-          onClick={handleStart}
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+  async function handleCreateAccount() {
+    await createAccount(username, password);
+    // On success useRegister advances step to KEYPAIR_READY and sets keypair
+  }
+
+  function handleKeysSaved() {
+    clearKeypair();
+    onComplete?.({ username, email });
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  // Preparing PoW
+  if (step === STEPS.IDLE || step === STEPS.POW) {
+    return (
+      <div className="auth-root">
+        <div
+          className="auth-card stack stack-16"
+          style={{ textAlign: "center" }}
         >
-          Start Registration
-        </button>
-      )}
-
-      {step === "pow" && loading && (
-        <div className="text-center">Verifying security challenge...</div>
-      )}
-
-      {step === "email" && (
-        <div className="space-y-4">
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-2 border rounded"
-          />
-          <button
-            onClick={handleSubmitEmail}
-            disabled={!email}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
-          >
-            Send Verification Code
-          </button>
+          <p className="text-muted">
+            {loading ? "Preparing registration…" : "Starting…"}
+          </p>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {step === "verify_email" && (
-        <div className="space-y-4">
-          <input
-            type="text"
-            placeholder="6-digit code"
-            value={emailCode}
-            onChange={(e) => setEmailCode(e.target.value)}
-            className="w-full px-3 py-2 border rounded"
-            maxLength={6}
-          />
-          <button
-            onClick={handleVerifyEmail}
-            disabled={emailCode.length !== 6}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
-          >
-            Verify Email
-          </button>
-        </div>
-      )}
-
-      {step === "totp_setup" && totpInfo && (
-        <div className="space-y-4">
-          <div className="text-center">
-            <h3 className="font-bold mb-2">
-              Scan QR Code with Authenticator App
-            </h3>
-            <QRCode value={totpInfo.qrCodeUri} size={200} className="mx-auto" />
-            <p className="text-sm text-gray-600 mt-2">
-              Or enter key manually:{" "}
-              <code className="bg-gray-100 px-2 py-1 rounded">
-                {totpInfo.manualKey}
-              </code>
+  // Email verification
+  if (step === STEPS.EMAIL_VERIFY) {
+    return (
+      <div className="auth-root">
+        <div className="auth-card stack stack-20">
+          <div className="stack stack-4">
+            <h1 className="auth-title">Verify your email</h1>
+            <p className="text-muted" style={{ fontSize: "0.875rem" }}>
+              Enter your email address to receive a verification code.
             </p>
           </div>
-          <input
-            type="text"
-            placeholder="Enter 6-digit code from app"
-            value={totpCode}
-            onChange={(e) => setTotpCode(e.target.value)}
-            className="w-full px-3 py-2 border rounded"
-            maxLength={6}
-          />
+
+          {error && (
+            <p className="error-msg" role="alert">
+              {error}
+            </p>
+          )}
+
+          <div className="field">
+            <label htmlFor="reg-email">Email address</label>
+            <input
+              id="reg-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+              disabled={loading || emailSent}
+            />
+          </div>
+
+          {!emailSent ? (
+            <button
+              className="btn btn--primary btn--full"
+              onClick={handleSubmitEmail}
+              disabled={loading || !email.trim()}
+            >
+              {loading ? "Sending…" : "Send verification code"}
+            </button>
+          ) : (
+            <>
+              <div className="field">
+                <label htmlFor="reg-email-code">6-digit code</label>
+                <input
+                  id="reg-email-code"
+                  type="text"
+                  inputMode="numeric"
+                  value={emailCode}
+                  onChange={(e) =>
+                    setEmailCode(e.target.value.replace(/\D/g, ""))
+                  }
+                  placeholder="123456"
+                  maxLength={6}
+                  disabled={loading}
+                  className="text-mono"
+                />
+              </div>
+              <button
+                className="btn btn--primary btn--full"
+                onClick={handleVerifyEmail}
+                disabled={loading || emailCode.length !== 6}
+              >
+                {loading ? "Verifying…" : "Verify code"}
+              </button>
+              <button
+                className="btn btn--ghost btn--full"
+                onClick={() => {
+                  setEmailSent(false);
+                  setEmailCode("");
+                }}
+                disabled={loading}
+                style={{ fontSize: "0.8125rem" }}
+              >
+                Re-send code
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // TOTP setup
+  if (step === STEPS.TOTP) {
+    return (
+      <div className="auth-root">
+        <div className="auth-card stack stack-20">
+          <div className="stack stack-4">
+            <h1 className="auth-title">Set up two-factor auth</h1>
+            <p className="text-muted" style={{ fontSize: "0.875rem" }}>
+              Scan the QR code with your authenticator app, then enter the
+              6-digit code.
+            </p>
+          </div>
+
+          {error && (
+            <p className="error-msg" role="alert">
+              {error}
+            </p>
+          )}
+
+          {totpInfo && (
+            <>
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <QRCodeSVG
+                  value={totpInfo.qrCodeUri}
+                  size={180}
+                  bgColor="transparent"
+                  fgColor="#e8edf4"
+                />
+              </div>
+              <div className="field">
+                <label
+                  style={{ fontSize: "0.75rem", color: "var(--c-text-faint)" }}
+                >
+                  Or enter key manually
+                </label>
+                <code
+                  className="text-mono"
+                  style={{
+                    display: "block",
+                    background: "var(--c-bg)",
+                    border: "1px solid var(--c-border)",
+                    borderRadius: "var(--r-sm)",
+                    padding: "8px 10px",
+                    fontSize: "0.8125rem",
+                    wordBreak: "break-all",
+                    color: "var(--c-text-muted)",
+                  }}
+                >
+                  {totpInfo.manualKey}
+                </code>
+              </div>
+            </>
+          )}
+
+          <div className="field">
+            <label htmlFor="reg-totp">Code from authenticator app</label>
+            <input
+              id="reg-totp"
+              type="text"
+              inputMode="numeric"
+              value={totpToken}
+              onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, ""))}
+              placeholder="123456"
+              maxLength={6}
+              disabled={loading}
+              className="text-mono"
+            />
+          </div>
+
           <button
+            className="btn btn--primary btn--full"
             onClick={handleVerifyTOTP}
-            disabled={totpCode.length !== 6}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+            disabled={loading || totpToken.length !== 6}
           >
-            Verify TOTP
+            {loading ? "Verifying…" : "Verify code"}
           </button>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {step === "create_account" && (
-        <div className="space-y-4">
-          <input
-            type="text"
-            placeholder="Username (3-30 chars, alphanumeric + underscore)"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className="w-full px-3 py-2 border rounded"
-          />
-          <input
-            type="password"
-            placeholder="Password (min 8 chars, 3 of 5 complexity)"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-3 py-2 border rounded"
-          />
+  // Create account
+  if (step === STEPS.CREATE_ACCOUNT) {
+    return (
+      <div className="auth-root">
+        <div className="auth-card stack stack-20">
+          <div className="stack stack-4">
+            <h1 className="auth-title">Create your account</h1>
+            <p className="text-muted" style={{ fontSize: "0.875rem" }}>
+              Choose a username and password. Your keypair will be generated
+              next.
+            </p>
+          </div>
+
+          {error && (
+            <p className="error-msg" role="alert">
+              {error}
+            </p>
+          )}
+
+          <div className="field">
+            <label htmlFor="reg-username">Username</label>
+            <input
+              id="reg-username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="min 2 characters, alphanumeric"
+              autoComplete="username"
+              spellCheck={false}
+              disabled={loading}
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="reg-password">Password</label>
+            <input
+              id="reg-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="min 8 characters"
+              autoComplete="new-password"
+              disabled={loading}
+            />
+          </div>
+
           <button
+            className="btn btn--primary btn--full"
             onClick={handleCreateAccount}
-            disabled={!username || !password}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+            disabled={loading || !username.trim() || !password.trim()}
           >
-            Create Account & Generate Keys
+            {loading ? "Creating account…" : "Create account and generate keys"}
           </button>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {step === "save_keys" && generatedKeys && (
-        <KeypairSaveDialog
-          keys={generatedKeys}
-          onSaved={handleKeysSaved}
-          onSkip={() =>
-            alert(
-              "WARNING: Without saved keys, you will lose access to encrypted data!",
-            )
-          }
-        />
-      )}
-    </div>
-  );
+  // Keypair ready — must download before continuing
+  // keypair prop name is `keypair` + `publicKeys` (not `keys`/`onSaved`)
+  if (step === STEPS.KEYPAIR_READY && keypair) {
+    return (
+      <KeypairSaveDialog
+        keypair={keypair}
+        publicKeys={publicKeys}
+        onConfirmed={handleKeysSaved}
+      />
+    );
+  }
+
+  // Fallback — should not normally be reached
+  return null;
 }

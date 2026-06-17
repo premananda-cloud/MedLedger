@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { useKeyset } from "../hooks/useKeyset";
 import VaultStatus from "./VaultStatus";
@@ -6,10 +6,12 @@ import VaultStatus from "./VaultStatus";
 /*
   Dashboard — shown when isAuthenticated && isUnlocked.
 
-  Three panels:
-    1. Send — encrypt a file for a recipient's public key and download the ciphertext
-    2. Receive — decrypt a ciphertext file with your private key
-    3. Status — vault badge, public key info, lock / logout
+  Hook split per hooks_guide:
+    useAuth   → isAuthenticated, logout, loading, publicKeys (auth-layer username)
+    useKeyset → isUnlocked, isLocked, lockSession, encryptRecord, decryptShare,
+                publicKeys (crypto-layer exchange key), error, clearError
+
+  VaultStatus now owns its own useKeyset() call — no props needed.
 */
 
 export default function Dashboard() {
@@ -34,9 +36,12 @@ export default function Dashboard() {
   );
 }
 
-/* ─── Header ─────────────────────────────────────────── */
+// ─── Header ───────────────────────────────────────────────────────────────────
+
 function Header() {
-  const { publicKeys, logout, loading } = useAuth();
+  // useAuth.publicKeys carries the auth-layer username (available after login)
+  const { publicKeys: authKeys, logout, loading } = useAuth();
+  // useKeyset.isUnlocked / lockSession for vault controls
   const { isUnlocked, lockSession } = useKeyset();
 
   return (
@@ -53,17 +58,17 @@ function Header() {
       <div className="wordmark" style={{ marginBottom: 0 }}>envoi</div>
 
       <div className="row gap-12" style={{ flexWrap: "wrap" }}>
-        {/* vault status badge */}
+        {/* VaultStatus owns its own hook — no props needed */}
         <VaultStatus compact />
 
-        {/* username */}
-        {publicKeys?.username && (
+        {/* Username from auth layer */}
+        {authKeys?.username && (
           <span className="text-mono text-muted" style={{ fontSize: "0.8125rem" }}>
-            {publicKeys.username}
+            {authKeys.username}
           </span>
         )}
 
-        {/* lock vault */}
+        {/* Lock vault */}
         {isUnlocked && (
           <button
             className="btn btn--ghost"
@@ -74,7 +79,7 @@ function Header() {
           </button>
         )}
 
-        {/* sign out */}
+        {/* Sign out */}
         <button
           className="btn btn--ghost"
           style={{ fontSize: "0.8125rem", padding: "5px 12px" }}
@@ -88,21 +93,16 @@ function Header() {
   );
 }
 
-/* ─── Send panel ─────────────────────────────────────── */
-/*
-  Flow:
-    1. Paste/enter recipient's exchange public key (hex)
-    2. Pick a file
-    3. Encrypt → download ciphertext bundle as JSON
-*/
+// ─── Send panel ───────────────────────────────────────────────────────────────
+
 function SendPanel() {
   const { encryptRecord, isLocked, error: cryptoError, clearError } = useKeyset();
 
   const [recipientKey, setRecipientKey] = useState("");
-  const [file, setFile] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [localError, setLocalError] = useState(null);
-  const [done, setDone] = useState(false);
+  const [file,         setFile]         = useState(null);
+  const [busy,         setBusy]         = useState(false);
+  const [localError,   setLocalError]   = useState(null);
+  const [done,         setDone]         = useState(false);
 
   const error = localError || cryptoError;
 
@@ -113,18 +113,14 @@ function SendPanel() {
     setDone(false);
     setBusy(true);
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
+      const bytes     = new Uint8Array(await file.arrayBuffer());
       const encrypted = await encryptRecord(bytes, recipientKey.trim());
       if (!encrypted) {
         // encryptRecord returns null and sets cryptoError on failure
         setBusy(false);
         return;
       }
-      // Bundle the encrypted output as downloadable JSON
-      const bundle = JSON.stringify({
-        filename: file.name,
-        ...encrypted,
-      });
+      const bundle = JSON.stringify({ filename: file.name, ...encrypted });
       downloadText(bundle, `${file.name}.envoi.json`);
       setDone(true);
       setFile(null);
@@ -141,14 +137,18 @@ function SendPanel() {
       <p className="panel__title">Send a document</p>
 
       {error && <p className="error-msg" role="alert">{error}</p>}
-      {done  && <p className="success-msg">Encrypted file downloaded. Send it to your recipient.</p>}
+      {done  && (
+        <p className="success-msg">
+          Encrypted file downloaded. Send it to your recipient.
+        </p>
+      )}
 
       <div className="field">
         <label htmlFor="recipient-key">Recipient's public key</label>
         <input
           id="recipient-key"
           value={recipientKey}
-          onChange={e => { clearError(); setLocalError(null); setRecipientKey(e.target.value); }}
+          onChange={(e) => { clearError(); setLocalError(null); setRecipientKey(e.target.value); }}
           placeholder="hex exchange key…"
           autoComplete="off"
           spellCheck={false}
@@ -163,7 +163,7 @@ function SendPanel() {
           id="send-file"
           type="file"
           disabled={isLocked || busy}
-          onChange={e => { setDone(false); setFile(e.target.files[0] || null); }}
+          onChange={(e) => { setDone(false); setFile(e.target.files[0] || null); }}
         />
         {file && (
           <span className="text-faint">
@@ -189,19 +189,15 @@ function SendPanel() {
   );
 }
 
-/* ─── Receive panel ──────────────────────────────────── */
-/*
-  Flow:
-    1. Pick the .envoi.json bundle you received
-    2. Decrypt → download plaintext
-*/
+// ─── Receive panel ────────────────────────────────────────────────────────────
+
 function ReceivePanel() {
   const { decryptShare, isLocked, error: cryptoError, clearError } = useKeyset();
 
   const [bundleFile, setBundleFile] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const [busy,       setBusy]       = useState(false);
   const [localError, setLocalError] = useState(null);
-  const [done, setDone] = useState(false);
+  const [done,       setDone]       = useState(false);
 
   const error = localError || cryptoError;
 
@@ -212,7 +208,7 @@ function ReceivePanel() {
     setDone(false);
     setBusy(true);
     try {
-      const text = await bundleFile.text();
+      const text   = await bundleFile.text();
       const bundle = JSON.parse(text);
 
       const { filename, encryptedRecord, nonce, dekBundle } = bundle;
@@ -258,7 +254,7 @@ function ReceivePanel() {
           type="file"
           accept=".json,.envoi.json"
           disabled={isLocked || busy}
-          onChange={e => {
+          onChange={(e) => {
             setDone(false);
             clearError();
             setLocalError(null);
@@ -291,8 +287,10 @@ function ReceivePanel() {
   );
 }
 
-/* ─── Your public key (share with senders) ───────────── */
+// ─── Your public key (share with senders) ────────────────────────────────────
+
 function YourPublicKey() {
+  // Crypto-layer publicKeys from useKeyset (has exchangePublicKey)
   const { publicKeys } = useKeyset();
   const [copied, setCopied] = useState(false);
 
@@ -340,37 +338,35 @@ function YourPublicKey() {
   );
 }
 
-/* ─── Helpers ────────────────────────────────────────── */
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function downloadText(content, filename) {
-  const blob = new Blob([content], { type: "application/json" });
-  triggerDownload(blob, filename);
+  triggerDownload(new Blob([content], { type: "application/json" }), filename);
 }
 
 function downloadBytes(bytes, filename) {
-  const blob = new Blob([bytes]);
-  triggerDownload(blob, filename);
+  triggerDownload(new Blob([bytes]), filename);
 }
 
 function triggerDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
+  const a   = document.createElement("a");
+  a.href    = url;
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
 }
 
 function formatBytes(n) {
-  if (n < 1024) return n + " B";
-  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+  if (n < 1024)           return n + " B";
+  if (n < 1024 * 1024)   return (n / 1024).toFixed(1) + " KB";
   return (n / (1024 * 1024)).toFixed(1) + " MB";
 }
 
 function base64ToBytes(b64) {
-  const bin = atob(b64);
-  return Uint8Array.from(bin, c => c.charCodeAt(0));
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
 function bytesToHex(bytes) {
-  return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
 }

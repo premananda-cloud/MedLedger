@@ -1,21 +1,19 @@
 /**
  * VaultStatus.jsx
  *
- * Compact status indicator for the KeysetManager vault session.
- * Displays locked/unlocked state, the active user's public key fingerprint,
- * and a lock/logout button.
+ * Compact vault status badge for nav bars / headers.
  *
- * Intended to live in a nav bar or sidebar — not a full-page component.
+ * Per hooks_guide, this component owns its own useKeyset() call.
+ * The old prop-driven API (locked, publicKeys, onLock, onUnlock) is gone —
+ * callers just render <VaultStatus compact /> or <VaultStatus />.
  *
  * Props:
- *   locked      — boolean   from useKeyset().locked
- *   publicKeys  — { signingPublicKey, exchangePublicKey, userIdHex, username } | null
- *   onLock      — () => void   triggers logout (wipes keys + clears JWT)
- *   onUnlock    — () => void   navigates to the unlock/login screen
- *   className   — string (optional)  for layout integration
+ *   compact   — boolean (default false)  shrinks the label for tight headers
+ *   className — string (optional)
  */
 
 import { useRef, useState } from "react";
+import { useKeyset } from "../hooks/useKeyset";
 
 /** Truncate a hex string to a readable fingerprint: first 6 + last 4 chars. */
 function fingerprint(hex) {
@@ -23,59 +21,80 @@ function fingerprint(hex) {
   return `${hex.slice(0, 6)}…${hex.slice(-4)}`;
 }
 
-export function VaultStatus({ locked, publicKeys, onLock, onUnlock, className = "" }) {
-  const [showConfirm, setShowConfirm] = useState(false);
-  const confirmRef = useRef(null);
+export default function VaultStatus({ compact = false, className = "" }) {
+  const {
+    vaultStatus,
+    VAULT_STATUS,
+    isUnlocked,
+    publicKeys,
+    lockSession,
+  } = useKeyset();
 
-  const handleLockClick = () => {
-    if (!locked) {
+  const [showConfirm, setShowConfirm] = useState(false);
+  const confirmRef  = useRef(null);
+  const isLocked    = vaultStatus !== VAULT_STATUS.UNLOCKED;
+
+  const handleStatusClick = () => {
+    if (isUnlocked) {
       setShowConfirm(true);
-      // Auto-focus confirm button for keyboard users
       setTimeout(() => confirmRef.current?.focus(), 50);
-    } else {
-      onUnlock?.();
     }
+    // If locked/uninitialized, clicking does nothing from here —
+    // the parent (App.jsx) controls routing to VaultUnlock.
   };
 
   const handleConfirmLock = () => {
     setShowConfirm(false);
-    onLock?.();
+    lockSession();
   };
 
-  const handleCancelLock = () => {
-    setShowConfirm(false);
-  };
+  // Label text
+  let label;
+  if (vaultStatus === VAULT_STATUS.UNINITIALIZED) {
+    label = compact ? "…" : "Initialising…";
+  } else if (isLocked) {
+    label = "Locked";
+  } else {
+    label = publicKeys?.username ?? "Unlocked";
+  }
 
   return (
-    <div className={`vs-root ${locked ? "vs-root--locked" : "vs-root--unlocked"} ${className}`}>
-      {/* Icon + label */}
+    <div
+      className={`vs-root ${isLocked ? "vs-root--locked" : "vs-root--unlocked"} ${className}`}
+    >
+      {/* Status pill */}
       <button
         type="button"
         className="vs-status-btn"
-        onClick={handleLockClick}
-        aria-label={locked ? "Vault locked — click to unlock" : "Vault unlocked — click to lock"}
-        title={locked ? "Click to unlock vault" : "Click to lock vault"}
+        onClick={handleStatusClick}
+        aria-label={
+          isLocked
+            ? "Vault locked"
+            : `Vault unlocked as ${publicKeys?.username ?? "unknown"} — click to lock`
+        }
+        title={isUnlocked ? "Click to lock vault" : undefined}
+        disabled={vaultStatus === VAULT_STATUS.UNINITIALIZED}
       >
         <span className="vs-icon" aria-hidden="true">
-          {locked ? (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {isLocked ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                 strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
           ) : (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                 strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0 1 9.9-1" />
             </svg>
           )}
         </span>
 
-        <span className="vs-label">
-          {locked ? "Locked" : publicKeys?.username ?? "Unlocked"}
-        </span>
+        {!compact && <span className="vs-label">{label}</span>}
 
-        {/* Fingerprint — only when unlocked and keys are present */}
-        {!locked && publicKeys?.userIdHex && (
+        {/* Fingerprint — only when unlocked */}
+        {isUnlocked && publicKeys?.userIdHex && !compact && (
           <span className="vs-fingerprint" title={`User ID: ${publicKeys.userIdHex}`}>
             {fingerprint(publicKeys.userIdHex)}
           </span>
@@ -85,7 +104,7 @@ export function VaultStatus({ locked, publicKeys, onLock, onUnlock, className = 
       </button>
 
       {/* Lock confirmation popover */}
-      {showConfirm && !locked && (
+      {showConfirm && isUnlocked && (
         <div className="vs-confirm" role="dialog" aria-label="Confirm lock">
           <p className="vs-confirm-msg">Lock vault and wipe session keys?</p>
           <div className="vs-confirm-actions">
@@ -100,7 +119,7 @@ export function VaultStatus({ locked, publicKeys, onLock, onUnlock, className = 
             <button
               type="button"
               className="vs-confirm-btn vs-confirm-btn--cancel"
-              onClick={handleCancelLock}
+              onClick={() => setShowConfirm(false)}
             >
               Cancel
             </button>
@@ -109,7 +128,6 @@ export function VaultStatus({ locked, publicKeys, onLock, onUnlock, className = 
       )}
 
       <style>{`
-        /* ── Root ── */
         .vs-root {
           position: relative;
           display: inline-flex;
@@ -117,7 +135,6 @@ export function VaultStatus({ locked, publicKeys, onLock, onUnlock, className = 
           font-family: system-ui, -apple-system, sans-serif;
         }
 
-        /* ── Status button ── */
         .vs-status-btn {
           display: flex;
           align-items: center;
@@ -133,19 +150,22 @@ export function VaultStatus({ locked, publicKeys, onLock, onUnlock, className = 
           outline-offset: 3px;
         }
 
-        /* Locked state */
+        .vs-status-btn:disabled {
+          cursor: default;
+          opacity: 0.5;
+        }
+
         .vs-root--locked .vs-status-btn {
           color: #6b7e96;
           border-color: #2a3a50;
           background: #111a28;
         }
 
-        .vs-root--locked .vs-status-btn:hover {
+        .vs-root--locked .vs-status-btn:hover:not(:disabled) {
           background: #1a2a3a;
           border-color: #3a4e66;
         }
 
-        /* Unlocked state */
         .vs-root--unlocked .vs-status-btn {
           color: #00bfa5;
           border-color: rgba(0, 191, 165, 0.25);
@@ -157,7 +177,6 @@ export function VaultStatus({ locked, publicKeys, onLock, onUnlock, className = 
           border-color: rgba(0, 191, 165, 0.4);
         }
 
-        /* ── Lock icon ── */
         .vs-icon {
           display: flex;
           align-items: center;
@@ -169,7 +188,6 @@ export function VaultStatus({ locked, publicKeys, onLock, onUnlock, className = 
           height: 14px;
         }
 
-        /* ── Label ── */
         .vs-label {
           white-space: nowrap;
           max-width: 120px;
@@ -177,7 +195,6 @@ export function VaultStatus({ locked, publicKeys, onLock, onUnlock, className = 
           text-overflow: ellipsis;
         }
 
-        /* ── Fingerprint ── */
         .vs-fingerprint {
           font-family: ui-monospace, "Cascadia Code", monospace;
           font-size: 0.7rem;
@@ -186,7 +203,6 @@ export function VaultStatus({ locked, publicKeys, onLock, onUnlock, className = 
           white-space: nowrap;
         }
 
-        /* ── Pip (live status dot) ── */
         .vs-pip {
           width: 6px;
           height: 6px;
@@ -209,7 +225,6 @@ export function VaultStatus({ locked, publicKeys, onLock, onUnlock, className = 
           50%       { box-shadow: 0 0 0 4px rgba(0, 191, 165, 0.08); }
         }
 
-        /* ── Confirmation popover ── */
         .vs-confirm {
           position: absolute;
           top: calc(100% + 8px);
@@ -259,9 +274,7 @@ export function VaultStatus({ locked, publicKeys, onLock, onUnlock, className = 
           border: 1px solid rgba(217, 79, 79, 0.25);
         }
 
-        .vs-confirm-btn--lock:hover {
-          background: rgba(217, 79, 79, 0.25);
-        }
+        .vs-confirm-btn--lock:hover { background: rgba(217, 79, 79, 0.25); }
 
         .vs-confirm-btn--cancel {
           background: #111a28;
@@ -269,16 +282,12 @@ export function VaultStatus({ locked, publicKeys, onLock, onUnlock, className = 
           border: 1px solid #2a3a50;
         }
 
-        .vs-confirm-btn--cancel:hover {
-          background: #1a2a3a;
-        }
+        .vs-confirm-btn--cancel:hover { background: #1a2a3a; }
 
-        /* ── Reduced motion ── */
         @media (prefers-reduced-motion: reduce) {
           .vs-pip { animation: none; }
           .vs-confirm { animation: none; }
-          .vs-status-btn,
-          .vs-confirm-btn { transition: none; }
+          .vs-status-btn, .vs-confirm-btn { transition: none; }
         }
       `}</style>
     </div>

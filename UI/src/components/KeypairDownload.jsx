@@ -1,56 +1,58 @@
 /**
  * KeypairDownload.jsx
  *
- * Shown exactly once — immediately after KeysetManager.createUser() returns
- * during registration. The user must download (and optionally copy) their
- * private keypair before the UI advances.
+ * Shown exactly once after registration when useRegister.step === STEPS.KEYPAIR_READY.
  *
- * Props:
- *   keypair  — the object returned by RegisterBridge.createAccount():
- *              { signing: { publicKey: Uint8Array, privateKey: Uint8Array },
- *                exchange: { publicKey: Uint8Array, privateKey: Uint8Array } }
- *   username — string, shown in the filename and UI
+ * Props (aligned with hooks_guide + RegistrationFlow):
+ *   keypair    — { signing: { publicKey: Uint8Array, privateKey: Uint8Array },
+ *                  exchange: { publicKey: Uint8Array, privateKey: Uint8Array } }
+ *   publicKeys — { signingPublicKey, exchangePublicKey, userIdHex, username }
+ *                (was incorrectly receiving `username` as a separate string prop)
  *   onConfirmed — () => void   called once the user clicks "I've saved my keys"
  *
- * This component does NOT call RegisterBridge or KeysetManager itself — it is
- * purely presentational with one side-effect: triggering a browser download.
+ * This component is purely presentational — it does not call any hook or service.
+ * The caller (RegistrationFlow) must call clearKeypair() inside onConfirmed.
  */
 
 import { useState, useCallback } from "react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Convert a Uint8Array to a hex string for human-readable display. */
 function toHex(u8) {
+  if (!u8) return "";
   return Array.from(u8)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
 
-/** Convert a Uint8Array to base64url (no padding). */
 function toBase64url(u8) {
+  if (!u8) return "";
   const b64 = btoa(String.fromCharCode(...u8));
   return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 /**
- * Build the JSON blob the user downloads.
- * Stores keys as base64url so the file is text-safe and copy-pasteable.
+ * Build the downloadable JSON bundle.
+ * Uses base64url for the _medledger-v1 format so VaultUnlock can parse it.
+ * Also includes username/userIdHex so the file is self-describing.
  */
-function buildKeypairJson(username, keypair) {
+function buildKeypairJson(keypair, publicKeys) {
+  const username = publicKeys?.username ?? null;
   return JSON.stringify(
     {
       _medledger: "keypair-v1",
       username,
-      createdAt: new Date().toISOString(),
+      userIdHex:  publicKeys?.userIdHex ?? null,
+      createdAt:  new Date().toISOString(),
       warning:
-        "These are your private keys. Anyone with this file can access your MedLedger account. Store it offline or in a password manager. You cannot recover it.",
+        "These are your private keys. Anyone with this file can access your account. " +
+        "Store it offline or in a password manager. You cannot recover it.",
       signing: {
-        publicKey: toBase64url(keypair.signing.publicKey),
+        publicKey:  toBase64url(keypair.signing.publicKey),
         privateKey: toBase64url(keypair.signing.privateKey),
       },
       exchange: {
-        publicKey: toBase64url(keypair.exchange.publicKey),
+        publicKey:  toBase64url(keypair.exchange.publicKey),
         privateKey: toBase64url(keypair.exchange.privateKey),
       },
     },
@@ -61,29 +63,27 @@ function buildKeypairJson(username, keypair) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function KeypairDownload({ keypair, username, onConfirmed }) {
+export function KeypairDownload({ keypair, publicKeys, onConfirmed }) {
   const [downloaded, setDownloaded] = useState(false);
-  const [confirmed, setConfirmed] = useState(false);
+  const [confirmed,  setConfirmed]  = useState(false);
+
+  const username = publicKeys?.username ?? publicKeys?.userIdHex ?? "keys";
 
   const handleDownload = useCallback(() => {
-    const json = buildKeypairJson(username, keypair);
+    const json = buildKeypairJson(keypair, publicKeys);
     const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `medledger-keypair-${username}.json`;
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `envoi-keypair-${username}.json`;
     document.body.appendChild(a);
     a.click();
-
-    // Clean up immediately — the blob stays in memory until GC
     setTimeout(() => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }, 100);
-
     setDownloaded(true);
-  }, [keypair, username]);
+  }, [keypair, publicKeys, username]);
 
   const handleConfirm = useCallback(() => {
     if (!downloaded) return;
@@ -91,13 +91,9 @@ export function KeypairDownload({ keypair, username, onConfirmed }) {
     onConfirmed?.();
   }, [downloaded, onConfirmed]);
 
-  // Abbreviated key previews for reassurance (not full keys)
-  const sigPubHex = keypair?.signing?.publicKey
-    ? toHex(keypair.signing.publicKey)
-    : "";
-  const exPubHex = keypair?.exchange?.publicKey
-    ? toHex(keypair.exchange.publicKey)
-    : "";
+  // Key fingerprints for reassurance
+  const sigPubHex = toHex(keypair?.signing?.publicKey);
+  const exPubHex  = toHex(keypair?.exchange?.publicKey);
 
   return (
     <div className="kd-root">
@@ -109,37 +105,39 @@ export function KeypairDownload({ keypair, username, onConfirmed }) {
           </svg>
           <div>
             <h2 className="kd-title">Save your private keys</h2>
-            <p className="kd-subtitle">
-              This is the only time they will be shown.
-            </p>
+            <p className="kd-subtitle">This is the only time they will be shown.</p>
           </div>
         </div>
 
-        {/* Warning banner */}
+        {/* Warning */}
         <div className="kd-warning" role="alert">
           <svg className="kd-icon-warn" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4m0 4h.01" />
           </svg>
           <p>
-            MedLedger cannot recover lost keys. If you lose this file, you lose
-            access to your encrypted records — permanently.
+            Lost keys cannot be recovered. If you lose this file, encrypted
+            documents sent to you will be permanently unreadable.
           </p>
         </div>
 
         {/* Key fingerprints */}
         <div className="kd-keys">
-          <div className="kd-key-row">
-            <span className="kd-key-label">Signing key</span>
-            <code className="kd-key-value">
-              {sigPubHex.slice(0, 16)}…{sigPubHex.slice(-8)}
-            </code>
-          </div>
-          <div className="kd-key-row">
-            <span className="kd-key-label">Exchange key</span>
-            <code className="kd-key-value">
-              {exPubHex.slice(0, 16)}…{exPubHex.slice(-8)}
-            </code>
-          </div>
+          {sigPubHex && (
+            <div className="kd-key-row">
+              <span className="kd-key-label">Signing key</span>
+              <code className="kd-key-value">
+                {sigPubHex.slice(0, 16)}…{sigPubHex.slice(-8)}
+              </code>
+            </div>
+          )}
+          {exPubHex && (
+            <div className="kd-key-row">
+              <span className="kd-key-label">Exchange key</span>
+              <code className="kd-key-value">
+                {exPubHex.slice(0, 16)}…{exPubHex.slice(-8)}
+              </code>
+            </div>
+          )}
         </div>
 
         {/* Instructions */}
@@ -150,9 +148,7 @@ export function KeypairDownload({ keypair, username, onConfirmed }) {
           <li className="kd-step">
             Move it to a password manager, encrypted USB drive, or print it.
           </li>
-          <li className="kd-step">
-            Never share it. Never upload it to any service.
-          </li>
+          <li className="kd-step">Never share it. Never upload it to any service.</li>
         </ol>
 
         {/* Actions */}
@@ -200,7 +196,6 @@ export function KeypairDownload({ keypair, username, onConfirmed }) {
       </div>
 
       <style>{`
-        /* ── Layout ── */
         .kd-root {
           display: flex;
           align-items: center;
@@ -221,7 +216,6 @@ export function KeypairDownload({ keypair, username, onConfirmed }) {
           box-shadow: 0 24px 64px rgba(0,0,0,0.5);
         }
 
-        /* ── Header ── */
         .kd-header {
           display: flex;
           align-items: flex-start;
@@ -255,7 +249,6 @@ export function KeypairDownload({ keypair, username, onConfirmed }) {
           color: #6b7e96;
         }
 
-        /* ── Warning ── */
         .kd-warning {
           display: flex;
           gap: 0.75rem;
@@ -286,7 +279,6 @@ export function KeypairDownload({ keypair, username, onConfirmed }) {
           line-height: 1.5;
         }
 
-        /* ── Key fingerprints ── */
         .kd-keys {
           background: #111a28;
           border: 1px solid #1e2d42;
@@ -323,7 +315,6 @@ export function KeypairDownload({ keypair, username, onConfirmed }) {
           word-break: break-all;
         }
 
-        /* ── Step list ── */
         .kd-steps {
           margin: 0 0 1.75rem;
           padding-left: 1.25rem;
@@ -340,15 +331,9 @@ export function KeypairDownload({ keypair, username, onConfirmed }) {
           transition: color 0.2s;
         }
 
-        .kd-step--done {
-          color: #00bfa5;
-        }
+        .kd-step--done { color: #00bfa5; }
+        .kd-step--done::marker { color: #00bfa5; }
 
-        .kd-step--done::marker {
-          color: #00bfa5;
-        }
-
-        /* ── Actions ── */
         .kd-actions {
           display: flex;
           flex-direction: column;
@@ -370,18 +355,10 @@ export function KeypairDownload({ keypair, username, onConfirmed }) {
           outline-offset: 3px;
         }
 
-        .kd-btn:active:not(:disabled) {
-          transform: scale(0.98);
-        }
+        .kd-btn:active:not(:disabled) { transform: scale(0.98); }
 
-        .kd-btn--primary {
-          background: #00bfa5;
-          color: #061018;
-        }
-
-        .kd-btn--primary:hover {
-          background: #00d4b8;
-        }
+        .kd-btn--primary { background: #00bfa5; color: #061018; }
+        .kd-btn--primary:hover { background: #00d4b8; }
 
         .kd-btn--confirm {
           background: #1e3a28;
@@ -389,14 +366,9 @@ export function KeypairDownload({ keypair, username, onConfirmed }) {
           border: 1px solid #2a5038;
         }
 
-        .kd-btn--confirm:not(.kd-btn--disabled):hover {
-          background: #244530;
-        }
+        .kd-btn--confirm:not(.kd-btn--disabled):hover { background: #244530; }
 
-        .kd-btn--disabled {
-          opacity: 0.4;
-          cursor: not-allowed;
-        }
+        .kd-btn--disabled { opacity: 0.4; cursor: not-allowed; }
 
         .kd-icon-check,
         .kd-icon-dl {
@@ -409,7 +381,6 @@ export function KeypairDownload({ keypair, username, onConfirmed }) {
           stroke-linejoin: round;
         }
 
-        /* ── Hint ── */
         .kd-hint {
           margin: 0.75rem 0 0;
           font-size: 0.8rem;
@@ -417,16 +388,9 @@ export function KeypairDownload({ keypair, username, onConfirmed }) {
           text-align: center;
         }
 
-        /* ── Responsive ── */
         @media (max-width: 480px) {
-          .kd-card {
-            padding: 1.5rem 1rem;
-          }
-          .kd-key-row {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 0.25rem;
-          }
+          .kd-card { padding: 1.5rem 1rem; }
+          .kd-key-row { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
         }
 
         @media (prefers-reduced-motion: reduce) {
