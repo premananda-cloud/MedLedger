@@ -1,450 +1,590 @@
 """
 src/routes/auth.py
-Authentication routes:
-  POST /api/auth/pow              — generate PoW challenge
-  POST /api/auth/verify-pow       — verify PoW, open session
-  POST /api/auth/submit-email     — submit email for code
-  POST /api/auth/verify-email     — verify 6-digit code
-  POST /api/auth/verify-totp      — verify TOTP token
-  POST /api/auth/create-account   — create account (final step)
-  POST /api/login                 — password login
-  POST /api/auth/logout           — logout (revoke token + clear cookie)
-  POST /api/auth/refresh          — rotate refresh token
-  GET  /api/me                    — current user info
-  POST /api/users/keys            — upload public keys after registration
-  GET  /api/users/:username/keys  — get public keys for a user
+
+FastAPI router — exposes the AuthFlow orchestrator as REST endpoints.
+
+Registration (4-step state machine):
+  POST /auth/pow/init              → get PoW challenge
+  POST /auth/pow/verify            → solve PoW, get session token
+  POST /auth/email/submit          → send verification code
+  POST /auth/email/verify          → verify code, get TOTP QR
+  POST /auth/totp/verify           → confirm TOTP setup
+  POST /auth/register              → create account (username + password + ciphertext)
+
+Auth:
+  POST /auth/login                 → password [+ TOTP] → JWT tokens
+  POST /auth/logout                → revoke refresh token
+  POST /auth/refresh               → rotate refresh token → new access token
+
+Password reset:
+  POST /auth/password-reset/init   → send reset code
+  POST /auth/password-reset/complete → verify code + set new password
+
+Misc:
+  GET  /auth/session/{token}       → inspect registration session state
+  GET  /auth/status                → system health / active sessions
 """
-import logging
-from datetime import timezone
-from fastapi import APIRouter, HTTPException, Response, Request, status, Depends
-from jose import JWTError
 
-from src.services.database import DB
-from src.services.auth_service import (
-    hash_password, verify_password,
-    create_access_token,
-    revoke_token, create_refresh_token, rotate_refresh_token,
-    revoke_all_refresh_tokens,
-)
-from src.services.config import get_settings
-from src.middleware.auth_middleware import get_current_user, CurrentUser
-from src.models.schemas import (
-    LoginRequest, RegisterStep1Request, RegisterStep2Request,
-    RegisterStep3Request, RegisterStep4Request, RegisterStep5Request,
-    PublicKeysUpload, RefreshRequest, MeResponse, UserPublicKeys,
-    MessageResponse,
-)
-
-# We re-use the Node.js authFlow via in-process session map stored in memory.
-# For the Python backend we implement the same logic directly.
 import hashlib
+import os
 import secrets
-import time
-import pyotp
-import qrcode
-import io
-import base64
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 
-logger = logging.getLogger("medledger.auth")
-router = APIRouter()
-settings = get_settings()
+import jwt
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel, EmailStr, field_validator
 
-# ── In-memory registration sessions (mirrors Node.js authFlow) ────────────────
-_sessions: dict[str, dict] = {}
-POW_DIFFICULTY = 4  # leading hex zeros
+from src.auth.orchestrator.authFlow import AuthFlow
+from src.services.database import get_db
+
+# ---------------------------------------------------------------------------
+# Router & shared singletons
+# ---------------------------------------------------------------------------
+
+router = APIRouter(prefix="/auth", tags=["auth"])
+bearer = HTTPBearer(auto_error=False)
+
+# One shared AuthFlow instance (thread-safe per the docs)
+_auth_flow: Optional[AuthFlow] = None
 
 
-def _set_cookie(response: Response, name: str, value: str, max_age: int, httponly: bool = True):
-    response.set_cookie(
-        key=name,
-        value=value,
-        max_age=max_age,
-        httponly=httponly,
-        secure=settings.cookie_secure,
-        samesite=settings.cookie_samesite,
-        domain=settings.cookie_domain,
-        path="/",
+def get_auth_flow() -> AuthFlow:
+    global _auth_flow
+    if _auth_flow is None:
+        _auth_flow = AuthFlow(
+            session_expiry_minutes=int(os.getenv("AUTH_SESSION_EXPIRY_MINUTES", "30")),
+            pow_difficulty=int(os.getenv("AUTH_POW_DIFFICULTY", "4")),
+            blocklist_path=os.getenv("AUTH_EMAIL_BLOCKLIST_PATH"),
+        )
+    return _auth_flow
+
+
+# ---------------------------------------------------------------------------
+# JWT helpers
+# ---------------------------------------------------------------------------
+
+JWT_SECRET = os.getenv("JWT_SECRET", secrets.token_hex(32))
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30"))
+
+
+def _make_access_token(user_id_hex: str, username: str, role: str) -> str:
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": user_id_hex,
+        "username": username,
+        "role": role,
+        "iat": now,
+        "exp": now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        "jti": secrets.token_hex(16),
+        "type": "access",
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def _make_refresh_token(user_id_hex: str, family_id: str) -> tuple[str, str]:
+    """Returns (raw_token, token_hash). Store the hash; give raw to client."""
+    raw = secrets.token_hex(40)
+    token_hash = hashlib.sha256(raw.encode()).hexdigest()
+    return raw, token_hash
+
+
+def _decode_access_token(token: str) -> dict:
+    try:
+        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+async def get_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer),
+    db=Depends(get_db),
+) -> dict:
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    payload = _decode_access_token(credentials.credentials)
+    if payload.get("type") != "access":
+        raise HTTPException(status_code=401, detail="Not an access token")
+    # Check revocation
+    if await db.is_token_revoked(payload["jti"]):
+        raise HTTPException(status_code=401, detail="Token revoked")
+    user = await db.get_user_by_id(payload["sub"])
+    if not user or not user.get("is_active"):
+        raise HTTPException(status_code=401, detail="User not found or inactive")
+    return user
+
+
+# ---------------------------------------------------------------------------
+# Pydantic schemas
+# ---------------------------------------------------------------------------
+
+class PowVerifyRequest(BaseModel):
+    challenge_id: str
+    nonce: str
+
+
+class EmailSubmitRequest(BaseModel):
+    session_token: str
+    email: EmailStr
+
+
+class EmailVerifyRequest(BaseModel):
+    session_token: str
+    code: str
+
+
+class TotpVerifyRequest(BaseModel):
+    session_token: str
+    token: str
+
+
+class RegisterRequest(BaseModel):
+    session_token: str
+    username: str
+    password: str
+    # Client-generated public keys — front-end key-gen responsibility
+    signing_public_key: str
+    exchange_public_key: str
+    # Encrypted private key bundle (ciphertext from client key-gen)
+    encrypted_private_key_bundle: Optional[str] = None
+
+    @field_validator("username")
+    @classmethod
+    def username_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("username must not be empty")
+        return v.strip()
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+    totp_token: str = ""
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
+
+
+class PasswordResetInitRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetCompleteRequest(BaseModel):
+    email: EmailStr
+    code: str
+    new_password: str
+
+
+# ---------------------------------------------------------------------------
+# Helper: turn AuthResponse into an HTTP error when step == "error"
+# ---------------------------------------------------------------------------
+
+def _check_auth_response(resp) -> dict:
+    if resp.step == "error":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=resp.data.get("message", "Auth error"),
+        )
+    return {
+        "step": resp.step,
+        "data": resp.data,
+        "next_action": resp.next_action,
+        **({"session_token": resp.session_token} if resp.session_token else {}),
+    }
+
+
+# ===========================================================================
+# REGISTRATION FLOW
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Step 1a — issue PoW challenge
+# ---------------------------------------------------------------------------
+@router.post("/pow/init", summary="Get a Proof-of-Work challenge")
+async def pow_init():
+    """
+    Returns a SHA-256 challenge. Client must find a nonce whose hash
+    starts with `difficulty` leading zeros, then call /pow/verify.
+    """
+    af = get_auth_flow()
+    resp = af.init_pow()
+    return _check_auth_response(resp)
+
+
+# ---------------------------------------------------------------------------
+# Step 1b — verify PoW solution → session token
+# ---------------------------------------------------------------------------
+@router.post("/pow/verify", summary="Submit PoW solution, receive session token")
+async def pow_verify(body: PowVerifyRequest):
+    af = get_auth_flow()
+    resp = af.verify_pow(body.challenge_id, body.nonce)
+    return _check_auth_response(resp)
+
+
+# ---------------------------------------------------------------------------
+# Step 2a — submit email → code sent
+# ---------------------------------------------------------------------------
+@router.post("/email/submit", summary="Submit email address for verification")
+async def email_submit(body: EmailSubmitRequest):
+    af = get_auth_flow()
+    resp = af.submit_email(body.session_token, body.email)
+    return _check_auth_response(resp)
+
+
+# ---------------------------------------------------------------------------
+# Step 2b — verify email code → TOTP QR returned
+# ---------------------------------------------------------------------------
+@router.post("/email/verify", summary="Verify email code, receive TOTP setup data")
+async def email_verify(body: EmailVerifyRequest):
+    af = get_auth_flow()
+    resp = af.verify_email_code(body.session_token, body.code)
+    return _check_auth_response(resp)
+
+
+# ---------------------------------------------------------------------------
+# Step 3 — confirm TOTP token
+# ---------------------------------------------------------------------------
+@router.post("/totp/verify", summary="Confirm TOTP setup with first token")
+async def totp_verify(body: TotpVerifyRequest):
+    af = get_auth_flow()
+    resp = af.verify_totp(body.session_token, body.token)
+    return _check_auth_response(resp)
+
+
+# ---------------------------------------------------------------------------
+# Step 4 — create account (persists to DB)
+# ---------------------------------------------------------------------------
+@router.post(
+    "/register",
+    status_code=status.HTTP_201_CREATED,
+    summary="Create account after completing all verification steps",
+)
+async def register(body: RegisterRequest, db=Depends(get_db)):
+    """
+    Final registration step.  The orchestrator validates the session and
+    creates the user in its own storage.  We then mirror the record into
+    PostgreSQL so the rest of the application can query it.
+
+    The client is responsible for key-gen; it must supply:
+      - signing_public_key   (hex or base64)
+      - exchange_public_key  (hex or base64)
+      - encrypted_private_key_bundle  (ciphertext, optional but expected)
+    """
+    af = get_auth_flow()
+
+    # Check username uniqueness against the DB before hitting the orchestrator
+    if await db.username_exists(body.username):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Username already taken",
+        )
+
+    # Let the orchestrator create the account in its own (file-backed) store
+    resp = af.create_account_sync(
+        body.session_token,
+        username=body.username,
+        password=body.password,
+    )
+    if resp.step == "error":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=resp.data.get("message", "Registration failed"),
+        )
+
+    # ---- Mirror to PostgreSQL ------------------------------------------------
+    # The orchestrator returns user_id and the hashed credentials via resp.data.
+    # We store the public keys and the encrypted private key bundle (ciphertext)
+    # supplied by the client.  Password hash comes from the orchestrator.
+
+    orchestrator_user = resp.data  # contains user_id, username, email, etc.
+
+    # Derive a stable user_id_hex from the signing public key
+    user_id_hex = hashlib.sha256(body.signing_public_key.encode()).hexdigest()
+
+    # Retrieve the password hash from the orchestrator's user store so we don't
+    # duplicate hashing logic.  Fall back to a placeholder if unavailable (the
+    # orchestrator is the source of truth for auth).
+    try:
+        orch_user_detail = af._user_manager.get_user(body.username)  # type: ignore[attr-defined]
+        password_hash = getattr(orch_user_detail, "password_hash", "")
+        pwhash_salt   = getattr(orch_user_detail, "salt", "")
+        totp_secret   = getattr(orch_user_detail, "totp_secret", "")
+    except Exception:
+        password_hash = orchestrator_user.get("password_hash", "")
+        pwhash_salt   = orchestrator_user.get("pwhash_salt", "")
+        totp_secret   = ""
+
+    db_user = await db.create_user({
+        "user_id_hex":               user_id_hex,
+        "username":                  body.username,
+        "email":                     orchestrator_user.get("email", ""),
+        "role":                      "PATIENT",
+        "password_hash":             password_hash,
+        "pwhash_salt":               pwhash_salt,
+        "signing_public_key":        body.signing_public_key,
+        "exchange_public_key":       body.exchange_public_key,
+        # Store the TOTP secret as part of the exchange_public_key field or
+        # a dedicated column if your schema has one.  Here we embed it in
+        # server_salt so it travels with the user row and stays server-side.
+        "server_salt":               totp_secret or secrets.token_hex(32),
+        "is_verified":               True,
+        "is_active":                 True,
+    })
+
+    if db_user is None:
+        # Orchestrator succeeded but DB insert failed — rare; surface clearly
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Account created in auth store but failed to persist to database",
+        )
+
+    # Log audit event
+    await db.log_audit({
+        "actor_user_id_hex": user_id_hex,
+        "action": "REGISTER",
+        "detail": {"username": body.username},
+    })
+
+    return {
+        "step":       "account_created",
+        "user_id":    user_id_hex,
+        "username":   body.username,
+        "email":      orchestrator_user.get("email", ""),
+        "created_at": db_user.get("created_at"),
+    }
+
+
+# ===========================================================================
+# LOGIN
+# ===========================================================================
+
+@router.post("/login", summary="Authenticate with username + password [+ TOTP]")
+async def login(body: LoginRequest, db=Depends(get_db)):
+    """
+    Returns:
+      - step == "logged_in"      → access_token + refresh_token in response
+      - step == "totp_required"  → 400 with hint to retry with totp_token
+    """
+    af = get_auth_flow()
+    resp = af.login(
+        username=body.username,
+        password=body.password,
+        totp_token=body.totp_token,
     )
 
-
-def _clear_cookie(response: Response, name: str):
-    response.delete_cookie(key=name, path="/", domain=settings.cookie_domain)
-
-
-# ── PoW ───────────────────────────────────────────────────────────────────────
-
-_pow_challenges: dict[str, dict] = {}
-
-
-@router.post("/auth/pow")
-async def init_pow():
-    challenge_id = secrets.token_hex(16)
-    challenge = secrets.token_hex(32)
-    _pow_challenges[challenge_id] = {
-        "challenge": challenge,
-        "difficulty": POW_DIFFICULTY,
-        "created_at": time.time(),
-        "used": False,
-    }
-    # Prune old challenges
-    cutoff = time.time() - 300
-    stale = [k for k, v in _pow_challenges.items() if v["created_at"] < cutoff]
-    for k in stale:
-        del _pow_challenges[k]
-    return {"challenge_id": challenge_id, "challenge": challenge, "difficulty": POW_DIFFICULTY}
-
-
-@router.post("/auth/verify-pow")
-async def verify_pow(body: RegisterStep1Request):
-    entry = _pow_challenges.get(body.challenge_id)
-    if not entry:
-        raise HTTPException(400, "Invalid or expired challenge")
-    if entry["used"]:
-        raise HTTPException(400, "Challenge already used")
-    if time.time() - entry["created_at"] > 300:
-        raise HTTPException(400, "Challenge expired")
-
-    # Verify: SHA-256(challenge + nonce) starts with POW_DIFFICULTY hex zeros
-    digest = hashlib.sha256(f"{entry['challenge']}{body.nonce}".encode()).hexdigest()
-    if not digest.startswith("0" * POW_DIFFICULTY):
-        raise HTTPException(400, "Invalid proof-of-work solution")
-
-    entry["used"] = True
-    session_token = secrets.token_hex(32)
-    _sessions[session_token] = {
-        "pow_verified": True,
-        "email_verified": False,
-        "totp_verified": False,
-        "email": None,
-        "totp_secret": None,
-        "created_at": time.time(),
-    }
-    return {"session_token": session_token, "message": "PoW verified"}
-
-
-# ── Email ─────────────────────────────────────────────────────────────────────
-
-import random
-
-_email_codes: dict[str, dict] = {}
-
-
-@router.post("/auth/submit-email")
-async def submit_email(body: RegisterStep2Request):
-    session = _sessions.get(body.session_token)
-    if not session or not session["pow_verified"]:
-        raise HTTPException(400, "Invalid session")
-
-    # Check email not already registered
-    async with DB() as conn:
-        exists = await conn.fetchval(
-            "SELECT 1 FROM users WHERE lower(email) = lower($1)", body.email
+    if resp.step == "totp_required":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"step": "totp_required", "message": "TOTP token required"},
         )
-    if exists:
-        raise HTTPException(409, "Email already registered")
 
-    code = f"{secrets.randbelow(1000000):06d}"
-    _email_codes[body.email] = {
-        "code": code,
-        "attempts": 0,
-        "created_at": time.time(),
+    if resp.step == "error":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=resp.data.get("message", "Invalid credentials"),
+        )
+
+    # Fetch full user record from DB for role / user_id_hex
+    db_user = await db.get_user_by_username(body.username)
+    if db_user is None:
+        raise HTTPException(status_code=404, detail="User record not found in database")
+
+    user_id_hex = db_user["user_id_hex"]
+    role        = db_user.get("role", "PATIENT")
+    family_id   = secrets.token_hex(16)
+
+    access_token              = _make_access_token(user_id_hex, body.username, role)
+    raw_refresh, refresh_hash = _make_refresh_token(user_id_hex, family_id)
+
+    expires_at = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    await db.store_refresh_token(refresh_hash, user_id_hex, family_id, expires_at)
+    await db.update_user(user_id_hex, {"last_login_at": datetime.now(timezone.utc)})
+    await db.log_audit({
+        "actor_user_id_hex": user_id_hex,
+        "action": "LOGIN",
+        "detail": {"username": body.username},
+    })
+
+    return {
+        "access_token":  access_token,
+        "refresh_token": raw_refresh,
+        "token_type":    "bearer",
+        "expires_in":    ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     }
-    session["email"] = body.email
-
-    # In production: send actual email here
-    # For development, log the code
-    logger.info(f"[DEV] Email code for {body.email}: {code}")
-
-    masked = body.email[:3] + "***@" + body.email.split("@")[-1]
-    return {"message": f"Code sent to {masked}", "expires_in": 600, "email": masked}
 
 
-@router.post("/auth/verify-email")
-async def verify_email(body: RegisterStep3Request):
-    session = _sessions.get(body.session_token)
-    if not session or not session.get("email"):
-        raise HTTPException(400, "Invalid session")
+# ===========================================================================
+# REFRESH
+# ===========================================================================
 
-    email = session["email"]
-    entry = _email_codes.get(email)
-    if not entry:
-        raise HTTPException(400, "No code found for this email")
-    if time.time() - entry["created_at"] > 600:
-        raise HTTPException(400, "Code expired")
-    if entry["attempts"] >= 3:
-        raise HTTPException(429, "Too many attempts")
+@router.post("/refresh", summary="Exchange refresh token for a new access token")
+async def refresh_token(body: RefreshRequest, db=Depends(get_db)):
+    token_hash = hashlib.sha256(body.refresh_token.encode()).hexdigest()
 
-    if entry["code"] != body.code:
-        entry["attempts"] += 1
-        raise HTTPException(400, f"Invalid code. {3 - entry['attempts']} attempts left")
+    # Fetch by hash — no raw token touches the DB
+    pool = await db.get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT token_hash, user_id_hex, family_id, expires_at, revoked_at
+            FROM refresh_tokens
+            WHERE token_hash = $1
+            """,
+            token_hash,
+        )
 
-    # Generate TOTP secret
-    totp_secret = pyotp.random_base32()
-    totp_uri = pyotp.totp.TOTP(totp_secret).provisioning_uri(
-        name=email, issuer_name="MedLedger"
+    if row is None:
+        raise HTTPException(status_code=401, detail="Refresh token not found")
+    if row["revoked_at"] is not None:
+        # Possible token theft — revoke entire family
+        await db.revoke_refresh_token_family(row["family_id"])
+        raise HTTPException(status_code=401, detail="Refresh token reuse detected; all sessions revoked")
+    if row["expires_at"] < datetime.now(timezone.utc):
+        raise HTTPException(status_code=401, detail="Refresh token expired")
+
+    user_id_hex = row["user_id_hex"]
+    db_user     = await db.get_user_by_id(user_id_hex)
+    if not db_user or not db_user.get("is_active"):
+        raise HTTPException(status_code=401, detail="User inactive")
+
+    # Rotate: revoke old, issue new in same family
+    await db.revoke_refresh_token(token_hash)
+    family_id               = row["family_id"]
+    new_raw, new_hash       = _make_refresh_token(user_id_hex, family_id)
+    new_expires             = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    await db.store_refresh_token(new_hash, user_id_hex, family_id, new_expires)
+
+    access_token = _make_access_token(
+        user_id_hex,
+        db_user["username"],
+        db_user.get("role", "PATIENT"),
     )
 
-    # Generate QR code as base64 data URL
-    qr = qrcode.make(totp_uri)
-    buf = io.BytesIO()
-    qr.save(buf, format="PNG")
-    qr_b64 = base64.b64encode(buf.getvalue()).decode()
-
-    session["email_verified"] = True
-    session["totp_secret"] = totp_secret
-    del _email_codes[email]
-
     return {
-        "message": "Email verified",
-        "totp": {
-            "qr_code_uri": totp_uri,
-            "manual_key": totp_secret,
-            "qr_code": f"data:image/png;base64,{qr_b64}",
-        },
+        "access_token":  access_token,
+        "refresh_token": new_raw,
+        "token_type":    "bearer",
+        "expires_in":    ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     }
 
 
-# ── TOTP ──────────────────────────────────────────────────────────────────────
+# ===========================================================================
+# LOGOUT
+# ===========================================================================
 
-@router.post("/auth/verify-totp")
-async def verify_totp(body: RegisterStep4Request):
-    session = _sessions.get(body.session_token)
-    if not session or not session.get("email_verified"):
-        raise HTTPException(400, "Invalid session")
-
-    totp = pyotp.TOTP(session["totp_secret"])
-    if not totp.verify(body.totp_token, valid_window=1):
-        raise HTTPException(400, "Invalid TOTP token")
-
-    session["totp_verified"] = True
-    return {"message": "TOTP verified"}
-
-
-# ── Create account ────────────────────────────────────────────────────────────
-
-@router.post("/auth/create-account")
-async def create_account(body: RegisterStep5Request):
-    session = _sessions.get(body.session_token)
-    if not session:
-        raise HTTPException(400, "Invalid session")
-    if not session.get("totp_verified"):
-        raise HTTPException(400, "Complete all verification steps first")
-
-    async with DB() as conn:
-        # Username uniqueness (case-insensitive)
-        exists = await conn.fetchval(
-            "SELECT 1 FROM users WHERE lower(username) = lower($1)", body.username
-        )
-        if exists:
-            raise HTTPException(409, "Username already taken")
-
-        pw_hash = hash_password(body.password)
-        row = await conn.fetchrow(
-            """
-            INSERT INTO users (username, email, password_hash, is_verified, is_active, user_id_hex)
-            VALUES (lower($1), $2, $3, TRUE, TRUE, encode(gen_random_bytes(16), 'hex'))
-            RETURNING id, user_id_hex, username
-            """,
-            body.username, session["email"], pw_hash,
-        )
-
-    del _sessions[body.session_token]
-    return {
-        "message": "Account created",
-        "user_id": row["user_id_hex"] or str(row["id"]),
-        "username": row["username"],
-    }
-
-
-# ── Upload public keys ────────────────────────────────────────────────────────
-
-@router.post("/users/keys")
-async def upload_public_keys(
-    body: PublicKeysUpload,
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    # Always scope the UPDATE to the authenticated user's own row.
-    # Never trust body.username or body.user_id_hex for the WHERE clause —
-    # a caller could otherwise overwrite any user's keys.
-    async with DB() as conn:
-        result = await conn.execute(
-            """
-            UPDATE users
-            SET signing_public_key  = $1,
-                exchange_public_key = $2
-            WHERE user_id_hex = $3
-            """,
-            body.signing_public_key,
-            body.exchange_public_key,
-            current_user.user_id_hex,
-        )
-    if result == "UPDATE 0":
-        raise HTTPException(404, "User not found")
-    return {"message": "Public keys stored"}
-
-
-# ── Get public keys for a user ────────────────────────────────────────────────
-
-@router.get("/users/{username}/keys")
-async def get_user_keys(
-    username: str,
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    async with DB() as conn:
-        row = await conn.fetchrow(
-            """
-            SELECT signing_public_key, exchange_public_key
-            FROM users
-            WHERE lower(username) = lower($1) AND is_active = TRUE AND account_deleted = FALSE
-            """,
-            username,
-        )
-    if not row:
-        raise HTTPException(404, "User not found")
-    return {
-        "signing_public_key": row["signing_public_key"],
-        "exchange_public_key": row["exchange_public_key"],
-    }
-
-
-# ── Login ─────────────────────────────────────────────────────────────────────
-
-@router.post("/login")
-async def login(body: LoginRequest, response: Response, request: Request):
-    async with DB() as conn:
-        row = await conn.fetchrow(
-            """
-            SELECT id, user_id_hex, username, password_hash, full_name, role,
-                   signing_public_key, exchange_public_key, is_active, account_deleted
-            FROM users
-            WHERE lower(username) = lower($1)
-            """,
-            body.username,
-        )
-
-    if not row or not row["is_active"] or row["account_deleted"]:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
-
-    if not verify_password(body.password, row["password_hash"]):
-        # Audit log failed attempt
-        async with DB() as conn:
-            await conn.execute(
-                "INSERT INTO user_audit (user_id, action, description, ip_address) VALUES ($1,$2,$3,$4)",
-                row["id"], "login_failure", "Bad password",
-                request.client.host if request.client else None,
-            )
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
-
-    user_id_hex = row["user_id_hex"] or str(row["id"])
-    access_token = create_access_token(user_id_hex, row["username"])
-    refresh_raw = await create_refresh_token(user_id_hex)
-
-    _set_cookie(response, "access_token", access_token, max_age=30 * 60)
-    _set_cookie(response, "refresh_token", refresh_raw, max_age=7 * 24 * 3600)
-
-    async with DB() as conn:
-        await conn.execute(
-            "UPDATE users SET last_login_at = NOW(), last_login_ip = $1 WHERE id = $2",
-            request.client.host if request.client else None,
-            row["id"],
-        )
-        await conn.execute(
-            "INSERT INTO user_audit (user_id, action, description, ip_address) VALUES ($1,$2,$3,$4)",
-            row["id"], "login_success", "", request.client.host if request.client else None,
-        )
-
-    return {
-        "username": row["username"],
-        "user_id_hex": user_id_hex,
-        "full_name": row["full_name"],
-        "role": row["role"],
-        "public_keys": {
-            "signing_public_key": row["signing_public_key"],
-            "exchange_public_key": row["exchange_public_key"],
-        },
-    }
-
-
-# ── Logout ────────────────────────────────────────────────────────────────────
-
-@router.post("/auth/logout")
+@router.post("/logout", summary="Revoke refresh token (logout)")
 async def logout(
-    response: Response,
-    current_user: CurrentUser = Depends(get_current_user),
+    body: LogoutRequest,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer),
+    db=Depends(get_db),
 ):
-    from datetime import datetime, timedelta, timezone
-    # Revoke the access token for the remainder of its TTL.
-    # current_user.jti was already validated by get_current_user; we use the
-    # configured access-token lifetime as the revocation horizon so the
-    # token_revocations table can be pruned by expiry later.
-    revoke_until = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.access_token_expire_minutes
-    )
-    await revoke_token(
-        current_user.jti,
-        current_user.user_id_hex,
-        revoke_until,
-    )
-    await revoke_all_refresh_tokens(current_user.user_id_hex)
+    token_hash = hashlib.sha256(body.refresh_token.encode()).hexdigest()
+    await db.revoke_refresh_token(token_hash)
 
-    _clear_cookie(response, "access_token")
-    _clear_cookie(response, "refresh_token")
+    # Also revoke the access token JTI if provided
+    if credentials:
+        try:
+            payload    = _decode_access_token(credentials.credentials)
+            jti        = payload.get("jti")
+            exp        = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+            user_id    = payload.get("sub", "")
+            if jti:
+                await db.revoke_token(jti, user_id, exp)
+        except HTTPException:
+            pass  # already expired — fine
+
     return {"message": "Logged out"}
 
 
-# ── Refresh ───────────────────────────────────────────────────────────────────
+# ===========================================================================
+# PASSWORD RESET
+# ===========================================================================
 
-@router.post("/auth/refresh")
-async def refresh_token_endpoint(request: Request, response: Response):
-    raw = request.cookies.get("refresh_token")
-    if not raw:
-        raise HTTPException(401, "No refresh token")
-
-    result = await rotate_refresh_token(raw)
-    if not result:
-        _clear_cookie(response, "access_token")
-        _clear_cookie(response, "refresh_token")
-        raise HTTPException(401, "Invalid or expired refresh token")
-
-    new_raw, user_id_hex = result
-
-    async with DB() as conn:
-        row = await conn.fetchrow(
-            "SELECT username FROM users WHERE user_id_hex = $1", user_id_hex
-        )
-    if not row:
-        raise HTTPException(401, "User not found")
-
-    access_token = create_access_token(user_id_hex, row["username"])
-    _set_cookie(response, "access_token", access_token, max_age=30 * 60)
-    _set_cookie(response, "refresh_token", new_raw, max_age=7 * 24 * 3600)
-    return {"message": "Token refreshed"}
+@router.post("/password-reset/init", summary="Request password reset code via email")
+async def password_reset_init(body: PasswordResetInitRequest):
+    af = get_auth_flow()
+    # Always returns step='reset_code_sent' regardless of email existence
+    resp = af.initiate_password_reset(body.email)
+    return _check_auth_response(resp)
 
 
-# ── /api/me ───────────────────────────────────────────────────────────────────
-
-@router.get("/me", response_model=MeResponse)
-async def me(current_user: CurrentUser = Depends(get_current_user)):
-    async with DB() as conn:
-        row = await conn.fetchrow(
-            """
-            SELECT username, user_id_hex, full_name, role,
-                   signing_public_key, exchange_public_key, is_verified
-            FROM users
-            WHERE user_id_hex = $1
-            """,
-            current_user.user_id_hex,
-        )
-    if not row:
-        raise HTTPException(404, "User not found")
-    return MeResponse(
-        username=row["username"],
-        user_id_hex=row["user_id_hex"],
-        full_name=row["full_name"] or "",
-        role=row["role"],
-        public_keys=UserPublicKeys(
-            signing_public_key=row["signing_public_key"],
-            exchange_public_key=row["exchange_public_key"],
-        ),
-        is_verified=row["is_verified"],
+@router.post("/password-reset/complete", summary="Verify reset code and set new password")
+async def password_reset_complete(body: PasswordResetCompleteRequest, db=Depends(get_db)):
+    af = get_auth_flow()
+    resp = af.complete_password_reset(
+        email=body.email,
+        code=body.code,
+        new_password=body.new_password,
     )
+    if resp.step == "error":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=resp.data.get("message", "Password reset failed"),
+        )
+
+    # Revoke all refresh token families for this user as a security measure
+    db_user = await db.get_user_by_email(body.email)
+    if db_user:
+        pool = await db.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE refresh_tokens SET revoked_at = NOW() "
+                "WHERE user_id_hex = $1 AND revoked_at IS NULL",
+                db_user["user_id_hex"],
+            )
+        await db.log_audit({
+            "actor_user_id_hex": db_user["user_id_hex"],
+            "action": "PASSWORD_RESET",
+            "detail": {"email": body.email},
+        })
+
+    return _check_auth_response(resp)
+
+
+# ===========================================================================
+# SESSION INSPECTION (registration flow helper)
+# ===========================================================================
+
+@router.get("/session/{session_token}", summary="Inspect a registration session's current state")
+async def session_status(session_token: str):
+    af = get_auth_flow()
+    info = af.get_session_status(session_token)
+    if not info:
+        raise HTTPException(status_code=404, detail="Session not found or expired")
+    return info
+
+
+# ===========================================================================
+# SYSTEM STATUS
+# ===========================================================================
+
+@router.get("/status", summary="Auth system health / active sessions")
+async def auth_status():
+    af = get_auth_flow()
+    return af.get_status()
+
+
+# ===========================================================================
+# PROTECTED ROUTE EXAMPLE — /auth/me
+# ===========================================================================
+
+@router.get("/me", summary="Return the authenticated user's profile")
+async def me(current_user: dict = Depends(get_current_user)):
+    return {
+        "user_id":    current_user["user_id_hex"],
+        "username":   current_user["username"],
+        "email":      current_user["email"],
+        "role":       current_user.get("role"),
+        "is_verified": current_user.get("is_verified"),
+        "created_at": current_user.get("created_at"),
+    }

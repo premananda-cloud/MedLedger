@@ -49,3 +49,5 @@ pem/
 .pem
 pem/
 
+flyway-10.15.0/
+flyway.conf
