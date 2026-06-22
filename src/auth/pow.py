@@ -1,18 +1,21 @@
 """
-auth/pow.py — Pure Proof-of-Work logic.
+auth/pow.py — POWModule
 
-Zero I/O. Zero background threads. Zero singletons.
+Responsibility: generate proof-of-work challenges and verify solutions.
 
-Responsibilities:
-  • Generate challenge data (the random string + difficulty)
-  • Verify that a nonce satisfies the hash constraint
+Note: `capjs-server` is not available on PyPI. This module implements the
+same SHA-256 leading-zeros protocol that capjs uses, so it is wire-compatible
+with any capjs client. Swap `new_challenge` / `verify_solution` internals
+for capjs HTTP calls if you run capjs-server as a sidecar.
 
-The caller (auth_service / infrastructure layer) is responsible for:
-  • Persisting active challenges (in-memory dict, Redis, DB — your choice)
-  • Enforcing expiry and replay protection
-  • Rate-limiting per IP
+What it does:
+  ✓ Generates challenge data (random string + difficulty)
+  ✓ Verifies that a nonce produces a hash with the required leading zeros
 
-This keeps PoW logic testable without any clock/thread mocking.
+What it does NOT do:
+  ✗ Store challenges — the orchestrator stores them (Redis / DB)
+  ✗ Track expiry — the orchestrator checks timestamps
+  ✗ Rate-limit — the orchestrator enforces per-IP limits
 """
 from __future__ import annotations
 
@@ -21,53 +24,59 @@ import secrets
 import time
 from typing import Optional
 
-from .models import AuthChallenge, PoWStatus, PoWVerifyResult
+from .models import POWChallenge, POWVerifyResult
 
 
-class PoWService:
+class POWModule:
     """
-    Stateless Proof-of-Work helper.
+    Proof-of-Work challenge generator and verifier.
 
-    Challenge *storage* lives outside this class — the caller passes the
-    stored challenge string back in on verification.
+    The orchestrator is responsible for:
+      • Persisting the returned POWChallenge (keyed by challenge_id)
+      • Checking expiry before calling verify_solution
+      • Deleting the challenge after successful verification (replay protection)
 
-    Example (auth_service):
-        pow = PoWService(difficulty=4)
+    Usage:
+        module = POWModule(difficulty=4)
 
-        # Issue challenge:
-        challenge = pow.new_challenge()
-        cache.set(challenge.challenge_id, challenge, ttl=300)
-        return challenge.to_dict()
+        # Issue:
+        challenge = module.new_challenge()
+        cache.set(challenge.challenge_id, challenge.model_dump(), ttl=300)
+        return challenge.to_dict()   # → client
 
-        # Verify solution:
+        # Verify:
         stored = cache.get(challenge_id)
-        result = pow.verify(stored, nonce, now=time.time())
+        if not stored or is_expired(stored):
+            raise BadRequest("Challenge expired")
+        result = module.verify_solution(
+            POWChallenge(**stored), solution=nonce
+        )
         if result.success:
-            cache.delete(challenge_id)   # replay protection
+            cache.delete(challenge_id)
     """
 
     def __init__(self, difficulty: int = 4, expiry_seconds: int = 300):
         """
         Args:
-            difficulty:      Number of leading hex zeros required.
-            expiry_seconds:  How long a challenge stays valid.
+            difficulty:     Number of leading hex zeros required in the hash.
+            expiry_seconds: Informational — stored in the challenge so the
+                            orchestrator knows the intended TTL.
         """
         self.difficulty     = difficulty
         self.expiry_seconds = expiry_seconds
-        self._prefix        = "0" * difficulty
 
     # ──────────────────────────────────────────
     # Challenge generation
     # ──────────────────────────────────────────
 
-    def new_challenge(self) -> AuthChallenge:
+    def new_challenge(self) -> POWChallenge:
         """
         Generate a fresh PoW challenge.
 
-        Returns an AuthChallenge. The caller must persist it (keyed by
-        challenge_id) before returning it to the client.
+        The returned object must be persisted by the caller before being
+        sent to the client.
         """
-        return AuthChallenge(
+        return POWChallenge(
             challenge_id=secrets.token_hex(16),
             challenge=secrets.token_urlsafe(32),
             difficulty=self.difficulty,
@@ -78,96 +87,51 @@ class PoWService:
     # Verification
     # ──────────────────────────────────────────
 
-    def verify(
-        self,
-        challenge: AuthChallenge,
-        nonce:     str,
-        *,
-        now:       Optional[float] = None,
-    ) -> PoWVerifyResult:
+    def verify_solution(self, challenge: POWChallenge, solution: str) -> POWVerifyResult:
         """
-        Verify that `nonce` is a valid solution for `challenge`.
+        Verify that `solution` (nonce) satisfies the challenge.
+
+        Expiry checking is intentionally left to the caller — this method
+        only validates the hash constraint.
 
         Args:
-            challenge: The AuthChallenge retrieved from storage.
-            nonce:     The nonce submitted by the client.
-            now:       Current unix timestamp (defaults to time.time()).
-                       Pass an explicit value in tests to freeze time.
-
-        Note: Replay protection (marking the challenge as used) is the
-        caller's responsibility — delete the record from storage on success.
+            challenge: The POWChallenge fetched from storage by the orchestrator.
+            solution:  The nonce string submitted by the client.
         """
-        if now is None:
-            now = time.time()
-
-        if now - challenge.timestamp > self.expiry_seconds:
-            return PoWVerifyResult(
-                success=False,
-                message="Challenge expired",
-                status=PoWStatus.EXPIRED,
-            )
-
+        prefix      = "0" * challenge.difficulty
         hash_result = hashlib.sha256(
-            (challenge.challenge + nonce).encode()
+            (challenge.challenge + solution).encode()
         ).hexdigest()
 
-        if not hash_result.startswith(self._prefix):
-            return PoWVerifyResult(
-                success=False,
-                message="Invalid proof of work",
-                status=PoWStatus.INVALID_PROOF,
-            )
+        if hash_result.startswith(prefix):
+            return POWVerifyResult(success=True, message="Proof of work verified.")
 
-        session_token = secrets.token_hex(32)
-        return PoWVerifyResult(
-            success=True,
-            message="Proof of work verified",
-            status=PoWStatus.SUCCESS,
-            session_token=session_token,
-        )
+        return POWVerifyResult(success=False, message="Invalid proof of work solution.")
 
     # ──────────────────────────────────────────
     # Utilities
     # ──────────────────────────────────────────
 
-    def estimate_solve_time(self, difficulty: Optional[int] = None) -> dict:
+    def is_expired(self, challenge: POWChallenge, now: Optional[float] = None) -> bool:
         """
-        Rough estimate of client solve time for a given difficulty.
-        Assumes ~100 000 SHA-256 hashes/s in a browser JS environment.
+        Convenience helper — orchestrator can call this instead of doing
+        the arithmetic itself.
         """
-        diff = difficulty if difficulty is not None else self.difficulty
-        avg_attempts   = (16 ** diff) / 2
-        hashes_per_sec = 100_000
-        avg_seconds    = avg_attempts / hashes_per_sec
-
-        def fmt(s: float) -> str:
-            if s < 1:
-                return f"{int(s * 1000)}ms"
-            if s < 60:
-                return f"{s:.1f}s"
-            return f"{int(s // 60)}m {s % 60:.0f}s"
-
-        return {
-            "difficulty":         diff,
-            "estimated_attempts": int(avg_attempts),
-            "estimated_seconds":  round(avg_seconds, 2),
-            "estimated_time":     fmt(avg_seconds),
-        }
+        return (now or time.time()) - challenge.timestamp > self.expiry_seconds
 
     # ──────────────────────────────────────────
-    # Test helper
+    # Test / CLI helper
     # ──────────────────────────────────────────
 
     @staticmethod
     def solve(challenge: str, difficulty: int, max_attempts: int = 10_000_000) -> Optional[str]:
         """
-        Brute-force a PoW challenge (for tests and CLI tools only).
-
-        Returns the nonce string, or None if not found within max_attempts.
+        Brute-force a challenge. For tests and CLI tools only.
+        Returns the nonce string or None if not found.
         """
         prefix = "0" * difficulty
         for nonce in range(max_attempts):
-            nonce_str = str(nonce)
-            if hashlib.sha256((challenge + nonce_str).encode()).hexdigest().startswith(prefix):
-                return nonce_str
+            ns = str(nonce)
+            if hashlib.sha256((challenge + ns).encode()).hexdigest().startswith(prefix):
+                return ns
         return None

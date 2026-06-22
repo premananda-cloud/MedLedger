@@ -1,37 +1,54 @@
 """
-auth/totp.py — Pure TOTP logic.
+auth/totp.py — TOTPModule
 
-Zero I/O. Depends only on: pyotp, stdlib.
-Caller is responsible for persisting secrets.
+Responsibility: generate TOTP secrets and verify codes.
+
+What it does:
+  ✓ Generates base32 secrets + provisioning URIs
+  ✓ Verifies 6-digit codes against a supplied secret
+  ✓ Generates backup codes
+
+What it does NOT do:
+  ✗ Store secrets
+  ✗ Know about users
+  ✗ Fetch secrets from anywhere — the caller supplies them
 """
 from __future__ import annotations
 
+import secrets
 import time
-from typing import Optional
+from typing import List, Optional
 
 import pyotp
 
-from .models import TOTPConfig, TOTPVerifyResult
+from .models import TOTPSecret
 
 
-class TOTPService:
+class TOTPModule:
     """
     Stateless TOTP helper.
 
-    Secrets are NOT stored here. The caller (user_service / auth_service)
-    must persist and supply them.
+    Secrets are never stored here. The orchestrator fetches the secret
+    from the database and passes it in on every verify call.
 
     Usage:
-        svc = TOTPService(issuer="MyApp")
-        config = svc.generate(email)          # → TOTPConfig; persist config.secret
-        result = svc.verify(secret, token)    # → TOTPVerifyResult
+        module = TOTPModule(issuer="MyApp")
+
+        # Setup (on registration):
+        result = module.generate_secret(email="user@example.com")
+        db.store(user_id, encrypted(result.secret))
+        return result.uri  # → frontend shows QR code
+
+        # Verify (on login):
+        secret = db.fetch(user_id)
+        ok = module.verify_code(secret=secret, code=submitted_code)
     """
 
     def __init__(self, issuer: str = "AuthSystem", window: int = 1):
         """
         Args:
             issuer: Label shown in the authenticator app.
-            window: ±N time-steps (30 s each) accepted around current time.
+            window: ±N time-steps (30 s each) tolerated for clock skew.
         """
         self.issuer = issuer
         self.window = window
@@ -40,76 +57,67 @@ class TOTPService:
     # Secret generation
     # ──────────────────────────────────────────
 
-    def generate(self, account_name: str) -> TOTPConfig:
+    def generate_secret(self, email: str) -> TOTPSecret:
         """
         Generate a fresh TOTP secret for an account.
 
-        Returns TOTPConfig containing the secret (plain) and the QR URI.
-        The caller MUST store `config.secret` and MUST NOT return it to the
-        end-user after the setup step.
+        The caller MUST persist `result.secret` (ideally encrypted).
+        The caller returns `result.uri` to the frontend for QR display.
 
         Args:
-            account_name: Email or username — shown in the authenticator app.
+            email: Account identifier shown in the authenticator app.
         """
         secret = pyotp.random_base32()
-        totp = pyotp.TOTP(secret, issuer=self.issuer, name=account_name)
+        totp   = pyotp.TOTP(secret, issuer=self.issuer, name=email)
 
-        return TOTPConfig(
+        return TOTPSecret(
             secret=secret,
-            qr_code_uri=totp.provisioning_uri(
-                name=account_name,
-                issuer_name=self.issuer,
-            ),
-            manual_key=secret,
+            uri=totp.provisioning_uri(name=email, issuer_name=self.issuer),
             issuer=self.issuer,
-            account_name=account_name,
+            email=email,
         )
 
     # ──────────────────────────────────────────
     # Verification
     # ──────────────────────────────────────────
 
-    def verify(self, secret: str, token: str) -> TOTPVerifyResult:
+    def verify_code(self, secret: str, code: str) -> bool:
         """
-        Verify a 6-digit TOTP token against a stored secret.
+        Verify a 6-digit TOTP code against a stored secret.
 
         Args:
-            secret:  The base32 secret retrieved from persistent storage.
-            token:   The code the user submitted.
+            secret: The base32 secret retrieved from DB by the orchestrator.
+            code:   The code submitted by the user.
         """
-        if not secret:
-            return TOTPVerifyResult(
-                verified=False,
-                message="No TOTP secret provided",
-            )
-
+        if not secret or not code:
+            return False
         totp = pyotp.TOTP(secret, issuer=self.issuer)
-
-        # Walk the window manually so we can report the delta for logging.
-        now = int(time.time())
-        for delta in range(-self.window, self.window + 1):
-            check_time = now + delta * 30
-            if totp.at(check_time) == token:
-                return TOTPVerifyResult(
-                    verified=True,
-                    message=f"TOTP verified (delta={delta})",
-                    delta=delta,
-                )
-
-        return TOTPVerifyResult(verified=False, message="Invalid TOTP token")
+        return totp.verify(code, valid_window=self.window)
 
     # ──────────────────────────────────────────
-    # Test helpers (use only in non-prod code)
+    # Backup codes
+    # ──────────────────────────────────────────
+
+    def generate_backup_codes(self, count: int = 8) -> List[str]:
+        """
+        Generate one-time backup codes.
+
+        Returns a list of plain codes. The caller is responsible for
+        hashing and storing them; these are never stored here.
+
+        Format: XXXX-XXXX (8 hex chars split for readability)
+        """
+        return [
+            f"{secrets.token_hex(4).upper()}-{secrets.token_hex(4).upper()}"
+            for _ in range(count)
+        ]
+
+    # ──────────────────────────────────────────
+    # Test helpers (non-prod use only)
     # ──────────────────────────────────────────
 
     def current_token(self, secret: str) -> Optional[str]:
-        """Return the current valid token for a secret (for testing)."""
+        """Get the currently valid token for a secret. Use in tests only."""
         if not secret:
             return None
         return pyotp.TOTP(secret, issuer=self.issuer).now()
-
-    def token_at(self, secret: str, timestamp: float) -> Optional[str]:
-        """Return the token valid at a specific unix timestamp (for testing)."""
-        if not secret:
-            return None
-        return pyotp.TOTP(secret, issuer=self.issuer).at(int(timestamp))
