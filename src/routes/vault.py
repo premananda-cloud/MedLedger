@@ -1,305 +1,226 @@
 """
-src/routes/vault.py
-Vault (encrypted file store) routes:
-  POST   /api/vault/records        — upload a new encrypted record
-  GET    /api/vault/records        — list my records
-  GET    /api/vault/records/:id    — get record metadata
-  GET    /api/vault/records/:id/ciphertext — stream ciphertext
-  DELETE /api/vault/records/:id    — delete record
-  POST   /api/vault/grants         — create a grant on a record
-  GET    /api/vault/grants/:record_id — list grants for a record
-  DELETE /api/vault/grants/:grant_id  — revoke a grant
+routes/vault.py — Vault (encrypted record store) endpoints.
+
+All protected — JWT required.
+
+POST   /vault/records                  → upload encrypted record
+GET    /vault/records                  → list own records
+GET    /vault/records/{record_id}      → get record metadata
+GET    /vault/records/{record_id}/ciphertext → stream ciphertext
+DELETE /vault/records/{record_id}      → delete record
 """
-import logging
-import base64
-import secrets
-from datetime import datetime
-from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import StreamingResponse
+from __future__ import annotations
+
 import io
+import logging
 
-from src.services.database import DB
-from src.middleware.auth_middleware import get_current_user, CurrentUser
-from src.models.schemas import (
-    CreateVaultRecordRequest, VaultRecordMeta, GrantRequest,
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
+
+from database import DatabaseRepository
+from database.exceptions import RecordNotFoundError
+from models.schemas import (
+    CreateVaultRecordRequest, VaultRecordListResponse,
+    VaultRecordMeta, VaultRecordResponse, MessageResponse,
 )
+from services.audit_service import AuditService
 
-logger = logging.getLogger("medledger.vault")
-router = APIRouter()
+from .deps import get_audit_service, get_current_user, get_db_repo
+
+log = logging.getLogger(__name__)
+router = APIRouter(prefix="/vault", tags=["vault"])
 
 
-# ── Upload record ─────────────────────────────────────────────────────────────
-
-@router.post("/vault/records", response_model=VaultRecordMeta)
-async def upload_record(
-    body: CreateVaultRecordRequest,
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    async with DB() as conn:
-        # Owner must have a public_key_hash to satisfy vault_records FK
-        owner = await conn.fetchrow(
-            "SELECT public_key_hash, user_id_hex FROM users WHERE user_id_hex = $1",
-            current_user.user_id_hex,
-        )
-        if not owner or not owner["public_key_hash"]:
-            raise HTTPException(400, "Upload public keys before storing vault records")
-
-        ciphertext_bytes = base64.urlsafe_b64decode(body.ciphertext_b64 + "==")
-
-        import json
-        row = await conn.fetchrow(
-            """
-            INSERT INTO vault_records (
-                record_id, owner_key_hash, owner_user_id_hex,
-                owner_public_key_hex, filename, mime_type,
-                size_bytes, iv_hex, tags
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
-            RETURNING record_id, filename, mime_type, size_bytes, iv_hex, tags, created_at
-            """,
-            body.record_id,
-            owner["public_key_hash"],
-            current_user.user_id_hex,
-            "",  # owner_public_key_hex — filled from keys later
-            body.filename,
-            body.mime_type,
-            body.size_bytes,
-            body.iv_hex,
-            json.dumps(body.tags),
-        )
-
-        await conn.execute(
-            """
-            INSERT INTO vault_ciphertext (record_id, ciphertext, dek_bundle)
-            VALUES ($1, $2, $3::jsonb)
-            """,
-            body.record_id,
-            ciphertext_bytes,
-            json.dumps(body.dek_bundle),
-        )
-
-    import json as _json
-    tags = row["tags"] if isinstance(row["tags"], list) else _json.loads(row["tags"])
-    return VaultRecordMeta(
+def _to_response(row: dict) -> VaultRecordResponse:
+    return VaultRecordResponse(
         record_id=row["record_id"],
+        owner_user_id_hex=row.get("owner_user_id_hex"),
         filename=row["filename"],
         mime_type=row["mime_type"],
         size_bytes=row["size_bytes"],
-        iv_hex=row["iv_hex"],
-        tags=tags,
-        created_at=row["created_at"],
+        iv_hex=row.get("iv_hex"),
+        tags=row.get("tags") or [],
+        created_at=str(row["created_at"]) if row.get("created_at") else None,
+        updated_at=str(row.get("updated_at")) if row.get("updated_at") else None,
     )
 
 
-# ── List records ──────────────────────────────────────────────────────────────
+@router.post("/records", response_model=VaultRecordMeta, status_code=201)
+async def upload_record(
+    body:     CreateVaultRecordRequest,
+    request:  Request,
+    current_user: dict              = Depends(get_current_user),
+    db_repo:     DatabaseRepository = Depends(get_db_repo),
+    audit:       AuditService       = Depends(get_audit_service),
+):
+    """Upload a new encrypted record. Ciphertext is stored server-side."""
+    try:
+        # Verify the user has public keys before storing vault records
+        user = await db_repo.get_user_by_id_hex(current_user["user_id_hex"])
+        if not user or not user.get("signing_public_key"):
+            raise HTTPException(400, "Upload public keys before storing vault records.")
 
-@router.get("/vault/records", response_model=list[VaultRecordMeta])
-async def list_records(current_user: CurrentUser = Depends(get_current_user)):
-    async with DB() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT record_id, filename, mime_type, size_bytes, iv_hex, tags, created_at
-            FROM vault_records
-            WHERE owner_user_id_hex = $1
-            ORDER BY created_at DESC
-            LIMIT 200
-            """,
-            current_user.user_id_hex,
+        record = await db_repo.create_vault_record(
+            record_id=body.record_id,
+            owner_key_hash=body.owner_key_hash,
+            owner_user_id_hex=current_user["user_id_hex"],
+            owner_public_key_hex=body.owner_public_key_hex,
+            filename=body.filename,
+            mime_type=body.mime_type,
+            size_bytes=body.size_bytes,
+            iv_hex=body.iv_hex,
+            tags=body.tags,
         )
-    import json
-    return [
-        VaultRecordMeta(
+
+        ciphertext_bytes = bytes.fromhex(body.ciphertext)
+        await db_repo.create_vault_ciphertext(
+            record_id=body.record_id,
+            ciphertext=ciphertext_bytes,
+            dek_bundle=body.dek_bundle,
+        )
+
+        await audit.log_vault_event(
+            "record_created",
+            actor_user_id_hex=current_user["user_id_hex"],
+            record_id=body.record_id,
+            ip_address=request.client.host if request.client else "",
+            detail={"filename": body.filename, "size_bytes": body.size_bytes},
+        )
+
+        return VaultRecordMeta(
+            record_id=record["record_id"],
+            filename=record["filename"],
+            mime_type=record["mime_type"],
+            size_bytes=record["size_bytes"],
+            iv_hex=record.get("iv_hex", ""),
+            tags=record.get("tags") or [],
+            created_at=record.get("created_at"),
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        log.exception("upload_record failed")
+        raise HTTPException(500, "Internal server error")
+
+
+@router.get("/records", response_model=list[VaultRecordMeta])
+async def list_records(
+    current_user: dict              = Depends(get_current_user),
+    db_repo:     DatabaseRepository = Depends(get_db_repo),
+):
+    """List all vault records owned by the authenticated user."""
+    try:
+        records = await db_repo.list_vault_records(
+            owner_user_id_hex=current_user["user_id_hex"], limit=200
+        )
+        return [VaultRecordMeta(
             record_id=r["record_id"],
             filename=r["filename"],
             mime_type=r["mime_type"],
             size_bytes=r["size_bytes"],
-            iv_hex=r["iv_hex"],
-            tags=r["tags"] if isinstance(r["tags"], list) else json.loads(r["tags"]),
-            created_at=r["created_at"],
-        )
-        for r in rows
-    ]
+            iv_hex=r.get("iv_hex", ""),
+            tags=r.get("tags") or [],
+            created_at=r.get("created_at"),
+        ) for r in records]
+    except Exception:
+        log.exception("list_records failed")
+        raise HTTPException(500, "Internal server error")
 
 
-# ── Get record metadata ───────────────────────────────────────────────────────
-
-@router.get("/vault/records/{record_id}", response_model=VaultRecordMeta)
+@router.get("/records/{record_id}", response_model=VaultRecordMeta)
 async def get_record(
     record_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: dict              = Depends(get_current_user),
+    db_repo:     DatabaseRepository = Depends(get_db_repo),
 ):
-    async with DB() as conn:
-        row = await conn.fetchrow(
-            """
-            SELECT record_id, filename, mime_type, size_bytes, iv_hex, tags, created_at
-            FROM vault_records
-            WHERE record_id = $1 AND owner_user_id_hex = $2
-            """,
-            record_id, current_user.user_id_hex,
+    """Get vault record metadata."""
+    try:
+        record = await db_repo.get_vault_record(record_id)
+        if not record:
+            raise HTTPException(404, "Record not found.")
+        if record.get("owner_user_id_hex") != current_user["user_id_hex"]:
+            raise HTTPException(403, "Access denied.")
+        return VaultRecordMeta(
+            record_id=record["record_id"],
+            filename=record["filename"],
+            mime_type=record["mime_type"],
+            size_bytes=record["size_bytes"],
+            iv_hex=record.get("iv_hex", ""),
+            tags=record.get("tags") or [],
+            created_at=record.get("created_at"),
         )
-    if not row:
-        raise HTTPException(404, "Record not found")
-    import json
-    return VaultRecordMeta(
-        record_id=row["record_id"],
-        filename=row["filename"],
-        mime_type=row["mime_type"],
-        size_bytes=row["size_bytes"],
-        iv_hex=row["iv_hex"],
-        tags=row["tags"] if isinstance(row["tags"], list) else json.loads(row["tags"]),
-        created_at=row["created_at"],
-    )
+    except HTTPException:
+        raise
+    except Exception:
+        log.exception("get_record failed")
+        raise HTTPException(500, "Internal server error")
 
 
-# ── Stream ciphertext ─────────────────────────────────────────────────────────
-
-@router.get("/vault/records/{record_id}/ciphertext")
+@router.get("/records/{record_id}/ciphertext")
 async def get_record_ciphertext(
     record_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: dict              = Depends(get_current_user),
+    db_repo:     DatabaseRepository = Depends(get_db_repo),
 ):
-    async with DB() as conn:
-        row = await conn.fetchrow(
-            """
-            SELECT vc.ciphertext, vr.filename, vr.mime_type, vr.owner_user_id_hex,
-                   vc.dek_bundle
-            FROM vault_ciphertext vc
-            JOIN vault_records vr ON vc.record_id = vr.record_id
-            WHERE vc.record_id = $1
-            """,
-            record_id,
+    """Stream encrypted ciphertext. Only owner or active grantee may download."""
+    try:
+        ct_row = await db_repo.get_vault_ciphertext(record_id)
+        record = await db_repo.get_vault_record(record_id)
+        if not ct_row or not record:
+            raise HTTPException(404, "Record not found.")
+
+        uid = current_user["user_id_hex"]
+        is_owner = record.get("owner_user_id_hex") == uid
+
+        if not is_owner:
+            # Check for active grant
+            grants = await db_repo.get_grants_for_record(record_id, active_only=True)
+            has_grant = any(g.get("grantee_user_id_hex") == uid for g in grants)
+            if not has_grant:
+                raise HTTPException(403, "Access denied.")
+
+        ciphertext: bytes = ct_row["ciphertext"]
+        return StreamingResponse(
+            io.BytesIO(ciphertext),
+            media_type="application/octet-stream",
+            headers={
+                "Content-Disposition": f'attachment; filename="{record["filename"]}.enc"',
+                "Content-Length": str(len(ciphertext)),
+            },
         )
-    if not row:
-        raise HTTPException(404, "Record not found")
-
-    # Only owner or active grantee may download
-    if row["owner_user_id_hex"] != current_user.user_id_hex:
-        async with DB() as conn:
-            grant = await conn.fetchrow(
-                """
-                SELECT 1 FROM grants
-                WHERE record_id = $1 AND grantee_user_id_hex = $2
-                  AND revoked = FALSE
-                  AND time_start <= NOW() AND time_end >= NOW()
-                """,
-                record_id, current_user.user_id_hex,
-            )
-        if not grant:
-            raise HTTPException(403, "Access denied")
-
-    ciphertext: bytes = row["ciphertext"]
-    return StreamingResponse(
-        io.BytesIO(ciphertext),
-        media_type="application/octet-stream",
-        headers={
-            "Content-Disposition": f'attachment; filename="{row["filename"]}.enc"',
-            "Content-Length": str(len(ciphertext)),
-        },
-    )
+    except HTTPException:
+        raise
+    except Exception:
+        log.exception("get_record_ciphertext failed")
+        raise HTTPException(500, "Internal server error")
 
 
-# ── Delete record ─────────────────────────────────────────────────────────────
-
-@router.delete("/vault/records/{record_id}")
+@router.delete("/records/{record_id}", response_model=MessageResponse)
 async def delete_record(
     record_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
+    request:   Request,
+    current_user: dict              = Depends(get_current_user),
+    db_repo:     DatabaseRepository = Depends(get_db_repo),
+    audit:       AuditService       = Depends(get_audit_service),
 ):
-    async with DB() as conn:
-        result = await conn.execute(
-            "DELETE FROM vault_records WHERE record_id = $1 AND owner_user_id_hex = $2",
-            record_id, current_user.user_id_hex,
+    """Delete a vault record and its ciphertext (CASCADE)."""
+    try:
+        record = await db_repo.get_vault_record(record_id)
+        if not record or record.get("owner_user_id_hex") != current_user["user_id_hex"]:
+            raise HTTPException(404, "Record not found.")
+
+        await db_repo.delete_vault_record(record_id)
+        await audit.log_vault_event(
+            "record_deleted",
+            actor_user_id_hex=current_user["user_id_hex"],
+            record_id=record_id,
+            ip_address=request.client.host if request.client else "",
         )
-    if result == "DELETE 0":
-        raise HTTPException(404, "Record not found")
-    return {"message": "Record deleted"}
-
-
-# ── Create grant ──────────────────────────────────────────────────────────────
-
-@router.post("/vault/grants")
-async def create_grant(
-    body: GrantRequest,
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    import json
-    grant_id = secrets.token_hex(16)
-    async with DB() as conn:
-        # Verify ownership
-        owner = await conn.fetchrow(
-            "SELECT public_key_hash FROM vault_records WHERE record_id = $1 AND owner_user_id_hex = $2",
-            body.record_id, current_user.user_id_hex,
-        )
-        if not owner:
-            raise HTTPException(404, "Record not found or not owned by you")
-
-        await conn.execute(
-            """
-            INSERT INTO grants (
-                grant_id, record_id,
-                grantor_key_hash, grantee_key_hash,
-                grantee_user_id_hex, grantee_public_key_hex,
-                permission_level, time_start, time_end,
-                dek_bundle_grantee, signature_hex
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11)
-            """,
-            grant_id, body.record_id,
-            owner["public_key_hash"], body.grantee_public_key_hex,  # derive grantee_key_hash from the public key they submitted
-            body.grantee_user_id_hex, body.grantee_public_key_hex,
-            body.permission_level, body.time_start, body.time_end,
-            json.dumps(body.dek_bundle_grantee), body.signature_hex,
-        )
-    return {"grant_id": grant_id, "message": "Grant created"}
-
-
-# ── List grants for a record ──────────────────────────────────────────────────
-
-@router.get("/vault/grants/{record_id}")
-async def list_grants(
-    record_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    async with DB() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT g.grant_id, g.grantee_user_id_hex, u.username as grantee_username,
-                   g.permission_level, g.time_start, g.time_end, g.revoked, g.created_at
-            FROM grants g
-            LEFT JOIN users u ON g.grantee_user_id_hex = u.user_id_hex
-            WHERE g.record_id = $1 AND g.revoked = FALSE
-            ORDER BY g.created_at DESC
-            """,
-            record_id,
-        )
-    # Verify caller owns the record
-    async with DB() as conn:
-        owner = await conn.fetchval(
-            "SELECT 1 FROM vault_records WHERE record_id = $1 AND owner_user_id_hex = $2",
-            record_id, current_user.user_id_hex,
-        )
-    if not owner:
-        raise HTTPException(403, "Access denied")
-    return [dict(r) for r in rows]
-
-
-# ── Revoke grant ──────────────────────────────────────────────────────────────
-
-@router.delete("/vault/grants/{grant_id}")
-async def revoke_grant(
-    grant_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    async with DB() as conn:
-        result = await conn.execute(
-            """
-            UPDATE grants SET revoked = TRUE, revoked_at = NOW()
-            WHERE grant_id = $1
-              AND record_id IN (
-                SELECT record_id FROM vault_records WHERE owner_user_id_hex = $2
-              )
-              AND revoked = FALSE
-            """,
-            grant_id, current_user.user_id_hex,
-        )
-    if result == "UPDATE 0":
-        raise HTTPException(404, "Grant not found or already revoked")
-    return {"message": "Grant revoked"}
+        return MessageResponse(message="Record deleted.")
+    except HTTPException:
+        raise
+    except RecordNotFoundError as exc:
+        raise HTTPException(404, str(exc))
+    except Exception:
+        log.exception("delete_record failed")
+        raise HTTPException(500, "Internal server error")
