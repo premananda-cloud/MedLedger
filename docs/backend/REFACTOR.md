@@ -69,7 +69,7 @@ Key decisions made:
 
 ---
 
-### ⬜ `models/` — Pending
+### ✅ `models/` — Complete
 
 SQLAlchemy table definitions + Pydantic request/response shapes.
 
@@ -82,7 +82,7 @@ Needs detailed assessment before starting.
 
 ---
 
-### ⬜ `routes/` — Pending
+### ✅ `routes/` — Complete
 
 Thin handlers. Parse request → call service → return response.
 
@@ -743,4 +743,184 @@ notifications = await relay_svc.fetch_notifications(user_id_hex)
 ✗ Write raw SQL               — DatabaseRepository
 ✗ Validate JWT tokens         — middleware (calls token_module.verify_token)
 ✗ Check JTI revocation        — middleware (calls db.is_token_revoked)
+```
+
+---
+
+---
+
+# `models/`, `middleware/`, `routes/`, `config.py` — Reference
+
+---
+
+## `config.py`
+
+Settings via `pydantic-settings`. All values come from `.env` or environment variables.
+
+```python
+from config import settings
+
+settings.database_url
+settings.jwt_secret
+settings.jwt_expiry_seconds    # default 3600
+settings.gmail_user
+settings.gmail_app_password
+settings.pow_difficulty        # default 4
+settings.totp_issuer           # default "MedLedger"
+```
+
+---
+
+## `models/schemas.py`
+
+All Pydantic request/response shapes. No DB imports.
+
+Key groups: `RegisterRequest`, `LoginRequest`, `LoginResponse`, `TokenResponse`,
+`UserResponse`, `TOTPSetupResponse`, `POWChallengeResponse`,
+`PublicKeysResponse`, `ExchangeKeyResponse`, `SigningKeyResponse`,
+`RequestShareRequest`, `SendEncryptedPayloadRequest`, `EncryptedPayloadResponse`,
+`CreateVaultRecordRequest`, `VaultRecordResponse`, `VaultRecordMeta`,
+`CreateGrantRequest`, `GrantResponse`, `GrantDetailsResponse`, `AccessCheckResponse`,
+`ShareSummary`, `ShareDetail` (legacy), `MessageResponse`, `ErrorResponse`.
+
+---
+
+## `middleware/auth.py`
+
+```python
+# main.py
+from middleware.auth import AuthMiddleware
+from routes.deps import db_repo_factory, _token_module
+
+app.add_middleware(
+    AuthMiddleware,
+    token_module=_token_module(),
+    db_repo_factory=db_repo_factory,
+)
+```
+
+Public routes (no JWT needed) are prefix-matched inside the middleware:
+`/api/auth/pow/`, `/api/auth/register`, `/api/auth/login`,
+`/api/auth/verify-email`, `/api/auth/refresh`,
+`/api/auth/request-password-reset`, `/api/auth/confirm-password-reset`,
+`/docs`, `/redoc`, `/openapi.json`, `/health`.
+
+After middleware runs, `request.state` has: `user_id_hex`, `username`, `email`, `jti`.
+
+`get_current_user(request)` — FastAPI dependency that reads from `request.state`.
+
+---
+
+## `routes/` — Endpoint map
+
+### `/api/auth`
+
+| Method | Path | Auth | Service call |
+|---|---|---|---|
+| POST | `/auth/pow/challenge` | public | `auth_svc.issue_pow_challenge` |
+| POST | `/auth/pow/verify` | public | `auth_svc.verify_pow_challenge` |
+| POST | `/auth/register` | public | `auth_svc.register_user` |
+| POST | `/auth/verify-email` | public | `auth_svc.verify_email` |
+| POST | `/auth/resend-verification` | public | `auth_svc.resend_verification_code` |
+| POST | `/auth/login` | public | `auth_svc.login` |
+| POST | `/auth/verify-totp-login` | public | `auth_svc.verify_totp_login` |
+| POST | `/auth/refresh` | public | `auth_svc.refresh_access_token` |
+| POST | `/auth/request-password-reset` | public | `auth_svc.request_password_reset` |
+| POST | `/auth/confirm-password-reset` | public | `auth_svc.confirm_password_reset` |
+| POST | `/auth/logout` | JWT | `auth_svc.logout` |
+| POST | `/auth/logout-all` | JWT | `auth_svc.logout_all_devices` |
+| POST | `/auth/change-password` | JWT | `auth_svc.change_password` |
+| POST | `/auth/totp/setup` | JWT | `auth_svc.setup_totp` |
+| POST | `/auth/totp/confirm` | JWT | `auth_svc.confirm_totp` |
+| POST | `/auth/totp/disable` | JWT | `auth_svc.disable_totp` |
+| GET  | `/auth/me` | JWT | `db_repo.get_user_by_id_hex` |
+
+### `/api/keys`
+
+| Method | Path | Service call |
+|---|---|---|
+| GET | `/keys/my` | `key_svc.get_my_keys` |
+| GET | `/keys/{user_id_hex}` | `key_svc.get_public_keys` |
+| GET | `/keys/{user_id_hex}/exchange` | `key_svc.get_exchange_key` |
+| GET | `/keys/{user_id_hex}/signing` | `key_svc.get_signing_key` |
+| PUT | `/keys/update` | `key_svc.update_keys` |
+
+### `/api/shares`
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/shares/request` | relay — request from owner |
+| POST | `/shares/send` | relay — owner sends payload (never stored) |
+| POST | `/shares/reject` | relay — owner rejects request |
+| GET | `/shares/pending` | relay — owner polls requests |
+| GET | `/shares/notifications` | relay — recipient polls |
+| POST | `/shares` | legacy — create stored share |
+| GET | `/shares/sent` | legacy |
+| GET | `/shares/received` | legacy |
+| GET | `/shares/{share_id}` | legacy |
+| GET | `/shares/{share_id}/ciphertext` | legacy — stream bytes |
+| DELETE | `/shares/{share_id}` | legacy |
+| GET | `/shares/code/{code}` | resolve short code |
+| GET | `/users/search?q=` | search users |
+
+### `/api/vault`
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/vault/records` | upload record + ciphertext |
+| GET | `/vault/records` | list own records |
+| GET | `/vault/records/{id}` | metadata only |
+| GET | `/vault/records/{id}/ciphertext` | stream ciphertext |
+| DELETE | `/vault/records/{id}` | cascades to ciphertext |
+
+### `/api/grants`
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/grants` | create grant |
+| DELETE | `/grants/{grant_id}` | revoke (grantor only) |
+| GET | `/grants/{grant_id}` | details incl. DEK bundle |
+| GET | `/grants/record/{record_id}` | list grants (owner only) |
+| GET | `/grants/my?as_grantor=true` | my grants |
+| GET | `/grants/check/{record_id}` | access check |
+
+---
+
+## Error handling pattern (every route)
+
+```python
+try:
+    result = await service.method(...)
+    return result
+except DuplicateError as exc:
+    raise HTTPException(409, str(exc))
+except RecordNotFoundError as exc:
+    raise HTTPException(404, str(exc))
+except ValueError as exc:
+    raise HTTPException(400, str(exc))
+except Exception:
+    log.exception("handler failed")
+    raise HTTPException(500, "Internal server error")
+```
+
+---
+
+## Wire it up in `main.py`
+
+```python
+from fastapi import FastAPI
+from middleware.auth import AuthMiddleware
+from routes import auth_router, keys_router, shares_router, vault_router, grants_router
+from routes.deps import db_repo_factory, _token_module
+
+app = FastAPI(title="MedLedger")
+
+app.add_middleware(
+    AuthMiddleware,
+    token_module=_token_module(),
+    db_repo_factory=db_repo_factory,
+)
+
+for router in [auth_router, keys_router, shares_router, vault_router, grants_router]:
+    app.include_router(router, prefix="/api")
 ```
