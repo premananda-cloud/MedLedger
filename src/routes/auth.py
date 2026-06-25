@@ -31,11 +31,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from database.exceptions import DuplicateError, RecordNotFoundError
 from models.schemas import (
     ChangePasswordRequest, ConfirmPasswordResetRequest, ConfirmTOTPRequest,
-    DisableTOTPRequest, LoginResponse, LogoutRequest, MessageResponse,
-    POWChallengeResponse, POWVerifyRequest, RefreshTokenRequest,
-    RegisterRequest, RegisterResponse, RequestPasswordResetRequest,
-    ResendVerificationRequest, SetupTOTPRequest, TOTPSetupResponse,
-    TokenResponse, UserResponse, VerifyEmailRequest, VerifyTOTPLoginRequest,
+    DisableTOTPRequest, LoginRequest, LoginResponse, LogoutRequest,  # Added LoginRequest
+    MessageResponse, POWChallengeResponse, POWVerifyRequest,
+    RefreshTokenRequest, RegisterRequest, RegisterResponse,
+    RequestPasswordResetRequest, ResendVerificationRequest,
+    SetupTOTPRequest, TOTPSetupResponse, TokenResponse, UserResponse,
+    VerifyEmailRequest, VerifyTOTPLoginRequest,
 )
 from services.auth_service import AuthService
 
@@ -192,10 +193,9 @@ async def resend_verification(
 # ─────────────────────────────────────────────────────────────────────────────
 # Login
 # ─────────────────────────────────────────────────────────────────────────────
-
 @router.post("/login", response_model=LoginResponse)
 async def login(
-    body: "LoginRequest",
+    body: LoginRequest,  # ✅ Use actual type, no quotes
     request: Request,
     auth_svc: AuthService = Depends(get_auth_service),
 ):
@@ -203,8 +203,7 @@ async def login(
     Authenticate with email + password.
     Returns tokens on success, or requires_totp=True if TOTP is enabled.
     """
-    from models.schemas import LoginRequest   # local to avoid circular at module level
-    try:
+    try:  # ✅ No local import needed
         result = await auth_svc.login(
             email=body.email,
             password=body.password,
