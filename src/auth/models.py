@@ -72,3 +72,32 @@ class PasswordStrengthResult(BaseModel):
     score:      int            # 0-5
     strength:   str            # "weak" | "fair" | "good" | "strong" | "very_strong"
     issues:     List[str]      # human-readable list of what's missing
+
+
+# ─────────────────────────────────────────────
+# Email Verification (EmailVerification module)
+# ─────────────────────────────────────────────
+
+from enum import Enum
+from typing import Optional as _Optional
+
+
+class EmailStatus(str, Enum):
+    VALID           = "valid"
+    INVALID_FORMAT  = "invalid_format"
+    DISPOSABLE      = "disposable"
+    SPAM            = "spam"
+
+
+class EmailValidationResult(BaseModel):
+    is_valid:         bool
+    status:           EmailStatus
+    message:          str
+    normalized_email: _Optional[str] = None
+
+
+class VerificationCode(BaseModel):
+    code:              str    # plain — caller sends this, does NOT persist
+    code_hash:         str    # SHA-256 hex — persist this
+    expires_at:        float  # unix timestamp
+    expires_in_seconds: int
