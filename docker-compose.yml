@@ -1,0 +1,88 @@
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: medledger_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-premananda}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-premananda23A}
+      POSTGRES_DB: ${DB_NAME:-medledger_db}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DB_USER:-premananda} -d ${DB_NAME:-medledger_db}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - medledger_network
+    restart: unless-stopped
+
+  flyway:
+    image: flyway/flyway:10-alpine
+    container_name: medledger_flyway
+    entrypoint: sh -c "
+      echo 'Waiting for PostgreSQL to be ready...' &&
+      until nc -z db 5432; do sleep 2; done &&
+      echo 'PostgreSQL is ready. Running Flyway migrations...' &&
+      flyway -url=jdbc:postgresql://db:5432/${DB_NAME:-medledger_db} \
+      -user=${DB_USER:-premananda} \
+      -password=${DB_PASSWORD:-premananda23A} \
+      -locations=filesystem:/flyway/sql \
+      -baselineOnMigrate=true \
+      migrate
+      "
+    volumes:
+      - ./sql:/flyway/sql
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - medledger_network
+
+  app:
+    build: .
+    container_name: medledger_app
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-premananda}:${DB_PASSWORD:-premananda23A}@db:5432/${DB_NAME:-medledger_db}
+      - DB_NAME=${DB_NAME:-medledger_db}
+      - DB_PASSWORD=${DB_PASSWORD:-premananda23A}
+      - DB_HOST=db
+      - DB_USER=${DB_USER:-premananda}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
+      - COOKIE_SAMESITE=${COOKIE_SAMESITE:-lax}
+      - COOKIE_DOMAIN=${COOKIE_DOMAIN:-localhost}
+      - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:5173","http://localhost:3000"]}
+      - HOST=${HOST:-0.0.0.0}
+      - PORT=${PORT:-8000}
+      - DEBUG=${DEBUG:-true}
+      - APP_NAME=${APP_NAME:-MedLedger API}
+      - APP_VERSION=${APP_VERSION:-1.0.0}
+    ports:
+      - "${PORT:-8000}:8000"
+    depends_on:
+      flyway:
+        condition: service_completed_successfully
+    volumes:
+      - ./src:/app/src
+      - ./p:/app/p
+    networks:
+      - medledger_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  medledger_network:
+    driver: bridge
