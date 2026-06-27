@@ -1,17 +1,17 @@
 /**
  * med-vault-detail.js — Single vault record view.
  *
- * Shows record metadata, allows decrypt + download, and links to share/grant flows.
- * Rendered with params: { recordId }
+ * FIX: connectedCallback() was calling _loadRecord() before _recordId was set
+ * by render(). Guard added: only load if _recordId is already present.
+ * render() sets _recordId then calls _loadRecord() directly.
  */
 
-import { getRecord } from '../services/vault.js';
+import { getRecord, deleteRecord } from '../services/vault.js';
 import { http } from '../services/http.js';
 import { decryptShare } from '../services/crypto.js';
 import { navigate } from '../services/router.js';
 import { toast } from './common/med-toast.js';
 import { confirm } from './common/med-confirm.js';
-import { deleteRecord } from '../services/vault.js';
 import './common/med-spinner.js';
 
 function formatBytes(n) {
@@ -25,6 +25,10 @@ function formatDate(iso) {
   return new Date(iso).toLocaleString();
 }
 
+function escapeHtml(str) {
+  return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function injectStyles() {
   if (document.querySelector('[data-med-detail-styles]')) return;
   const style = document.createElement('style');
@@ -36,7 +40,6 @@ function injectStyles() {
       gap: 1rem;
       margin-bottom: 1.5rem;
     }
-
     .detail-back {
       background: none;
       border: none;
@@ -48,7 +51,6 @@ function injectStyles() {
       transition: color 150ms ease;
     }
     .detail-back:hover { color: var(--color-text, #e8eaf0); }
-
     .detail-header h1 {
       margin: 0;
       font-size: 1.1rem;
@@ -58,7 +60,6 @@ function injectStyles() {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-
     .detail-card {
       background: var(--color-surface, #1c1f26);
       border: 1px solid var(--color-border, #2a2f3a);
@@ -66,14 +67,12 @@ function injectStyles() {
       padding: 1.5rem;
       margin-bottom: 1rem;
     }
-
     .detail-meta {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
       gap: 1rem;
       margin-bottom: 1.25rem;
     }
-
     .detail-meta-item label {
       display: block;
       font-size: 0.75rem;
@@ -82,39 +81,11 @@ function injectStyles() {
       letter-spacing: 0.05em;
       margin-bottom: 0.25rem;
     }
-
     .detail-meta-item span {
       font-size: 0.9rem;
       color: var(--color-text, #e8eaf0);
     }
-
-    .detail-actions {
-      display: flex;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-    }
-
-    .section-title {
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: var(--color-text, #e8eaf0);
-      margin: 0 0 0.75rem;
-    }
-
-    .tags-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.375rem;
-      margin-bottom: 1.25rem;
-    }
-
-    .tag {
-      padding: 0.2rem 0.625rem;
-      background: var(--color-hover, rgba(255,255,255,0.06));
-      border-radius: 9999px;
-      font-size: 0.775rem;
-      color: var(--color-text-muted, #9ca3af);
-    }
+    .detail-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
   `;
   document.head.appendChild(style);
 }
@@ -128,24 +99,25 @@ class MedVaultDetail extends HTMLElement {
 
   connectedCallback() {
     injectStyles();
-    this._render();
+    this._renderShell();
+    // FIX: only load if recordId was already set (e.g. if element was
+    // re-connected). render() sets _recordId and calls _loadRecord() itself.
+    if (this._recordId) this._loadRecord();
   }
 
-  _render() {
+  _renderShell() {
     this.innerHTML = `
       <div class="detail-header">
         <button class="detail-back" id="back-btn" aria-label="Back to vault">←</button>
-        <h1>Loading record…</h1>
+        <h1 id="detail-title">Loading…</h1>
       </div>
       <div id="detail-body">
         <div style="text-align:center;padding:2rem">
-          <med-spinner label="Loading…"></med-spinner>
+          <med-spinner label="Loading record…"></med-spinner>
         </div>
       </div>
     `;
-
     this.querySelector('#back-btn').addEventListener('click', () => navigate('/vault'));
-    this._loadRecord();
   }
 
   async _loadRecord() {
@@ -160,11 +132,7 @@ class MedVaultDetail extends HTMLElement {
 
   _renderRecord() {
     const r = this._record;
-    this.querySelector('.detail-header h1').textContent = r.filename;
-
-    const tags = (r.tags ?? []).length
-      ? `<div class="tags-list">${r.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>`
-      : '';
+    this.querySelector('#detail-title').textContent = r.filename ?? r.file_name ?? 'Record';
 
     this.querySelector('#detail-body').innerHTML = `
       <div class="detail-card">
@@ -175,7 +143,7 @@ class MedVaultDetail extends HTMLElement {
           </div>
           <div class="detail-meta-item">
             <label>Size</label>
-            <span>${formatBytes(r.size_bytes)}</span>
+            <span>${formatBytes(r.size_bytes ?? 0)}</span>
           </div>
           <div class="detail-meta-item">
             <label>Uploaded</label>
@@ -186,9 +154,6 @@ class MedVaultDetail extends HTMLElement {
             <span style="font-family:monospace;font-size:0.75rem">${escapeHtml(r.record_id)}</span>
           </div>
         </div>
-
-        ${tags}
-
         <div class="detail-actions">
           <button class="btn-primary" id="download-btn">
             <med-spinner size="sm" id="dl-spinner" hidden></med-spinner>
@@ -210,26 +175,25 @@ class MedVaultDetail extends HTMLElement {
   async _downloadRecord() {
     const btn     = this.querySelector('#download-btn');
     const spinner = this.querySelector('#dl-spinner');
-    btn.disabled  = true;
+    btn.disabled   = true;
     spinner.hidden = false;
 
     try {
-      // Fetch ciphertext
       const cipher = await http(`/api/vault/records/${this._recordId}/ciphertext`);
 
-      // Decrypt — the record owner uses the same DEK bundle as the share recipient
       const plaintext = await decryptShare(
-        cipher.ciphertext,
+        cipher.encrypted_record ?? cipher.ciphertext,
         cipher.nonce,
         cipher.dek_bundle,
       );
 
-      // Trigger browser download
-      const blob = new Blob([plaintext], { type: this._record?.mime_type ?? 'application/octet-stream' });
+      const blob = new Blob([plaintext], {
+        type: this._record?.mime_type ?? 'application/octet-stream',
+      });
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href     = url;
-      a.download = this._record?.filename ?? 'record';
+      a.download = this._record?.filename ?? this._record?.file_name ?? 'record';
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -241,7 +205,8 @@ class MedVaultDetail extends HTMLElement {
   }
 
   async _deleteRecord() {
-    const ok = await confirm(`Delete "${this._record?.filename ?? 'this record'}"?`, {
+    const name = this._record?.filename ?? this._record?.file_name;
+    const ok = await confirm(`Delete "${name ?? 'this record'}"?`, {
       detail: 'This cannot be undone.',
       confirmLabel: 'Delete',
     });
@@ -257,10 +222,6 @@ class MedVaultDetail extends HTMLElement {
   }
 }
 
-function escapeHtml(str) {
-  return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
 customElements.define('med-vault-detail', MedVaultDetail);
 
 export function render(params) {
@@ -268,7 +229,8 @@ export function render(params) {
   if (!content) return;
   content.innerHTML = '<med-vault-detail></med-vault-detail>';
   const el = content.querySelector('med-vault-detail');
+  // FIX: set _recordId BEFORE connectedCallback fires on next tick,
+  // then call _loadRecord() explicitly — connectedCallback guards on null _recordId
   el._recordId = params.recordId;
-  // Trigger load after recordId is set
   el._loadRecord();
 }

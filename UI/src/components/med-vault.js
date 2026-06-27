@@ -1,6 +1,9 @@
 /**
  * med-vault.js — Vault record list.
  *
+ * FIX: getPublicKeys() was being dynamically imported inside _upload().
+ * It is synchronous and already in memory — use a static top-level import.
+ *
  * Handles: list, upload (encrypt → upload), delete.
  * Navigate to /vault/:recordId for the detail/download view.
  */
@@ -24,68 +27,19 @@ function injectStyles() {
       margin-bottom: 1.5rem;
       gap: 1rem;
     }
-
     .vault-header h1 {
       margin: 0;
       font-size: 1.25rem;
       font-weight: 700;
       color: var(--color-text, #e8eaf0);
     }
-
-    .btn-primary {
-      padding: 0.5rem 1.125rem;
-      background: var(--color-accent, #3b82f6);
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      font-size: 0.875rem;
-      font-weight: 500;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.375rem;
-      transition: opacity 150ms ease;
-    }
-    .btn-primary:hover:not(:disabled) { opacity: 0.9; }
-    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-
-    .btn-ghost {
-      padding: 0.375rem 0.75rem;
-      background: none;
-      border: 1px solid var(--color-border, #2a2f3a);
-      border-radius: 6px;
-      color: var(--color-text-muted, #9ca3af);
-      font-size: 0.8125rem;
-      cursor: pointer;
-      transition: color 150ms ease, border-color 150ms ease;
-    }
-    .btn-ghost:hover { color: var(--color-text, #e8eaf0); border-color: #4b5563; }
-
-    .btn-danger {
-      padding: 0.375rem 0.75rem;
-      background: none;
-      border: 1px solid transparent;
-      border-radius: 6px;
-      color: #e05555;
-      font-size: 0.8125rem;
-      cursor: pointer;
-      transition: background 150ms ease;
-    }
-    .btn-danger:hover { background: rgba(224,85,85,0.1); }
-
     .vault-empty {
       text-align: center;
       padding: 4rem 1rem;
       color: var(--color-text-muted, #9ca3af);
     }
     .vault-empty p { margin: 0.5rem 0 0; font-size: 0.875rem; }
-
-    .vault-list {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-
+    .vault-list { display: flex; flex-direction: column; gap: 0.5rem; }
     .vault-record {
       display: flex;
       align-items: center;
@@ -97,18 +51,9 @@ function injectStyles() {
       cursor: pointer;
       transition: border-color 150ms ease;
     }
-
     .vault-record:hover { border-color: #4b5563; }
-
-    .vault-record-icon {
-      font-size: 1.5rem;
-      flex-shrink: 0;
-      width: 2rem;
-      text-align: center;
-    }
-
+    .vault-record-icon { font-size: 1.5rem; flex-shrink: 0; width: 2rem; text-align: center; }
     .vault-record-info { flex: 1; min-width: 0; }
-
     .vault-record-name {
       font-weight: 500;
       font-size: 0.9rem;
@@ -117,19 +62,12 @@ function injectStyles() {
       overflow: hidden;
       text-overflow: ellipsis;
     }
-
     .vault-record-meta {
       font-size: 0.775rem;
       color: var(--color-text-muted, #9ca3af);
       margin-top: 0.125rem;
     }
-
-    .vault-record-actions {
-      display: flex;
-      gap: 0.375rem;
-      flex-shrink: 0;
-    }
-
+    .vault-record-actions { display: flex; gap: 0.375rem; flex-shrink: 0; }
     .upload-progress {
       display: flex;
       align-items: center;
@@ -140,8 +78,8 @@ function injectStyles() {
       border-radius: 8px;
       font-size: 0.875rem;
       color: var(--color-text-muted, #9ca3af);
+      margin-bottom: 0.5rem;
     }
-
     .upload-progress[hidden] { display: none; }
   `;
   document.head.appendChild(style);
@@ -158,13 +96,17 @@ function mimeIcon(mimeType) {
 
 function formatBytes(n) {
   if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  if (n < 1048576) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1048576).toFixed(1)} MB`;
 }
 
 function formatDate(iso) {
   if (!iso) return '';
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function escapeHtml(str) {
+  return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 class MedVault extends HTMLElement {
@@ -183,17 +125,13 @@ class MedVault extends HTMLElement {
     this.innerHTML = `
       <div class="vault-header">
         <h1>Vault</h1>
-        <button class="btn-primary" id="upload-btn">
-          + Upload record
-        </button>
+        <button class="btn-primary" id="upload-btn">+ Upload record</button>
         <input type="file" id="file-input" hidden>
       </div>
-
       <div class="upload-progress" id="upload-progress" hidden>
         <med-spinner size="sm"></med-spinner>
         <span id="upload-label">Encrypting…</span>
       </div>
-
       <div id="vault-list-container">
         <div style="text-align:center;padding:2rem">
           <med-spinner label="Loading records…"></med-spinner>
@@ -208,10 +146,10 @@ class MedVault extends HTMLElement {
     this.querySelector('#file-input').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (file) this._upload(file);
-      e.target.value = ''; // reset so same file can be re-selected
+      e.target.value = '';
     });
 
-    // Event delegation for list actions
+    // Event delegation — registered once here, never inside _renderList
     this.querySelector('#vault-list-container').addEventListener('click', (e) => {
       const row      = e.target.closest('.vault-record');
       const recordId = row?.dataset.id;
@@ -219,13 +157,8 @@ class MedVault extends HTMLElement {
 
       if (e.target.classList.contains('btn-danger')) {
         e.stopPropagation();
-        this._deleteRecord(recordId, row.querySelector('.vault-record-name')?.textContent);
-        return;
-      }
-
-      if (e.target.classList.contains('btn-ghost')) {
-        e.stopPropagation();
-        navigate(`/vault/${recordId}`);
+        const name = row.querySelector('.vault-record-name')?.textContent;
+        this._deleteRecord(recordId, name);
         return;
       }
 
@@ -237,10 +170,9 @@ class MedVault extends HTMLElement {
     try {
       this._records = await listRecords();
       this._renderList();
-    } catch (err) {
-      this.querySelector('#vault-list-container').innerHTML = `
-        <p style="color:#e05555;text-align:center">Failed to load records.</p>
-      `;
+    } catch (_) {
+      this.querySelector('#vault-list-container').innerHTML =
+        '<p style="color:#e05555;text-align:center">Failed to load records.</p>';
     }
   }
 
@@ -262,13 +194,12 @@ class MedVault extends HTMLElement {
           <div class="vault-record" data-id="${escapeHtml(r.record_id)}">
             <div class="vault-record-icon">${mimeIcon(r.mime_type)}</div>
             <div class="vault-record-info">
-              <div class="vault-record-name">${escapeHtml(r.filename)}</div>
+              <div class="vault-record-name">${escapeHtml(r.filename ?? r.file_name ?? '')}</div>
               <div class="vault-record-meta">
-                ${escapeHtml(r.mime_type ?? '')} · ${formatBytes(r.size_bytes)} · ${formatDate(r.created_at)}
+                ${escapeHtml(r.mime_type ?? '')} · ${formatBytes(r.size_bytes ?? 0)} · ${formatDate(r.created_at)}
               </div>
             </div>
             <div class="vault-record-actions">
-              <button class="btn-ghost">View</button>
               <button class="btn-danger">Delete</button>
             </div>
           </div>
@@ -282,22 +213,25 @@ class MedVault extends HTMLElement {
     const labelEl    = this.querySelector('#upload-label');
     const uploadBtn  = this.querySelector('#upload-btn');
 
-    progressEl.hidden = false;
+    progressEl.hidden  = false;
     uploadBtn.disabled = true;
 
     try {
       labelEl.textContent = 'Encrypting…';
-      const fileBytes = new Uint8Array(await file.arrayBuffer());
-      const { publicKeys } = await import('../services/crypto.js').then(m => ({
-        publicKeys: m.getPublicKeys(),
-      }));
+
+      const fileBytes  = new Uint8Array(await file.arrayBuffer());
+
+      // FIX: static import — getPublicKeys() is synchronous, no dynamic import needed
+      const publicKeys = getPublicKeys();
+      if (!publicKeys) throw new Error('Crypto session is not unlocked.');
 
       const encrypted = await encryptRecord(fileBytes, publicKeys.exchangePublicKey);
 
       labelEl.textContent = 'Uploading…';
+
       await uploadRecord({
-        title:          file.name,
-        description:    '',
+        title:           file.name,
+        description:     '',
         encryptedRecord: encrypted.encryptedRecord,
         nonce:           encrypted.nonce,
         dekBundle:       encrypted.dekBundle,
@@ -311,14 +245,14 @@ class MedVault extends HTMLElement {
     } catch (err) {
       toast.error('Upload failed — ' + (err.message ?? 'unknown error'));
     } finally {
-      progressEl.hidden = true;
+      progressEl.hidden  = true;
       uploadBtn.disabled = false;
     }
   }
 
   async _deleteRecord(recordId, name) {
     const ok = await confirm(`Delete "${name ?? 'this record'}"?`, {
-      detail: 'This action cannot be undone. The encrypted file will be permanently removed.',
+      detail: 'This cannot be undone.',
       confirmLabel: 'Delete',
     });
     if (!ok) return;
@@ -332,10 +266,6 @@ class MedVault extends HTMLElement {
       toast.error('Delete failed.');
     }
   }
-}
-
-function escapeHtml(str) {
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 customElements.define('med-vault', MedVault);
