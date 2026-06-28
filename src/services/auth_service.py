@@ -8,8 +8,13 @@ for registration, login, verification, TOTP, tokens, and passwords.
 Layer contract:
   ✓ Imports from auth/ and database/
   ✓ All business decisions live here
-  ✗ No crypto operations (frontend handles all crypto)
+  ✗ No crypto operations (frontend handles all crypto; Argon2 lives in PasswordModule)
   ✗ No raw SQL (DatabaseRepository handles all queries)
+
+Password storage:
+  Argon2id via PasswordModule.hash_password() returns a single self-contained
+  string.  Store it in users.password_hash.  No separate salt or iterations
+  column is needed or used.
 """
 from __future__ import annotations
 
@@ -51,7 +56,7 @@ def _hash_code(code: str) -> str:
 def _safe_user(user: dict) -> dict:
     """Strip all secrets before returning user data to caller."""
     drop = {
-        "password_hash", "pwhash_salt", "server_salt",
+        "password_hash",
         "verification_token", "token_expires_at",
     }
     return {k: v for k, v in user.items() if k not in drop}
@@ -172,7 +177,7 @@ class AuthService:
 
         1. Validate password strength
         2. Check email/username availability
-        3. Hash password
+        3. Hash password (Argon2id → single string, no separate salt needed)
         4. Create user + store public keys
         5. Send verification code, store hash
         6. Audit log
@@ -193,22 +198,17 @@ class AuthService:
         if await self.db.username_exists(username):
             raise DuplicateError("Username is already taken.", field="username")
 
-        # 3. Hash password
-        ph = self.pw.hash_password(password)
+        # 3. Hash password — Argon2id returns a single self-contained string
+        password_hash = self.pw.hash_password(password)
 
         # 4. Create user
         user = await self.db.create_user(
             username=username,
             email=email,
             full_name=full_name,
-            password_hash=ph.hash_hex,
-        )
-
-        # 4b. Store public keys
-        await self.db.set_public_keys(
-            user_id_hex=user["user_id_hex"],
-            signing_public_key=signing_public_key,
-            exchange_public_key=exchange_public_key,
+            password_hash=password_hash,
+            signing_public_key=signing_public_key,    # ADD
+            exchange_public_key=exchange_public_key,  # ADD
         )
 
         # 5. Send + store verification code
@@ -256,7 +256,7 @@ class AuthService:
         Verify email with submitted code.
 
         1. Fetch stored code hash + expiry
-        2. Compare hashes (timing-safe via hashlib)
+        2. Compare hashes (timing-safe via secrets.compare_digest)
         3. Mark verified, clear token
         4. Audit log
 
@@ -330,48 +330,63 @@ class AuthService:
         """
         Authenticate a user.
 
-        1. Fetch user (always hash password to prevent timing attacks)
-        2. Check active + not deleted
-        3. Check rate limit / lockout
-        4. Verify password
+        1. Check rate limit / lockout FIRST (before any DB user fetch that
+           could leak timing info about account existence)
+        2. Fetch user — always run Argon2 verify to prevent timing attacks
+        3. Verify password
+        4. Check account status (active, not deleted)
         5. If TOTP enabled → return requires_totp signal
         6. Issue tokens, store refresh token
         7. Record login, reset rate limit, audit
+        8. Rehash password if Argon2 params have been upgraded
 
         Raises:
             ValueError: invalid credentials, account locked/inactive
         """
+        # 1. Lockout check BEFORE password verification.
+        #    This prevents a locked-out attacker from learning whether their
+        #    password guess is correct via a timing side-channel.
+        await self._check_login_lockout(email, ip_address)
+
         user = await self.db.get_user_by_email(email)
 
-        # Always run password hash — prevents user-enumeration via timing
-        dummy_hash = "a" * 128
-        dummy_salt = "b" * 32
-        stored_hash = user["password_hash"] if user else dummy_hash
-        stored_salt = user.get("pwhash_salt", dummy_salt) if user else dummy_salt
-
-        pw_ok = self.pw.verify_password(
-            password, stored_hash, stored_salt, self.pw.iterations
+        # Always run Argon2 verify — prevents user-enumeration via timing.
+        # Use a pre-hashed dummy when the user doesn't exist so the verify
+        # path takes the same amount of time regardless.
+        _DUMMY_HASH = (
+            "$argon2id$v=19$m=65536,t=3,p=4"
+            "$AAAAAAAAAAAAAAAAAAAAAA"
+            "$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
         )
+        stored_hash = user["password_hash"] if user else _DUMMY_HASH
+
+        pw_ok = self.pw.verify_password(password, stored_hash)
 
         if not user or not pw_ok:
             if user:
                 await self._handle_failed_login(user, ip_address)
             await self.audit.log_auth_event(
-                "login_failure", user["user_id_hex"] if user else "unknown",
-                ip_address, detail={"reason": "invalid_credentials"},
+                "login_failure",
+                user["user_id_hex"] if user else "unknown",
+                ip_address,
+                detail={"reason": "invalid_credentials"},
             )
             raise ValueError("Invalid email or password.")
 
+        # 2. Account status checks (after password verify — don't short-circuit
+        #    before verify or you leak account existence via timing)
         if user.get("account_deleted"):
             raise ValueError("Account has been deleted.")
 
         if not user.get("is_active"):
             raise ValueError("Account is inactive. Please contact support.")
 
-        # Check lockout via rate_limit table
-        await self._check_login_lockout(email, ip_address)
+        # 3. Opportunistic rehash — update Argon2 params if they've changed
+        if self.pw.needs_rehash(stored_hash):
+            new_hash = self.pw.hash_password(password)
+            await self.db.set_password_hash(user["user_id_hex"], new_hash)
 
-        # TOTP required?
+        # 4. TOTP required?
         if user.get("totp_enabled"):
             return {
                 "requires_totp": True,
@@ -575,13 +590,7 @@ class AuthService:
         if not user:
             raise RecordNotFoundError("User not found.")
 
-        pw_ok = self.pw.verify_password(
-            password,
-            user["password_hash"],
-            user.get("pwhash_salt", ""),
-            self.pw.iterations,
-        )
-        if not pw_ok:
+        if not self.pw.verify_password(password, user["password_hash"]):
             raise ValueError("Incorrect password.")
 
         secret = user.get("totp_secret")
@@ -622,7 +631,6 @@ class AuthService:
 
         if not stored:
             # Token not found or already revoked — could be reuse attack
-            # Try to find by hash in DB to get family_id for full revocation
             log.warning("Refresh token reuse or unknown token from IP %s", ip_address)
             raise ValueError("Invalid or expired refresh token.")
 
@@ -701,6 +709,10 @@ class AuthService:
 
         Revokes all refresh tokens after change (forces re-login).
 
+        FIX: previously called db.set_password_hash() with only the hash,
+        silently dropping the new salt. Argon2id embeds its own salt inside
+        the hash string, so a single column update is now correct by design.
+
         Raises:
             RecordNotFoundError: user not found
             ValueError: wrong old password, or new password too weak
@@ -709,18 +721,16 @@ class AuthService:
         if not user:
             raise RecordNotFoundError("User not found.")
 
-        if not self.pw.verify_password(
-            old_password, user["password_hash"],
-            user.get("pwhash_salt", ""), self.pw.iterations
-        ):
+        if not self.pw.verify_password(old_password, user["password_hash"]):
             raise ValueError("Current password is incorrect.")
 
         strength = self.pw.validate_strength(new_password)
         if not strength.valid:
             raise ValueError(f"New password too weak: {'; '.join(strength.issues)}")
 
-        ph = self.pw.hash_password(new_password)
-        await self.db.set_password_hash(user_id_hex, ph.hash_hex)
+        # hash_password() returns a single Argon2id string — salt is embedded
+        new_hash = self.pw.hash_password(new_password)
+        await self.db.set_password_hash(user_id_hex, new_hash)
         await self.db.revoke_all_user_refresh_tokens(user_id_hex)
         await self.audit.log_auth_event("password_change", user_id_hex, ip_address)
 
@@ -765,6 +775,10 @@ class AuthService:
         """
         Complete password reset with code + new password.
 
+        FIX: previously called db.set_password_hash() with only the hash,
+        silently dropping the new salt. Argon2id embeds the salt in the
+        hash string, so this is now correct.
+
         Raises:
             ValueError: invalid/expired code, or weak new password
         """
@@ -795,8 +809,10 @@ class AuthService:
         if not strength.valid:
             raise ValueError(f"New password too weak: {'; '.join(strength.issues)}")
 
-        ph = self.pw.hash_password(new_password)
-        await self.db.set_password_hash(user["user_id_hex"], ph.hash_hex)
+        # hash_password() returns a single Argon2id string — salt is embedded
+        new_hash = self.pw.hash_password(new_password)
+        await self.db.set_password_hash(user["user_id_hex"], new_hash)
+        # Clear the used reset token
         await self.db.store_verification_token(user["user_id_hex"], "", "")
         await self.db.revoke_all_user_refresh_tokens(user["user_id_hex"])
         await self.audit.log_auth_event(

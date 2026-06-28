@@ -6,12 +6,13 @@ No database models here — those live in models/schemas.py.
 """
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, EmailStr
 
 
 # ─────────────────────────────────────────────
-# Email
+# Email (send / basic format validation)
 # ─────────────────────────────────────────────
 
 class EmailSendResult(BaseModel):
@@ -19,12 +20,6 @@ class EmailSendResult(BaseModel):
     email:      str
     code:       Optional[str] = None   # plain code — orchestrator stores this
     error:      Optional[str] = None
-
-
-class EmailValidationResult(BaseModel):
-    valid:      bool
-    email:      str
-    reason:     Optional[str] = None   # why it failed, if it did
 
 
 # ─────────────────────────────────────────────
@@ -59,13 +54,12 @@ class POWVerifyResult(BaseModel):
 
 # ─────────────────────────────────────────────
 # Password
+#
+# PasswordHashResult is intentionally removed.
+# Argon2id (PasswordModule.hash_password) returns a plain str — a single
+# self-contained hash string that encodes algorithm, parameters, salt, and
+# hash.  There is nothing else to store alongside it.
 # ─────────────────────────────────────────────
-
-class PasswordHashResult(BaseModel):
-    hash_hex:   str
-    salt_hex:   str
-    iterations: int
-
 
 class PasswordStrengthResult(BaseModel):
     valid:      bool
@@ -76,10 +70,23 @@ class PasswordStrengthResult(BaseModel):
 
 # ─────────────────────────────────────────────
 # Email Verification (EmailVerification module)
+#
+# Previously EmailValidationResult was defined twice — once as a simple
+# format-check result (valid, email, reason) and once as the richer
+# verification result below.  The first definition was silently shadowed.
+#
+# Resolution:
+#   • The richer model below keeps the EmailValidationResult name because
+#     it is used throughout email_verification.py and its callers.
+#   • The thin format-check result that email.py returns is now called
+#     EmailFormatResult so callers can import the right type explicitly.
 # ─────────────────────────────────────────────
 
-from enum import Enum
-from typing import Optional as _Optional
+class EmailFormatResult(BaseModel):
+    """Returned by EmailAuthModule.validate_format() — basic syntax check only."""
+    valid:      bool
+    email:      str
+    reason:     Optional[str] = None   # why it failed, if it did
 
 
 class EmailStatus(str, Enum):
@@ -90,14 +97,15 @@ class EmailStatus(str, Enum):
 
 
 class EmailValidationResult(BaseModel):
+    """Returned by EmailVerificationModule — full disposable/spam check."""
     is_valid:         bool
     status:           EmailStatus
     message:          str
-    normalized_email: _Optional[str] = None
+    normalized_email: Optional[str] = None
 
 
 class VerificationCode(BaseModel):
-    code:              str    # plain — caller sends this, does NOT persist
-    code_hash:         str    # SHA-256 hex — persist this
-    expires_at:        float  # unix timestamp
+    code:               str    # plain — caller sends this, does NOT persist
+    code_hash:          str    # SHA-256 hex — persist this
+    expires_at:         float  # unix timestamp
     expires_in_seconds: int

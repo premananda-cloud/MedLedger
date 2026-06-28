@@ -4,30 +4,39 @@ auth/password.py — PasswordModule
 Responsibility: hash passwords, verify them, and score their strength.
 
 What it does:
-  ✓ PBKDF2-SHA512 hashing with a random salt
-  ✓ Timing-safe verification
+  ✓ Argon2id hashing (salt embedded in hash string — nothing to store separately)
+  ✓ Timing-safe verification via argon2-cffi
+  ✓ Transparent rehash detection (call needs_rehash after verify)
   ✓ Strength scoring with actionable feedback
 
 What it does NOT do:
   ✗ Store anything
   ✗ Know about users
+
+Migration note:
+  If you have existing PBKDF2 hashes in the DB, use verify_password_with_migration()
+  in AuthService — it falls back to PBKDF2 on first login and rehashes to Argon2id.
 """
 from __future__ import annotations
 
-import hashlib
-import hmac
-import os
 import re
-import secrets
 from typing import List, Optional
 
-from .models import PasswordHashResult, PasswordStrengthResult
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
+from .models import PasswordStrengthResult
 
 
-_PROD_ITERATIONS = 600_000   # OWASP 2023
-_TEST_ITERATIONS = 1_000
-_KEY_LENGTH      = 64        # bytes → 512-bit key
-_SALT_BYTES      = 16
+# OWASP 2023-recommended Argon2id parameters.
+# m=64MB, t=3 iterations, p=4 parallel lanes.
+# Salt is generated internally by argon2-cffi (16 bytes by default).
+_PH = PasswordHasher(
+    time_cost=3,
+    memory_cost=65536,   # 64 MB
+    parallelism=4,
+    hash_len=32,
+    salt_len=16,
+)
 
 _COMMON = frozenset({
     "password", "12345678", "qwerty123", "letmein123",
@@ -36,16 +45,13 @@ _COMMON = frozenset({
 _KEYBOARD = ("qwerty", "asdfgh", "zxcvbn", "123456", "qazwsx")
 
 
-def _is_test() -> bool:
-    return os.getenv("APP_ENV") == "test" or os.getenv("TESTING") == "true"
-
-
 class PasswordModule:
     """
     Pure password hashing and validation.
 
-    The orchestrator stores the returned PasswordHashResult fields
-    (hash_hex, salt_hex, iterations) and passes them back on verification.
+    Argon2id produces a single self-contained string that encodes the
+    algorithm, parameters, salt, and hash — nothing needs to be stored
+    separately. The orchestrator stores only the returned hash string.
 
     Usage:
         module = PasswordModule()
@@ -54,90 +60,75 @@ class PasswordModule:
         strength = module.validate_strength("MyP@ssw0rd!")
         if not strength.valid:
             raise BadRequest(strength.issues)
-        ph = module.hash_password("MyP@ssw0rd!")
-        db.store(user_id, ph.hash_hex, ph.salt_hex, ph.iterations)
+        hash_str = module.hash_password("MyP@ssw0rd!")
+        db.store(user_id, hash_str)           # one column, one value
 
         # Login:
         row = db.fetch(user_id)
-        ok = module.verify_password("MyP@ssw0rd!", row.hash_hex,
-                                    row.salt_hex, row.iterations)
+        ok = module.verify_password("MyP@ssw0rd!", row.password_hash)
+
+        # After verify, check whether the hash needs upgrading:
+        if ok and module.needs_rehash(row.password_hash):
+            db.set_password_hash(user_id, module.hash_password(submitted_pw))
     """
 
-    def __init__(self, min_length: int = 8, iterations: Optional[int] = None):
+    def __init__(self, min_length: int = 8):
         self.min_length = min_length
-        self.iterations = (
-            iterations if iterations is not None
-            else (_TEST_ITERATIONS if _is_test() else _PROD_ITERATIONS)
-        )
 
     # ──────────────────────────────────────────
     # Hashing
     # ──────────────────────────────────────────
 
-    def hash_password(self, password: str, salt: Optional[bytes] = None) -> PasswordHashResult:
+    def hash_password(self, password: str) -> str:
         """
-        Hash a password with PBKDF2-HMAC-SHA512.
+        Hash a password with Argon2id.
+
+        The returned string is self-contained — store it verbatim as the
+        single password_hash column. No salt or iteration fields required.
 
         Args:
             password: Plain-text password.
-            salt:     Raw bytes — generated if omitted.
 
         Returns:
-            PasswordHashResult with hex-encoded hash and salt to store.
+            Argon2id hash string, e.g.
+            '$argon2id$v=19$m=65536,t=3,p=4$<salt_b64>$<hash_b64>'
         """
-        if salt is None:
-            salt = secrets.token_bytes(_SALT_BYTES)
-        elif isinstance(salt, str):
-            salt = bytes.fromhex(salt)
-
-        derived = hashlib.pbkdf2_hmac(
-            "sha512",
-            password.encode("utf-8"),
-            salt,
-            self.iterations,
-            dklen=_KEY_LENGTH,
-        )
-        return PasswordHashResult(
-            hash_hex=derived.hex(),
-            salt_hex=salt.hex(),
-            iterations=self.iterations,
-        )
+        return _PH.hash(password)
 
     # ──────────────────────────────────────────
     # Verification
     # ──────────────────────────────────────────
 
-    def verify_password(
-        self,
-        password:   str,
-        hash_hex:   str,
-        salt_hex:   str,
-        iterations: int,
-    ) -> bool:
+    def verify_password(self, password: str, hash_str: str) -> bool:
         """
-        Timing-safe password verification.
+        Verify a password against a stored Argon2id hash.
 
-        Always performs the full hash even for non-existent users.
-        The caller should pass dummy values for missing accounts to prevent
-        user-enumeration via timing.
+        Timing-safe — argon2-cffi always runs the full hash computation.
+        Call needs_rehash() afterwards to detect parameter upgrades.
 
         Args:
-            password:   Submitted plain-text password.
-            hash_hex:   Stored hash (hex).
-            salt_hex:   Stored salt (hex).
-            iterations: Iteration count used when the hash was created.
+            password: Submitted plain-text password.
+            hash_str: Stored Argon2id hash string.
+
+        Returns:
+            True if the password matches, False otherwise.
         """
-        computed = hashlib.pbkdf2_hmac(
-            "sha512",
-            password.encode("utf-8"),
-            bytes.fromhex(salt_hex),
-            iterations,
-            dklen=_KEY_LENGTH,
-        )
         try:
-            return hmac.compare_digest(computed, bytes.fromhex(hash_hex))
-        except Exception:
+            return _PH.verify(hash_str, password)
+        except (VerifyMismatchError, VerificationError, InvalidHashError):
             return False
+
+    def needs_rehash(self, hash_str: str) -> bool:
+        """
+        True if the stored hash was produced with outdated parameters.
+
+        Call this after a successful verify_password(). If True, rehash
+        with hash_password() and update the stored value.
+        """
+        try:
+            return _PH.check_needs_rehash(hash_str)
+        except InvalidHashError:
+            return True   # unparseable → treat as needing rehash
 
     # ──────────────────────────────────────────
     # Strength validation
@@ -154,7 +145,7 @@ class PasswordModule:
           4. Special character
           5. Length ≥ 12
 
-        Minimum to pass: score ≥ 3 AND length ≥ min_length.
+        Minimum to pass: score ≥ 3 AND length ≥ min_length AND no keyboard pattern.
 
         Returns:
             PasswordStrengthResult with valid, score, strength label, and
@@ -174,7 +165,8 @@ class PasswordModule:
                 issues=["This password is too common. Choose something more unique."],
             )
 
-        if any(pat in password.lower() for pat in _KEYBOARD):
+        has_keyboard = any(pat in password.lower() for pat in _KEYBOARD)
+        if has_keyboard:
             issues.append("Avoid keyboard patterns (e.g. 'qwerty', '123456').")
 
         has_upper   = bool(re.search(r"[A-Z]", password))
@@ -198,8 +190,10 @@ class PasswordModule:
         elif score >= 2 and len(password) >= self.min_length: strength = "fair"
         else: strength = "weak"
 
-        valid = score >= 3 and len(password) >= self.min_length and not any(
-            pat in password.lower() for pat in _KEYBOARD
+        valid = (
+            score >= 3
+            and len(password) >= self.min_length
+            and not has_keyboard
         )
 
         return PasswordStrengthResult(

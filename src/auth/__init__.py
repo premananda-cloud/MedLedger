@@ -32,7 +32,6 @@ from .models import (
     TOTPSecret,
     POWChallenge,
     POWVerifyResult,
-    PasswordHashResult,
     PasswordStrengthResult,
 )
 
@@ -48,6 +47,5 @@ __all__ = [
     "TOTPSecret",
     "POWChallenge",
     "POWVerifyResult",
-    "PasswordHashResult",
     "PasswordStrengthResult",
 ]
