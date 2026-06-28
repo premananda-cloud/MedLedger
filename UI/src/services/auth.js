@@ -196,7 +196,7 @@ export async function logoutAll() {
 export async function changePassword(currentPassword, newPassword) {
   return http('/api/auth/change-password', {
     method: 'POST',
-    body: { current_password: currentPassword, new_password: newPassword },
+    body: { old_password: currentPassword, new_password: newPassword },
   });
 }
 

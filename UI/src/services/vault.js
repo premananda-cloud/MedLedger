@@ -1,10 +1,12 @@
 /**
  * vault.js — Medical records (vault) service.
  *
- * All encryption/decryption is done via services/crypto.js before calling
- * these functions. This service only handles the network I/O.
+ * FIX: CreateVaultRecordRequest field names corrected to match OpenAPI schema.
+ * Previous field names (encrypted_record, nonce, file_name) were wrong.
+ * Correct names per schema: ciphertext, iv_hex, filename, record_id,
+ * owner_key_hash, owner_public_key_hex, size_bytes, mime_type, dek_bundle.
  *
- * The caller is responsible for:
+ * The caller (med-vault.js) is responsible for:
  *   - Encrypting the file bytes via crypto.encryptRecord() before upload
  *   - Decrypting the returned bytes via crypto.decryptShare() after download
  */
@@ -25,50 +27,52 @@ export async function listRecords() {
  * @returns {VaultRecord}
  */
 export async function getRecord(recordId) {
-  return http(`/api/vault/records/${recordId}`);
+  return http(`/api/vault/records/${encodeURIComponent(recordId)}`);
 }
 
 /**
- * uploadRecord({ title, description, encryptedRecord, nonce, dekBundle,
- *                fileHash, mimeType, fileName })
+ * uploadRecord({
+ *   recordId,           ← unique ID generated client-side (uuid or crypto random)
+ *   ownerKeyHash,       ← hash of owner's signing public key
+ *   ownerPublicKeyHex,  ← owner's signing public key hex
+ *   filename,           ← original file name
+ *   mimeType,
+ *   sizeBytes,          ← plaintext file size in bytes
+ *   ivHex,              ← nonce/IV as hex string (from encryptRecord)
+ *   ciphertext,         ← base64url encrypted content (from encryptRecord)
+ *   dekBundle,          ← object: sealed DEK (from encryptRecord)
+ *   tags,               ← optional string[]
+ * })
  *
  * All encrypted fields come from crypto.encryptRecord().
  * @returns {VaultRecord}
  */
 export async function uploadRecord({
-  title,
-  description,
-  encryptedRecord,
-  nonce,
-  dekBundle,
-  fileHash,
+  recordId,
+  ownerKeyHash,
+  ownerPublicKeyHex,
+  filename,
   mimeType,
-  fileName,
+  sizeBytes,
+  ivHex,
+  ciphertext,
+  dekBundle,
+  tags,
 }) {
   return http('/api/vault/records', {
     method: 'POST',
     body: {
-      title,
-      description,
-      encrypted_record: encryptedRecord,
-      nonce,
-      dek_bundle: dekBundle,
-      file_hash: fileHash,
-      mime_type: mimeType,
-      file_name: fileName,
+      record_id:            recordId,
+      owner_key_hash:       ownerKeyHash,
+      owner_public_key_hex: ownerPublicKeyHex,
+      filename,
+      mime_type:            mimeType,
+      size_bytes:           sizeBytes,
+      iv_hex:               ivHex,
+      ciphertext,
+      dek_bundle:           dekBundle,
+      ...(tags ? { tags } : {}),
     },
-  });
-}
-
-/**
- * updateRecord(recordId, { title, description })
- * Only metadata fields can be updated — ciphertext is immutable.
- * @returns {VaultRecord}
- */
-export async function updateRecord(recordId, { title, description }) {
-  return http(`/api/vault/records/${recordId}`, {
-    method: 'PUT',
-    body: { title, description },
   });
 }
 
@@ -76,5 +80,7 @@ export async function updateRecord(recordId, { title, description }) {
  * deleteRecord(recordId)
  */
 export async function deleteRecord(recordId) {
-  return http(`/api/vault/records/${recordId}`, { method: 'DELETE' });
+  return http(`/api/vault/records/${encodeURIComponent(recordId)}`, {
+    method: 'DELETE',
+  });
 }

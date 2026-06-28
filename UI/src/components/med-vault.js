@@ -229,15 +229,20 @@ class MedVault extends HTMLElement {
 
       labelEl.textContent = 'Uploading…';
 
+      // Generate a client-side record ID (random hex)
+      const recordId = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+        .map(b => b.toString(16).padStart(2, '0')).join('');
+
       await uploadRecord({
-        title:           file.name,
-        description:     '',
-        encryptedRecord: encrypted.encryptedRecord,
-        nonce:           encrypted.nonce,
-        dekBundle:       encrypted.dekBundle,
-        fileHash:        encrypted.fileHash,
-        mimeType:        file.type || 'application/octet-stream',
-        fileName:        file.name,
+        recordId,
+        ownerKeyHash:      publicKeys.userIdHex,
+        ownerPublicKeyHex: publicKeys.signingPublicKey,
+        filename:          file.name,
+        mimeType:          file.type || 'application/octet-stream',
+        sizeBytes:         file.size,
+        ivHex:             encrypted.nonce,
+        ciphertext:        encrypted.encryptedRecord,
+        dekBundle:         { bundle: encrypted.dekBundle, hash: encrypted.fileHash },
       });
 
       toast.success(`${file.name} uploaded`);
