@@ -55,11 +55,24 @@ class POWVerifyResult(BaseModel):
 # ─────────────────────────────────────────────
 # Password
 #
-# PasswordHashResult is intentionally removed.
+# PasswordHashResult is kept as a compatibility shim.
 # Argon2id (PasswordModule.hash_password) returns a plain str — a single
 # self-contained hash string that encodes algorithm, parameters, salt, and
-# hash.  There is nothing else to store alongside it.
+# hash. There is nothing else to store alongside it.
+# The shim exists so auth/__init__.py imports keep working without changes.
 # ─────────────────────────────────────────────
+
+class PasswordHashResult(BaseModel):
+    """
+    Compatibility shim — kept so existing import sites don't break.
+    With Argon2id, hash_password() returns a plain str. Only hash_hex is
+    meaningful if you receive one of these; salt_hex and iterations are
+    empty sentinels. New code should use the str return value directly.
+    """
+    hash_hex:   str
+    salt_hex:   str = ""
+    iterations: int = 0
+
 
 class PasswordStrengthResult(BaseModel):
     valid:      bool
@@ -73,20 +86,22 @@ class PasswordStrengthResult(BaseModel):
 #
 # Previously EmailValidationResult was defined twice — once as a simple
 # format-check result (valid, email, reason) and once as the richer
-# verification result below.  The first definition was silently shadowed.
+# verification result below. The first definition was silently shadowed.
 #
 # Resolution:
 #   • The richer model below keeps the EmailValidationResult name because
 #     it is used throughout email_verification.py and its callers.
 #   • The thin format-check result that email.py returns is now called
 #     EmailFormatResult so callers can import the right type explicitly.
+#   • Backward-compatible .valid and .email properties are added so any
+#     existing callers using the old field names keep working.
 # ─────────────────────────────────────────────
 
 class EmailFormatResult(BaseModel):
     """Returned by EmailAuthModule.validate_format() — basic syntax check only."""
     valid:      bool
     email:      str
-    reason:     Optional[str] = None   # why it failed, if it did
+    reason:     Optional[str] = None
 
 
 class EmailStatus(str, Enum):
@@ -97,11 +112,27 @@ class EmailStatus(str, Enum):
 
 
 class EmailValidationResult(BaseModel):
-    """Returned by EmailVerificationModule — full disposable/spam check."""
+    """
+    Returned by EmailVerificationModule — full disposable/spam check.
+
+    Backward-compatible aliases:
+      .valid  → .is_valid          (old field name)
+      .email  → .normalized_email  (old field name)
+    """
     is_valid:         bool
     status:           EmailStatus
     message:          str
     normalized_email: Optional[str] = None
+
+    @property
+    def valid(self) -> bool:
+        """Backward-compatible alias for is_valid."""
+        return self.is_valid
+
+    @property
+    def email(self) -> Optional[str]:
+        """Backward-compatible alias for normalized_email."""
+        return self.normalized_email
 
 
 class VerificationCode(BaseModel):
