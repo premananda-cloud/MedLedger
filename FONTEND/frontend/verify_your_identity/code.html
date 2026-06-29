@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Verify Your Identity | VaultGuard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Geist:wght@400;500&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .digit-input:focus {
+            box-shadow: 0 0 0 2px rgba(192, 193, 255, 0.2);
+            outline: none;
+        }
+        @keyframes pulse-border {
+            0%, 100% { border-color: #464554; }
+            50% { border-color: #c0c1ff; }
+        }
+        .verifying-glow {
+            animation: pulse-border 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .vault-gradient {
+            background: linear-gradient(135deg, rgba(19, 27, 46, 1) 0%, rgba(11, 19, 38, 1) 100%);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-container": "#00885d",
+                        "surface-tint": "#c0c1ff",
+                        "on-background": "#dae2fd",
+                        "tertiary-fixed": "#6ffbbe",
+                        "on-secondary-fixed": "#0d1c2d",
+                        "surface": "#0b1326",
+                        "surface-container-low": "#131b2e",
+                        "secondary": "#b9c8de",
+                        "on-surface-variant": "#c7c4d7",
+                        "background": "#0b1326",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "on-tertiary-container": "#000703",
+                        "primary": "#c0c1ff",
+                        "on-secondary-fixed-variant": "#39485a",
+                        "primary-container": "#8083ff",
+                        "surface-container-high": "#222a3d",
+                        "inverse-primary": "#494bd6",
+                        "on-secondary": "#233143",
+                        "on-primary-fixed": "#07006c",
+                        "on-error": "#690005",
+                        "secondary-fixed-dim": "#b9c8de",
+                        "inverse-on-surface": "#283044",
+                        "surface-variant": "#2d3449",
+                        "tertiary": "#4edea3",
+                        "error": "#ffb4ab",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "on-surface": "#dae2fd",
+                        "on-secondary-container": "#a7b6cc",
+                        "on-primary": "#1000a9",
+                        "on-tertiary": "#003824",
+                        "outline-variant": "#464554",
+                        "secondary-fixed": "#d4e4fa",
+                        "surface-dim": "#0b1326",
+                        "secondary-container": "#39485a",
+                        "surface-container-lowest": "#060e20",
+                        "on-tertiary-fixed": "#002113",
+                        "on-error-container": "#ffdad6",
+                        "on-primary-container": "#0d0096",
+                        "surface-container": "#171f33",
+                        "surface-bright": "#31394d",
+                        "primary-fixed": "#e1e0ff",
+                        "inverse-surface": "#dae2fd",
+                        "surface-container-highest": "#2d3449",
+                        "outline": "#908fa0",
+                        "error-container": "#93000a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "3xl": "64px",
+                        "md": "16px",
+                        "gutter": "24px",
+                        "xs": "4px",
+                        "base": "4px",
+                        "lg": "24px",
+                        "2xl": "48px",
+                        "sm": "8px",
+                        "margin": "32px",
+                        "xl": "32px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Geist"],
+                        "body-lg": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "mono-data": ["Geist"],
+                        "headline-md": ["Inter"],
+                        "label-sm": ["Geist"],
+                        "headline-lg": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["14px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "mono-data": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-md min-h-screen flex flex-col selection:bg-primary selection:text-on-primary">
+<!-- Header Navigation (Simplified for Auth Flow) -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 border-b border-outline-variant bg-surface">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">shield</span>
+<span class="font-headline-md text-headline-md font-bold text-primary tracking-tight">VaultGuard</span>
+</div>
+<a class="text-on-surface-variant font-label-md hover:text-primary transition-colors flex items-center gap-2" href="#">
+<span class="material-symbols-outlined text-[20px]">help_outline</span>
+            Support
+        </a>
+</header>
+<main class="flex-grow flex items-center justify-center px-4 pt-16 pb-12 relative overflow-hidden">
+<!-- Subtle WebGL Background Decor -->
+
+<div class="z-10 w-full max-w-md">
+<!-- Central Auth Card -->
+<div class="bg-surface-container-low border border-outline-variant rounded-xl p-xl shadow-2xl relative overflow-hidden">
+<!-- Inner Tonal Layer Effect -->
+<div class="absolute inset-0 vault-gradient opacity-40 pointer-events-none"></div>
+<div class="relative z-10">
+<!-- Identity Header -->
+<div class="text-center mb-xl">
+<div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary-container/20 border border-primary/30 mb-md">
+<span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings: 'FILL' 1;">mark_email_read</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg mb-xs">Verify your email</h1>
+<p class="text-on-surface-variant font-body-md">
+                            We've sent a 6-digit verification code to <br/>
+<span class="text-primary font-medium">user@enterprise-vault.com</span>
+</p>
+</div>
+<!-- 6-Digit Entry Fields -->
+<form class="space-y-xl" id="otp-form">
+<div class="flex justify-between gap-2 sm:gap-4" id="otp-inputs">
+<input class="digit-input w-full h-14 sm:h-16 text-center text-headline-md font-bold bg-surface-container-highest border border-outline-variant rounded-lg text-primary focus:border-primary transition-all duration-200" inputmode="numeric" maxlength="1" pattern="\d*" required="" type="text"/>
+<input class="digit-input w-full h-14 sm:h-16 text-center text-headline-md font-bold bg-surface-container-highest border border-outline-variant rounded-lg text-primary focus:border-primary transition-all duration-200" inputmode="numeric" maxlength="1" pattern="\d*" required="" type="text"/>
+<input class="digit-input w-full h-14 sm:h-16 text-center text-headline-md font-bold bg-surface-container-highest border border-outline-variant rounded-lg text-primary focus:border-primary transition-all duration-200" inputmode="numeric" maxlength="1" pattern="\d*" required="" type="text"/>
+<input class="digit-input w-full h-14 sm:h-16 text-center text-headline-md font-bold bg-surface-container-highest border border-outline-variant rounded-lg text-primary focus:border-primary transition-all duration-200" inputmode="numeric" maxlength="1" pattern="\d*" required="" type="text"/>
+<input class="digit-input w-full h-14 sm:h-16 text-center text-headline-md font-bold bg-surface-container-highest border border-outline-variant rounded-lg text-primary focus:border-primary transition-all duration-200" inputmode="numeric" maxlength="1" pattern="\d*" required="" type="text"/>
+<input class="digit-input w-full h-14 sm:h-16 text-center text-headline-md font-bold bg-surface-container-highest border border-outline-variant rounded-lg text-primary focus:border-primary transition-all duration-200" inputmode="numeric" maxlength="1" pattern="\d*" required="" type="text"/>
+</div>
+<button class="w-full bg-primary-container text-on-primary-container font-label-md h-12 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-[0_0_15px_rgba(128,131,255,0.3)]" id="verify-btn" type="submit">
+<span>Verify Security Code</span>
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</button>
+</form>
+<!-- Resend Logic -->
+<div class="mt-xl text-center">
+<p class="text-on-surface-variant font-body-sm mb-sm">Didn't receive the code?</p>
+<button class="text-primary font-label-md hover:underline flex items-center justify-center gap-1 mx-auto transition-all disabled:opacity-50 disabled:no-underline" id="resend-btn">
+<span class="material-symbols-outlined text-[18px]">refresh</span>
+                            Resend Code <span class="ml-1 text-on-surface-variant" id="timer">(60s)</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Trust Badges / Footer -->
+<div class="mt-lg grid grid-cols-1 gap-4 opacity-60">
+<div class="flex items-center justify-center gap-6 py-4 border-t border-outline-variant/30">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">lock</span>
+<span class="text-label-sm font-label-sm">AES-256</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">verified_user</span>
+<span class="text-label-sm font-label-sm">ISO 27001</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">security</span>
+<span class="text-label-sm font-label-sm">E2EE</span>
+</div>
+</div>
+<div class="text-center">
+<p class="text-on-surface-variant font-label-sm">VaultGuard Inc. © 2024. All sensitive data is encrypted locally before transmission.</p>
+</div>
+</div>
+</div>
+</main>
+<!-- Success Toast (Hidden by default) -->
+<div class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-surface-container-high border border-tertiary text-tertiary px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl opacity-0 translate-y-10 transition-all duration-500 pointer-events-none z-[100]" id="toast">
+<span class="material-symbols-outlined">check_circle</span>
+<span class="font-label-md">Identity verified. Accessing vault...</span>
+</div>
+<script>
+        // OTP Auto-focus and Navigation
+        const inputs = document.querySelectorAll('#otp-inputs input');
+        const verifyBtn = document.getElementById('verify-btn');
+        const resendBtn = document.getElementById('resend-btn');
+        const timerSpan = document.getElementById('timer');
+        const toast = document.getElementById('toast');
+
+        inputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                if (e.target.value.length === 1 && index < inputs.length - 1) {
+                    inputs[index + 1].focus();
+                }
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                    inputs[index - 1].focus();
+                }
+            });
+
+            input.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const pasteData = e.clipboardData.getData('text').slice(0, 6).split('');
+                pasteData.forEach((char, i) => {
+                    if (inputs[i]) inputs[i].value = char;
+                });
+                if (inputs[pasteData.length - 1]) inputs[pasteData.length - 1].focus();
+            });
+        });
+
+        // Countdown Timer for Resend
+        let timeLeft = 60;
+        const countdown = setInterval(() => {
+            if (timeLeft <= 0) {
+                clearInterval(countdown);
+                timerSpan.textContent = '';
+                resendBtn.disabled = false;
+            } else {
+                timeLeft--;
+                timerSpan.textContent = `(${timeLeft}s)`;
+                resendBtn.disabled = true;
+            }
+        }, 1000);
+
+        // Simulation of submission
+        document.getElementById('otp-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            verifyBtn.innerHTML = `
+                <svg class="animate-spin h-5 w-5 text-on-primary-container" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Verifying...</span>
+            `;
+            verifyBtn.classList.add('verifying-glow');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-0', 'translate-y-10');
+                toast.classList.add('opacity-100', 'translate-y-0');
+                
+                setTimeout(() => {
+                    // Redirect simulation
+                    window.location.reload();
+                }, 2000);
+            }, 1500);
+        });
+
+        resendBtn.addEventListener('click', () => {
+            alert('A new verification code has been dispatched.');
+            // Reset timer logic could go here
+        });
+    </script>
+</body></html>

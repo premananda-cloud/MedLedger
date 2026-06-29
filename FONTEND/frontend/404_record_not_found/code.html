@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>404 - Record Not Found | VaultGuard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Geist:wght@400;500&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary-container": "#00885d",
+                    "surface-tint": "#c0c1ff",
+                    "on-background": "#dae2fd",
+                    "tertiary-fixed": "#6ffbbe",
+                    "on-secondary-fixed": "#0d1c2d",
+                    "surface": "#0b1326",
+                    "surface-container-low": "#131b2e",
+                    "secondary": "#b9c8de",
+                    "on-surface-variant": "#c7c4d7",
+                    "background": "#0b1326",
+                    "tertiary-fixed-dim": "#4edea3",
+                    "primary-fixed-dim": "#c0c1ff",
+                    "on-tertiary-container": "#000703",
+                    "primary": "#c0c1ff",
+                    "on-secondary-fixed-variant": "#39485a",
+                    "primary-container": "#8083ff",
+                    "surface-container-high": "#222a3d",
+                    "inverse-primary": "#494bd6",
+                    "on-secondary": "#233143",
+                    "on-primary-fixed": "#07006c",
+                    "on-error": "#690005",
+                    "secondary-fixed-dim": "#b9c8de",
+                    "inverse-on-surface": "#283044",
+                    "surface-variant": "#2d3449",
+                    "tertiary": "#4edea3",
+                    "error": "#ffb4ab",
+                    "on-tertiary-fixed-variant": "#005236",
+                    "on-primary-fixed-variant": "#2f2ebe",
+                    "on-surface": "#dae2fd",
+                    "on-secondary-container": "#a7b6cc",
+                    "on-primary": "#1000a9",
+                    "on-tertiary": "#003824",
+                    "outline-variant": "#464554",
+                    "secondary-fixed": "#d4e4fa",
+                    "surface-dim": "#0b1326",
+                    "secondary-container": "#39485a",
+                    "surface-container-lowest": "#060e20",
+                    "on-tertiary-fixed": "#002113",
+                    "on-error-container": "#ffdad6",
+                    "on-primary-container": "#0d0096",
+                    "surface-container": "#171f33",
+                    "surface-bright": "#31394d",
+                    "primary-fixed": "#e1e0ff",
+                    "inverse-surface": "#dae2fd",
+                    "surface-container-highest": "#2d3449",
+                    "outline": "#908fa0",
+                    "error-container": "#93000a"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "3xl": "64px",
+                    "md": "16px",
+                    "gutter": "24px",
+                    "xs": "4px",
+                    "base": "4px",
+                    "lg": "24px",
+                    "2xl": "48px",
+                    "sm": "8px",
+                    "margin": "32px",
+                    "xl": "32px"
+            },
+            "fontFamily": {
+                    "label-md": ["Geist"],
+                    "body-lg": ["Inter"],
+                    "body-sm": ["Inter"],
+                    "headline-sm": ["Inter"],
+                    "mono-data": ["Geist"],
+                    "headline-md": ["Inter"],
+                    "label-sm": ["Geist"],
+                    "headline-lg": ["Inter"],
+                    "body-md": ["Inter"]
+            },
+            "fontSize": {
+                    "label-md": ["14px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "mono-data": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .vault-grid {
+            background-image: radial-gradient(circle at 1px 1px, #1e293b 1px, transparent 0);
+            background-size: 40px 40px;
+        }
+        .error-glow {
+            box-shadow: 0 0 50px -12px rgba(192, 193, 255, 0.1);
+        }
+        .scanline {
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(to right, transparent, #c0c1ff, transparent);
+            opacity: 0.3;
+            position: absolute;
+            animation: scan 4s linear infinite;
+        }
+        @keyframes scan {
+            0% { top: 0%; }
+            100% { top: 100%; }
+        }
+        .flicker {
+            animation: flicker 0.3s infinite alternate;
+        }
+        @keyframes flicker {
+            0% { opacity: 0.8; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-body-md overflow-hidden">
+<!-- Top Navigation Anchor (As per Shared Components, but simplified for error state) -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface border-b border-outline-variant">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">shield_lock</span>
+<span class="font-headline-md text-headline-md font-bold text-primary">VaultGuard</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="px-3 py-1 rounded-full border border-outline text-label-sm font-label-sm uppercase tracking-widest opacity-50">
+                Connection Secure
+            </div>
+</div>
+</header>
+<main class="relative flex-grow flex items-center justify-center p-gutter vault-grid mt-16">
+<!-- Background Animation Effect -->
+
+<div class="scanline"></div>
+<div class="relative z-10 max-w-4xl w-full">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+<!-- Left: Visual Encryption Metaphor -->
+<div class="lg:col-span-5 order-2 lg:order-1">
+<div class="bg-surface-container border border-outline-variant p-2 rounded-xl error-glow">
+<div class="bg-surface-container-lowest p-6 rounded-lg space-y-6">
+<div class="flex justify-between items-center border-b border-outline-variant pb-4">
+<span class="font-mono-data text-mono-data text-primary">SEARCH_QUERY_NULL</span>
+<span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">error</span>
+</div>
+<!-- Simulation of missing data bits -->
+<div class="grid grid-cols-8 gap-2 opacity-40">
+<div class="h-4 bg-surface-variant rounded-sm animate-pulse"></div>
+<div class="h-4 bg-surface-variant rounded-sm"></div>
+<div class="h-4 bg-error/30 rounded-sm"></div>
+<div class="h-4 bg-surface-variant rounded-sm"></div>
+<div class="h-4 bg-surface-variant rounded-sm animate-pulse"></div>
+<div class="h-4 bg-surface-variant rounded-sm"></div>
+<div class="h-4 bg-surface-variant rounded-sm"></div>
+<div class="h-4 bg-surface-variant rounded-sm"></div>
+<div class="h-4 bg-surface-variant rounded-sm"></div>
+<div class="h-4 bg-error/30 rounded-sm animate-pulse"></div>
+<div class="h-4 bg-surface-variant rounded-sm"></div>
+<div class="h-4 bg-surface-variant rounded-sm"></div>
+<div class="h-4 bg-surface-variant rounded-sm"></div>
+<div class="h-4 bg-surface-variant rounded-sm animate-pulse"></div>
+<div class="h-4 bg-surface-variant rounded-sm"></div>
+<div class="h-4 bg-surface-variant rounded-sm"></div>
+</div>
+<div class="space-y-3 pt-2">
+<div class="flex justify-between text-label-sm font-label-sm text-on-surface-variant">
+<span>ENCRYPTION_LAYER</span>
+<span>AES-256-GCM</span>
+</div>
+<div class="w-full bg-surface-variant h-1 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-2/3"></div>
+</div>
+<div class="flex justify-between text-label-sm font-label-sm text-on-surface-variant">
+<span>HASH_INTEGRITY</span>
+<span class="text-error">FAILED</span>
+</div>
+</div>
+<div class="pt-4">
+<div class="p-3 bg-error-container/10 border border-error/20 rounded text-error text-label-md font-label-md flex gap-2 items-start">
+<span class="material-symbols-outlined text-[18px]">gpp_maybe</span>
+<span>Fatal Error: The requested resource identifier does not exist in the encrypted index. Access denied or link expired.</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right: Content & Action -->
+<div class="lg:col-span-7 order-1 lg:order-2 space-y-8 lg:pl-8">
+<div class="space-y-4">
+<div class="inline-flex items-center gap-2 px-3 py-1 bg-surface-variant/50 border border-outline-variant rounded-full text-primary font-label-sm text-label-sm uppercase tracking-widest">
+<span class="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+                            System Integrity Check
+                        </div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight leading-tight">
+                            Record Not Found
+                        </h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-lg">
+                            The secure fragment you are looking for has been moved, deleted, or never existed in the vault. Your connection remains encrypted and your existing keys are safe.
+                        </p>
+</div>
+<div class="flex flex-wrap gap-4 pt-4">
+<a class="inline-flex items-center gap-2 bg-primary text-on-primary font-label-md text-label-md px-8 py-4 rounded-xl hover:bg-primary-container transition-all active:scale-95 shadow-lg shadow-primary/20" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                            Return to Dashboard
+                        </a>
+<button class="inline-flex items-center gap-2 border border-outline text-on-surface font-label-md text-label-md px-8 py-4 rounded-xl hover:bg-surface-variant transition-all active:scale-95">
+<span class="material-symbols-outlined">support</span>
+                            Open Support Ticket
+                        </button>
+</div>
+<div class="grid grid-cols-2 gap-6 pt-10 border-t border-outline-variant">
+<div>
+<h4 class="font-label-sm text-label-sm text-primary uppercase mb-2">Error Code</h4>
+<p class="font-mono-data text-mono-data text-on-surface-variant">404_SEC_ENTITY_MISMATCH</p>
+</div>
+<div>
+<h4 class="font-label-sm text-label-sm text-primary uppercase mb-2">Timestamp</h4>
+<p class="font-mono-data text-mono-data text-on-surface-variant" id="error-timestamp">2023-11-24 10:42:11 UTC</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Activity Log Sidebar Anchor (As per design system components) -->
+<div class="hidden lg:block fixed right-8 bottom-8 w-80">
+<div class="bg-surface-container-low border border-outline-variant rounded-2xl p-4 shadow-2xl backdrop-blur-sm bg-opacity-90">
+<div class="flex items-center gap-2 mb-4 border-b border-outline-variant pb-2">
+<span class="material-symbols-outlined text-primary text-sm">history</span>
+<span class="font-label-md text-label-md text-on-surface">Recent Security Events</span>
+</div>
+<div class="space-y-4 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+<div class="flex gap-3">
+<div class="mt-1 w-1.5 h-1.5 rounded-full bg-error shrink-0"></div>
+<div>
+<p class="font-mono-data text-[12px] text-on-surface leading-tight">ERR_PATH_NOT_FOUND</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Attempted access to /vault/alpha-9</p>
+</div>
+</div>
+<div class="flex gap-3">
+<div class="mt-1 w-1.5 h-1.5 rounded-full bg-tertiary shrink-0"></div>
+<div>
+<p class="font-mono-data text-[12px] text-on-surface leading-tight">KEY_VALIDATION_SUCCESS</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Master session key verified</p>
+</div>
+</div>
+<div class="flex gap-3">
+<div class="mt-1 w-1.5 h-1.5 rounded-full bg-primary shrink-0"></div>
+<div>
+<p class="font-mono-data text-[12px] text-on-surface leading-tight">AUTH_HANDSHAKE_COMPLETE</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">IP: 192.168.1.104</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Stats / Meta -->
+<footer class="h-10 px-gutter flex items-center justify-between border-t border-outline-variant text-label-sm font-label-sm text-on-surface-variant/60 bg-surface">
+<div class="flex items-center gap-6">
+<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-tertiary"></span> System Status: Nominal</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">lock</span> End-to-End Encrypted</span>
+</div>
+<div class="font-mono-data">
+            BUILD_VER: 4.2.0-STABLE
+        </div>
+</footer>
+<script>
+        // Micro-interaction for timestamp
+        function updateTimestamp() {
+            const now = new Date();
+            const format = now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+            document.getElementById('error-timestamp').textContent = format;
+        }
+        updateTimestamp();
+        setInterval(updateTimestamp, 1000);
+
+        // Interactive "Encryption" numbers effect in the background if we had more containers
+        // but for now, let's just add a subtle mouse track to the glow
+        const main = document.querySelector('main');
+        main.addEventListener('mousemove', (e) => {
+            const glow = document.querySelector('.error-glow');
+            const x = (e.clientX / window.innerWidth - 0.5) * 20;
+            const y = (e.clientY / window.innerHeight - 0.5) * 20;
+            glow.style.transform = `perspective(1000px) rotateX(${-y}deg) rotateY(${x}deg)`;
+        });
+    </script>
+</body></html>

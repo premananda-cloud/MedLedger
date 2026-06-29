@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>VaultGuard | Secure Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Geist:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary-container": "#00885d",
+                    "surface-tint": "#c0c1ff",
+                    "on-background": "#dae2fd",
+                    "tertiary-fixed": "#6ffbbe",
+                    "on-secondary-fixed": "#0d1c2d",
+                    "surface": "#0b1326",
+                    "surface-container-low": "#131b2e",
+                    "secondary": "#b9c8de",
+                    "on-surface-variant": "#c7c4d7",
+                    "background": "#0b1326",
+                    "tertiary-fixed-dim": "#4edea3",
+                    "primary-fixed-dim": "#c0c1ff",
+                    "on-tertiary-container": "#000703",
+                    "primary": "#c0c1ff",
+                    "on-secondary-fixed-variant": "#39485a",
+                    "primary-container": "#8083ff",
+                    "surface-container-high": "#222a3d",
+                    "inverse-primary": "#494bd6",
+                    "on-secondary": "#233143",
+                    "on-primary-fixed": "#07006c",
+                    "on-error": "#690005",
+                    "secondary-fixed-dim": "#b9c8de",
+                    "inverse-on-surface": "#283044",
+                    "surface-variant": "#2d3449",
+                    "tertiary": "#4edea3",
+                    "error": "#ffb4ab",
+                    "on-tertiary-fixed-variant": "#005236",
+                    "on-primary-fixed-variant": "#2f2ebe",
+                    "on-surface": "#dae2fd",
+                    "on-secondary-container": "#a7b6cc",
+                    "on-primary": "#1000a9",
+                    "on-tertiary": "#003824",
+                    "outline-variant": "#464554",
+                    "secondary-fixed": "#d4e4fa",
+                    "surface-dim": "#0b1326",
+                    "secondary-container": "#39485a",
+                    "surface-container-lowest": "#060e20",
+                    "on-tertiary-fixed": "#002113",
+                    "on-error-container": "#ffdad6",
+                    "on-primary-container": "#0d0096",
+                    "surface-container": "#171f33",
+                    "surface-bright": "#31394d",
+                    "primary-fixed": "#e1e0ff",
+                    "inverse-surface": "#dae2fd",
+                    "surface-container-highest": "#2d3449",
+                    "outline": "#908fa0",
+                    "error-container": "#93000a"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "3xl": "64px",
+                    "md": "16px",
+                    "gutter": "24px",
+                    "xs": "4px",
+                    "base": "4px",
+                    "lg": "24px",
+                    "2xl": "48px",
+                    "sm": "8px",
+                    "margin": "32px",
+                    "xl": "32px"
+            },
+            "fontFamily": {
+                    "label-md": ["Geist"],
+                    "body-lg": ["Inter"],
+                    "body-sm": ["Inter"],
+                    "headline-sm": ["Inter"],
+                    "mono-data": ["Geist"],
+                    "headline-md": ["Inter"],
+                    "label-sm": ["Geist"],
+                    "headline-lg": ["Inter"],
+                    "body-md": ["Inter"]
+            },
+            "fontSize": {
+                    "label-md": ["14px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "mono-data": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #0b1326;
+            color: #dae2fd;
+            -webkit-font-smoothing: antialiased;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .vault-card {
+            background: linear-gradient(135deg, rgba(45, 52, 73, 0.4) 0%, rgba(23, 31, 51, 0.2) 100%);
+            backdrop-filter: blur(8px);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #0b1326;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #464554;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+<!-- SideNavBar (Shared Component) -->
+<aside class="hidden lg:flex flex-col h-full p-md space-y-sm fixed left-0 w-64 bg-surface-container-low dark:bg-surface-container-low border-r border-outline-variant z-40">
+<div class="px-md py-lg">
+<h1 class="font-headline-sm text-headline-sm text-on-surface">VaultGuard</h1>
+<p class="font-label-sm text-label-sm text-on-surface-variant opacity-70">AES-256 Encrypted</p>
+</div>
+<div class="flex-1 space-y-xs">
+<nav class="space-y-xs">
+<!-- Vault Tab (Active) -->
+<a class="flex items-center gap-md px-md py-sm bg-secondary-container text-on-secondary-container font-bold rounded-xl transition-all Active:scale-95 duration-100" href="#">
+<span class="material-symbols-outlined" data-icon="lock">lock</span>
+<span class="font-label-md text-label-md">Vault</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all Active:scale-95 duration-100" href="#">
+<span class="material-symbols-outlined" data-icon="outbox">outbox</span>
+<span class="font-label-md text-label-md">Sent</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all Active:scale-95 duration-100" href="#">
+<span class="material-symbols-outlined" data-icon="move_to_inbox">move_to_inbox</span>
+<span class="font-label-md text-label-md">Received</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all Active:scale-95 duration-100" href="#">
+<span class="material-symbols-outlined" data-icon="vpn_key">vpn_key</span>
+<span class="font-label-md text-label-md">Key Manager</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all Active:scale-95 duration-100" href="#">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+<span class="font-label-md text-label-md">Audit Log</span>
+</a>
+</nav>
+<div class="pt-2xl">
+<button class="w-full bg-primary text-on-primary py-sm rounded-xl font-bold font-label-md text-label-md flex items-center justify-center gap-xs hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add</span>
+                    Upload File
+                </button>
+</div>
+</div>
+<div class="mt-auto space-y-xs pt-lg border-t border-outline-variant">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="shield">shield</span>
+<span class="font-label-md text-label-md">Security Settings</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 flex flex-col lg:ml-64 w-full h-full relative">
+<!-- TopNavBar (Shared Component) -->
+<header class="fixed top-0 right-0 left-0 lg:left-64 h-16 bg-surface dark:bg-surface border-b border-outline-variant flex justify-between items-center px-gutter z-30">
+<div class="flex items-center gap-gutter">
+<h2 class="font-headline-md text-headline-md font-bold text-primary">Vault</h2>
+<nav class="hidden md:flex items-center gap-lg">
+<a class="font-body-md text-body-md text-primary font-bold border-b-2 border-primary pb-1" href="#">Dashboard</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Files</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Shared</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Keys</a>
+</nav>
+</div>
+<div class="flex items-center gap-md">
+<div class="hidden sm:flex items-center bg-surface-container-high rounded-full px-md py-xs border border-outline-variant">
+<span class="material-symbols-outlined text-on-surface-variant text-[18px]">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-label-md text-on-surface placeholder:text-on-surface-variant w-48 lg:w-64" placeholder="Search secure vault..." type="text"/>
+</div>
+<button class="p-xs text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-xs text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a cybersecurity analyst with a focused expression, wearing a dark blazer, set against a blurred high-tech server room background with soft blue lighting. The image style is clean, corporate, and trustworthy, with high-fidelity detail and a cinematic shallow depth of field." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBIgfx8vcZjPmDOo2Lcjc4n0wqRFa5D5d5jRD_YJIpZuuJPPchbwNMFwnZlWg_GpttiZ0DROhBX6w7TO421Zb7OA2dCCJpyCcJbiRQIbPv2AUYD025TijyG09T_XrHmt3H3B27LMtHKdNEywcyi3SYqKoGUM3uDSJhJFJn8bxBVYDF977ghy9k923IdLLFcIkXhETXWeeEOv4xVqWMgunpaZE1T50lp5stX9bZM2tBy94NiFHucxV8TE5IVHq-S3uWXh6sAVM8B_LI"/>
+</div>
+</div>
+</header>
+<!-- Page Content -->
+<div class="mt-16 p-gutter h-[calc(100vh-64px)] overflow-y-auto custom-scrollbar">
+<!-- Dashboard Hero / Stats -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-lg mb-gutter">
+<div class="vault-card p-lg rounded-xl border border-outline-variant flex flex-col gap-sm">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary" data-icon="storage">storage</span>
+<span class="text-tertiary font-mono-data text-label-sm">+2.4GB this week</span>
+</div>
+<p class="font-label-md text-label-md text-on-surface-variant">Total Storage Used</p>
+<h3 class="font-headline-lg text-headline-lg">14.8 GB</h3>
+<div class="w-full bg-surface-container-highest h-1 rounded-full overflow-hidden mt-xs">
+<div class="bg-primary h-full w-[65%]"></div>
+</div>
+</div>
+<div class="vault-card p-lg rounded-xl border border-outline-variant flex flex-col gap-sm">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary" data-icon="verified_user">verified_user</span>
+<span class="text-primary font-mono-data text-label-sm">System Healthy</span>
+</div>
+<p class="font-label-md text-label-md text-on-surface-variant">Active Keys</p>
+<h3 class="font-headline-lg text-headline-lg">12 / 12</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant opacity-60">All encryption certificates valid</p>
+</div>
+<div class="vault-card p-lg rounded-xl border border-outline-variant flex flex-col gap-sm">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary" data-icon="history">history</span>
+<button class="text-primary font-label-sm text-label-sm hover:underline">View Log</button>
+</div>
+<p class="font-label-md text-label-md text-on-surface-variant">Last Audit</p>
+<h3 class="font-headline-lg text-headline-lg">24m ago</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant opacity-60">Access from Singapore IP: 192.x.x.1</p>
+</div>
+</div>
+<!-- Toolbar -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-md mb-lg">
+<div class="flex flex-wrap items-center gap-sm">
+<button class="px-md py-sm bg-surface-container-high border border-outline-variant rounded-lg text-on-surface font-label-md text-label-md flex items-center gap-xs">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+                        Filter
+                    </button>
+<div class="flex bg-surface-container-low rounded-lg p-[2px] border border-outline-variant">
+<button class="px-md py-sm bg-surface-container-high rounded-md text-primary font-label-md text-label-md">All Records</button>
+<button class="px-md py-sm text-on-surface-variant hover:text-on-surface font-label-md text-label-md">Personal</button>
+<button class="px-md py-sm text-on-surface-variant hover:text-on-surface font-label-md text-label-md">Shared</button>
+</div>
+</div>
+<button class="px-xl py-sm bg-primary text-on-primary rounded-lg font-bold font-label-md text-label-md flex items-center gap-sm hover:opacity-90 transition-all Active:scale-95">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">cloud_upload</span>
+                    Upload Record
+                </button>
+</div>
+<!-- Records Data Table -->
+<div class="bg-surface-container-low rounded-xl border border-outline-variant overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-outline-variant bg-surface-container">
+<th class="px-gutter py-md font-label-md text-label-md text-on-surface-variant">Filename</th>
+<th class="px-gutter py-md font-label-md text-label-md text-on-surface-variant">Type</th>
+<th class="px-gutter py-md font-label-md text-label-md text-on-surface-variant">Size</th>
+<th class="px-gutter py-md font-label-md text-label-md text-on-surface-variant">Upload Date</th>
+<th class="px-gutter py-md font-label-md text-label-md text-on-surface-variant text-right">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-variant transition-colors group">
+<td class="px-gutter py-md">
+<div class="flex items-center gap-sm">
+<div class="p-xs bg-primary-container/20 rounded text-primary">
+<span class="material-symbols-outlined text-[20px]">description</span>
+</div>
+<div>
+<p class="font-body-md text-body-md text-on-surface font-medium">Q3_Security_Audit_Report.pdf</p>
+<div class="flex items-center gap-xs mt-1">
+<span class="bg-tertiary-container/30 text-tertiary text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border border-tertiary/20">Encrypted</span>
+<span class="text-on-surface-variant/40 text-[10px]">•</span>
+<span class="text-on-surface-variant text-[10px] font-mono-data">SHA-256: 8f2d...4a1</span>
+</div>
+</div>
+</div>
+</td>
+<td class="px-gutter py-md font-mono-data text-body-sm text-on-surface-variant">PDF</td>
+<td class="px-gutter py-md font-mono-data text-body-sm text-on-surface-variant">2.4 MB</td>
+<td class="px-gutter py-md font-body-sm text-body-sm text-on-surface-variant">Oct 12, 2023</td>
+<td class="px-gutter py-md text-right">
+<button class="p-xs text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-variant transition-colors group">
+<td class="px-gutter py-md">
+<div class="flex items-center gap-sm">
+<div class="p-xs bg-secondary-container/20 rounded text-secondary">
+<span class="material-symbols-outlined text-[20px]">table_chart</span>
+</div>
+<div>
+<p class="font-body-md text-body-md text-on-surface font-medium">Internal_Ledger_2024.xlsx</p>
+<div class="flex items-center gap-xs mt-1">
+<span class="bg-primary-container/30 text-primary text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border border-primary/20">Private</span>
+</div>
+</div>
+</div>
+</td>
+<td class="px-gutter py-md font-mono-data text-body-sm text-on-surface-variant">XLSX</td>
+<td class="px-gutter py-md font-mono-data text-body-sm text-on-surface-variant">14.1 MB</td>
+<td class="px-gutter py-md font-body-sm text-body-sm text-on-surface-variant">Oct 10, 2023</td>
+<td class="px-gutter py-md text-right">
+<button class="p-xs text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-variant transition-colors group">
+<td class="px-gutter py-md">
+<div class="flex items-center gap-sm">
+<div class="p-xs bg-error-container/20 rounded text-error">
+<span class="material-symbols-outlined text-[20px]">lock_reset</span>
+</div>
+<div>
+<p class="font-body-md text-body-md text-on-surface font-medium">Root_Access_Keys.key</p>
+<div class="flex items-center gap-xs mt-1">
+<span class="bg-error-container text-on-error-container text-[10px] uppercase font-bold px-1.5 py-0.5 rounded">High Risk</span>
+</div>
+</div>
+</div>
+</td>
+<td class="px-gutter py-md font-mono-data text-body-sm text-on-surface-variant">KEY</td>
+<td class="px-gutter py-md font-mono-data text-body-sm text-on-surface-variant">12 KB</td>
+<td class="px-gutter py-md font-body-sm text-body-sm text-on-surface-variant">Sep 28, 2023</td>
+<td class="px-gutter py-md text-right">
+<button class="p-xs text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-variant transition-colors group">
+<td class="px-gutter py-md">
+<div class="flex items-center gap-sm">
+<div class="p-xs bg-tertiary-container/20 rounded text-tertiary">
+<span class="material-symbols-outlined text-[20px]">image</span>
+</div>
+<div>
+<p class="font-body-md text-body-md text-on-surface font-medium">Passport_Scan_Owner.jpg</p>
+<div class="flex items-center gap-xs mt-1">
+<span class="bg-tertiary-container/30 text-tertiary text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border border-tertiary/20">Verified</span>
+</div>
+</div>
+</div>
+</td>
+<td class="px-gutter py-md font-mono-data text-body-sm text-on-surface-variant">JPG</td>
+<td class="px-gutter py-md font-mono-data text-body-sm text-on-surface-variant">850 KB</td>
+<td class="px-gutter py-md font-body-sm text-body-sm text-on-surface-variant">Sep 15, 2023</td>
+<td class="px-gutter py-md text-right">
+<button class="p-xs text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-surface-variant transition-colors group">
+<td class="px-gutter py-md">
+<div class="flex items-center gap-sm">
+<div class="p-xs bg-primary-container/20 rounded text-primary">
+<span class="material-symbols-outlined text-[20px]">article</span>
+</div>
+<div>
+<p class="font-body-md text-body-md text-on-surface font-medium">Legal_Contract_V4.docx</p>
+<div class="flex items-center gap-xs mt-1">
+<span class="bg-primary-container/30 text-primary text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border border-primary/20">Shared</span>
+</div>
+</div>
+</div>
+</td>
+<td class="px-gutter py-md font-mono-data text-body-sm text-on-surface-variant">DOCX</td>
+<td class="px-gutter py-md font-mono-data text-body-sm text-on-surface-variant">1.1 MB</td>
+<td class="px-gutter py-md font-body-sm text-body-sm text-on-surface-variant">Sep 12, 2023</td>
+<td class="px-gutter py-md text-right">
+<button class="p-xs text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-md bg-surface-container flex justify-between items-center border-t border-outline-variant">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Showing 5 of 124 records</span>
+<div class="flex items-center gap-xs">
+<button class="p-xs text-on-surface-variant hover:text-on-surface border border-outline-variant rounded disabled:opacity-30" disabled="">
+<span class="material-symbols-outlined text-[20px]">chevron_left</span>
+</button>
+<button class="px-md py-xs bg-primary text-on-primary font-bold rounded">1</button>
+<button class="px-md py-xs hover:bg-surface-variant rounded">2</button>
+<button class="px-md py-xs hover:bg-surface-variant rounded">3</button>
+<button class="p-xs text-on-surface-variant hover:text-on-surface border border-outline-variant rounded">
+<span class="material-symbols-outlined text-[20px]">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Bento Activity Feed Section -->
+<div class="mt-2xl grid grid-cols-1 lg:grid-cols-12 gap-lg mb-3xl">
+<div class="lg:col-span-8 vault-card p-lg rounded-xl border border-outline-variant">
+<div class="flex justify-between items-center mb-md">
+<h4 class="font-headline-sm text-headline-sm">Activity Feed</h4>
+<span class="flex items-center gap-xs text-tertiary text-label-sm">
+<span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span> Live Stream
+                        </span>
+</div>
+<div class="space-y-md">
+<div class="flex items-start gap-md">
+<div class="mt-1 w-2 h-2 rounded-full bg-primary ring-4 ring-primary/10"></div>
+<div class="flex-1">
+<p class="font-body-sm text-body-sm"><span class="font-bold text-on-surface">System</span> encrypted <span class="text-primary">Legal_Contract_V4.docx</span></p>
+<p class="font-mono-data text-[11px] text-on-surface-variant opacity-60">2 mins ago • Process ID: 9482</p>
+</div>
+</div>
+<div class="flex items-start gap-md">
+<div class="mt-1 w-2 h-2 rounded-full bg-tertiary ring-4 ring-tertiary/10"></div>
+<div class="flex-1">
+<p class="font-body-sm text-body-sm"><span class="font-bold text-on-surface">You</span> accessed <span class="text-primary">Q3_Security_Audit_Report.pdf</span></p>
+<p class="font-mono-data text-[11px] text-on-surface-variant opacity-60">14 mins ago • IP: 18.23.45.11</p>
+</div>
+</div>
+<div class="flex items-start gap-md">
+<div class="mt-1 w-2 h-2 rounded-full bg-on-surface-variant/30 ring-4 ring-on-surface-variant/10"></div>
+<div class="flex-1 opacity-60">
+<p class="font-body-sm text-body-sm"><span class="font-bold text-on-surface">Automated Backup</span> completed successfully</p>
+<p class="font-mono-data text-[11px] text-on-surface-variant">1 hour ago • Volume: VAULT_A1</p>
+</div>
+</div>
+</div>
+</div>
+<div class="lg:col-span-4 vault-card p-lg rounded-xl border border-outline-variant flex flex-col items-center justify-center text-center gap-md">
+<div class="relative w-32 h-32 flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90">
+<circle class="text-surface-container-highest" cx="64" cy="64" fill="transparent" r="58" stroke="currentColor" stroke-width="8"></circle>
+<circle class="text-primary" cx="64" cy="64" fill="transparent" r="58" stroke="currentColor" stroke-dasharray="364.4" stroke-dashoffset="91.1" stroke-width="8"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="font-headline-md text-headline-md">75%</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Security Score</span>
+</div>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Enable 2FA and rotate your master key to reach 100% security.</p>
+<button class="w-full py-sm bg-surface-container-high border border-outline text-primary font-bold rounded-lg hover:bg-surface-variant transition-colors">Optimize Now</button>
+</div>
+</div>
+</div>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="lg:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 bg-surface-container border-t border-outline-variant shadow-lg rounded-t-full">
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-4 py-1 transition-all Active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="lock">lock</span>
+<span class="font-label-sm text-label-sm">Vault</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant transition-all Active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="share">share</span>
+<span class="font-label-sm text-label-sm">Shared</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant transition-all Active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="key">key</span>
+<span class="font-label-sm text-label-sm">Keys</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant transition-all Active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-sm text-label-sm">Settings</span>
+</a>
+</nav>
+<!-- Contextual FAB (Hidden on Mobile Nav, Visible as main Action if needed, but per rule: "Suppress on Details/Transactional") -->
+<!-- Logic: Dashboard is primary intent, FAB "Upload" is relevant. But Bottom Nav exists for Mobile. -->
+</main>
+<script>
+        // Micro-interactions for table rows
+        document.querySelectorAll('tr').forEach(row => {
+            row.addEventListener('click', (e) => {
+                if (e.target.closest('button')) return;
+                // Interaction simulation
+                row.classList.add('opacity-50');
+                setTimeout(() => row.classList.remove('opacity-50'), 150);
+            });
+        });
+
+        // Search bar focus effect
+        const searchInput = document.querySelector('input[type="text"]');
+        if(searchInput) {
+            searchInput.addEventListener('focus', () => {
+                searchInput.parentElement.classList.add('border-primary');
+                searchInput.parentElement.classList.remove('border-outline-variant');
+            });
+            searchInput.addEventListener('blur', () => {
+                searchInput.parentElement.classList.add('border-outline-variant');
+                searchInput.parentElement.classList.remove('border-primary');
+            });
+        }
+    </script>
+</body></html>

@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>VaultGuard | Account Settings & Security</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .vault-grid-bg {
+            background-image: radial-gradient(circle at 2px 2px, #1E293B 1px, transparent 0);
+            background-size: 32px 32px;
+        }
+        .glass-panel {
+            background: rgba(23, 31, 51, 0.7);
+            backdrop-filter: blur(12px);
+        }
+        .inner-glow:hover {
+            box-shadow: inset 0 0 10px rgba(192, 193, 255, 0.2);
+        }
+        @keyframes subtle-pulse {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 1; }
+        }
+        .security-scan {
+            animation: subtle-pulse 3s infinite ease-in-out;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-container": "#00885d",
+                        "surface-tint": "#c0c1ff",
+                        "on-background": "#dae2fd",
+                        "tertiary-fixed": "#6ffbbe",
+                        "on-secondary-fixed": "#0d1c2d",
+                        "surface": "#0b1326",
+                        "surface-container-low": "#131b2e",
+                        "secondary": "#b9c8de",
+                        "on-surface-variant": "#c7c4d7",
+                        "background": "#0b1326",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "on-tertiary-container": "#000703",
+                        "primary": "#c0c1ff",
+                        "on-secondary-fixed-variant": "#39485a",
+                        "primary-container": "#8083ff",
+                        "surface-container-high": "#222a3d",
+                        "inverse-primary": "#494bd6",
+                        "on-secondary": "#233143",
+                        "on-primary-fixed": "#07006c",
+                        "on-error": "#690005",
+                        "secondary-fixed-dim": "#b9c8de",
+                        "inverse-on-surface": "#283044",
+                        "surface-variant": "#2d3449",
+                        "tertiary": "#4edea3",
+                        "error": "#ffb4ab",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "on-surface": "#dae2fd",
+                        "on-secondary-container": "#a7b6cc",
+                        "on-primary": "#1000a9",
+                        "on-tertiary": "#003824",
+                        "outline-variant": "#464554",
+                        "secondary-fixed": "#d4e4fa",
+                        "surface-dim": "#0b1326",
+                        "secondary-container": "#39485a",
+                        "surface-container-lowest": "#060e20",
+                        "on-tertiary-fixed": "#002113",
+                        "on-error-container": "#ffdad6",
+                        "on-primary-container": "#0d0096",
+                        "surface-container": "#171f33",
+                        "surface-bright": "#31394d",
+                        "primary-fixed": "#e1e0ff",
+                        "inverse-surface": "#dae2fd",
+                        "surface-container-highest": "#2d3449",
+                        "outline": "#908fa0",
+                        "error-container": "#93000a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "3xl": "64px",
+                        "md": "16px",
+                        "gutter": "24px",
+                        "xs": "4px",
+                        "base": "4px",
+                        "lg": "24px",
+                        "2xl": "48px",
+                        "sm": "8px",
+                        "margin": "32px",
+                        "xl": "32px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Geist"],
+                        "body-lg": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "mono-data": ["Geist"],
+                        "headline-md": ["Inter"],
+                        "label-sm": ["Geist"],
+                        "headline-lg": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["14px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "mono-data": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-surface text-on-surface font-body-md vault-grid-bg min-h-screen">
+<!-- Sidebar Navigation Shell -->
+<aside class="fixed left-0 h-full w-64 bg-surface-container-low border-r border-outline-variant hidden lg:flex flex-col p-md space-y-sm z-50">
+<div class="mb-lg px-2">
+<h2 class="font-headline-sm text-headline-sm text-on-surface font-bold">Secure Workspace</h2>
+<p class="font-label-sm text-label-sm text-tertiary uppercase tracking-widest security-scan">AES-256 Encrypted</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="lock">lock</span>
+<span class="font-label-md text-label-md">Vault</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="outbox">outbox</span>
+<span class="font-label-md text-label-md">Sent</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="move_to_inbox">move_to_inbox</span>
+<span class="font-label-md text-label-md">Received</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="vpn_key">vpn_key</span>
+<span class="font-label-md text-label-md">Key Manager</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+<span class="font-label-md text-label-md">Audit Log</span>
+</a>
+</nav>
+<div class="mt-auto space-y-1 pt-md border-t border-outline-variant">
+<!-- Active State for Settings (Current Page) -->
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container font-bold rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="shield" style="font-variation-settings: 'FILL' 1;">shield</span>
+<span class="font-label-md text-label-md">Security Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+<button class="w-full mt-4 bg-primary text-on-primary font-label-md text-label-md py-3 rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[20px]" data-icon="upload">upload</span>
+                Upload File
+            </button>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="lg:ml-64 p-margin min-h-screen">
+<header class="mb-3xl flex flex-col md:flex-row md:items-end justify-between gap-md">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-primary">Account Security</h1>
+<p class="text-on-surface-variant font-body-md mt-1">Manage your identity and defensive protocols.</p>
+</div>
+<div class="flex items-center gap-sm bg-surface-container-high px-4 py-2 rounded-lg border border-outline-variant">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="font-mono-data text-mono-data text-tertiary uppercase">Status: Protected</span>
+</div>
+</header>
+<div class="max-w-4xl mx-auto space-y-lg">
+<!-- Profile Section: Bento style -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-lg">
+<div class="md:col-span-1 flex flex-col items-center justify-center p-xl bg-surface-container rounded-xl border border-outline-variant relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-transparent"></div>
+<div class="w-24 h-24 rounded-full border-2 border-primary p-1 mb-md">
+<img class="w-full h-full object-cover rounded-full" data-alt="A professional enterprise security expert portrait, minimalist lighting, high-tech background with subtle blue data streams, ultra-high resolution, corporate aesthetic, matching the deep blue and indigo VaultGuard color palette." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDutL840YGRoZeqkBSI6ygioellx7Ms_AutiFU8S-_VfsEG25dRdB_ok1z2lVKA0vBdaVrNziHwjIaieO_e-U8kT52p0gDOJZiJY2ZhMdrFnCac5ZcrrY3xMsqkJvCvFyyPuRbt9S43xsYKOc-L7Rwf8R06sMBdLxFXWMzONaP5Bhl7MOOe6MOWWyDDmU_bXF-h36xBiiZ3ys-8KpeiM7Tra-iPbzVLHROGs0SBiN5Sppx0I9ZjAh29SEPkK7UKLgPMZNN_IbkP54U"/>
+</div>
+<button class="font-label-sm text-label-sm text-primary hover:underline">Change Avatar</button>
+</div>
+<div class="md:col-span-2 p-xl bg-surface-container rounded-xl border border-outline-variant">
+<h3 class="font-headline-sm text-headline-sm mb-lg flex items-center gap-2">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+                        Profile Identity
+                    </h3>
+<div class="space-y-md">
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-md">
+<div class="space-y-xs">
+<label class="font-label-sm text-label-sm text-on-surface-variant ml-1">Full Name</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" type="text" value="Alexander Vance"/>
+</div>
+<div class="space-y-xs">
+<label class="font-label-sm text-label-sm text-on-surface-variant ml-1">Display Title</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" type="text" value="Lead Auditor"/>
+</div>
+</div>
+<div class="space-y-xs">
+<label class="font-label-sm text-label-sm text-on-surface-variant ml-1">Verified Email Address</label>
+<div class="relative">
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-4 pr-12 py-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" type="email" value="a.vance@vaultguard.com"/>
+<span class="absolute right-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-tertiary" data-icon="verified" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+</div>
+</div>
+<div class="mt-xl flex justify-end">
+<button class="bg-primary text-on-primary font-label-md text-label-md px-xl py-3 rounded-xl inner-glow transition-all">Update Identity</button>
+</div>
+</div>
+</section>
+<!-- Password & Security Keys: Split Layout -->
+<section class="grid grid-cols-1 lg:grid-cols-2 gap-lg">
+<!-- Change Password -->
+<div class="p-xl bg-surface-container rounded-xl border border-outline-variant flex flex-col">
+<h3 class="font-headline-sm text-headline-sm mb-lg flex items-center gap-2">
+<span class="material-symbols-outlined" data-icon="key">key</span>
+                        Authentication
+                    </h3>
+<div class="space-y-md flex-1">
+<div class="space-y-xs">
+<label class="font-label-sm text-label-sm text-on-surface-variant ml-1">Current Password</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="••••••••••••" type="password"/>
+</div>
+<div class="space-y-xs">
+<label class="font-label-sm text-label-sm text-on-surface-variant ml-1">New Password</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" type="password"/>
+</div>
+<div class="space-y-xs">
+<label class="font-label-sm text-label-sm text-on-surface-variant ml-1">Confirm New Password</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" type="password"/>
+</div>
+<div class="p-md bg-surface-variant rounded-lg flex items-start gap-3 border-l-4 border-primary">
+<span class="material-symbols-outlined text-primary text-[20px]" data-icon="info">info</span>
+<p class="text-label-sm font-label-sm text-on-surface-variant">Passwords must be at least 16 characters and include a combination of symbols and unique identifiers.</p>
+</div>
+</div>
+<button class="mt-xl border border-primary text-primary font-label-md text-label-md py-3 rounded-xl hover:bg-primary/10 transition-all">Rotated Password</button>
+</div>
+<!-- Recovery Keys Management -->
+<div class="p-xl bg-surface-container rounded-xl border border-outline-variant flex flex-col">
+<div class="flex justify-between items-start mb-lg">
+<h3 class="font-headline-sm text-headline-sm flex items-center gap-2">
+<span class="material-symbols-outlined" data-icon="terminal">terminal</span>
+                            Recovery Keys
+                        </h3>
+<span class="px-2 py-1 bg-tertiary-container text-on-tertiary-container rounded text-[10px] font-bold uppercase">2 Active</span>
+</div>
+<div class="space-y-sm flex-1">
+<!-- Key Card 1 -->
+<div class="p-md bg-surface-container-lowest border border-outline-variant rounded-lg flex items-center justify-between group hover:border-primary transition-all">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-surface-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="usb">usb</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">YubiKey 5C NFC</p>
+<p class="font-mono-data text-[11px] text-on-surface-variant">Registered: Oct 12, 2023</p>
+</div>
+</div>
+<button class="p-2 text-on-surface-variant hover:text-error transition-colors">
+<span class="material-symbols-outlined" data-icon="delete">delete</span>
+</button>
+</div>
+<!-- Key Card 2 -->
+<div class="p-md bg-surface-container-lowest border border-outline-variant rounded-lg flex items-center justify-between group hover:border-primary transition-all">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-surface-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="vibration">vibration</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">iPhone 15 Biometric</p>
+<p class="font-mono-data text-[11px] text-on-surface-variant">Registered: Jan 04, 2024</p>
+</div>
+</div>
+<button class="p-2 text-on-surface-variant hover:text-error transition-colors">
+<span class="material-symbols-outlined" data-icon="delete">delete</span>
+</button>
+</div>
+</div>
+<div class="mt-xl">
+<button class="w-full flex items-center justify-center gap-2 border border-outline-variant text-on-surface font-label-md text-label-md py-3 rounded-xl hover:bg-surface-variant transition-all">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+                            Register New Hardware Key
+                        </button>
+</div>
+</div>
+</section>
+<!-- Dangerous Zone: Delete Account -->
+<section class="p-xl bg-surface-container-lowest border-2 border-error-container rounded-xl relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-1 bg-error-container"></div>
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-xl">
+<div class="flex-1">
+<h3 class="font-headline-sm text-headline-sm text-error mb-2 flex items-center gap-2">
+<span class="material-symbols-outlined" data-icon="warning" style="font-variation-settings: 'FILL' 1;">warning</span>
+                            Critical: Permanent Deletion
+                        </h3>
+<p class="text-on-surface-variant font-body-md">
+                            Deleting your account will result in the immediate and irreversible loss of all encrypted files, recovery keys, and audit logs. VaultGuard cannot recover data once the deletion protocol is initiated.
+                        </p>
+</div>
+<div class="flex flex-col gap-md min-w-[240px]">
+<div class="relative">
+<input class="w-full bg-surface border border-error-container rounded-lg px-4 py-3 text-error focus:ring-1 focus:ring-error outline-none" id="confirmDelete" placeholder="Type 'DELETE' to confirm" type="text"/>
+</div>
+<button class="bg-error text-on-error font-label-md text-label-md py-4 rounded-xl opacity-50 cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-error/10" disabled="" id="deleteBtn">
+<span class="material-symbols-outlined" data-icon="dangerous">dangerous</span>
+                            Destroy My Account
+                        </button>
+</div>
+</div>
+</section>
+</div>
+<footer class="mt-3xl py-lg text-center text-on-surface-variant font-label-sm border-t border-outline-variant">
+<p>© 2024 VaultGuard Enterprise Security. All decryption attempts are logged.</p>
+</footer>
+</main>
+<!-- Bottom Navigation for Mobile -->
+<nav class="lg:hidden fixed bottom-0 left-0 w-full z-50 bg-surface-container border-t border-outline-variant flex justify-around items-center px-4 py-2 shadow-lg rounded-t-full">
+<a class="flex flex-col items-center justify-center text-on-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="lock">lock</span>
+<span class="font-label-sm text-label-sm">Vault</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="share">share</span>
+<span class="font-label-sm text-label-sm">Shared</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="key">key</span>
+<span class="font-label-sm text-label-sm">Keys</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-4 py-1" href="#">
+<span class="material-symbols-outlined" data-icon="settings" style="font-variation-settings: 'FILL' 1;">settings</span>
+<span class="font-label-sm text-label-sm">Settings</span>
+</a>
+</nav>
+<script>
+        // High-friction delete confirmation logic
+        const deleteInput = document.getElementById('confirmDelete');
+        const deleteBtn = document.getElementById('deleteBtn');
+
+        deleteInput.addEventListener('input', (e) => {
+            if (e.target.value === 'DELETE') {
+                deleteBtn.disabled = false;
+                deleteBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                deleteBtn.classList.add('hover:bg-error-container', 'active:scale-95');
+            } else {
+                deleteBtn.disabled = true;
+                deleteBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                deleteBtn.classList.remove('hover:bg-error-container', 'active:scale-95');
+            }
+        });
+
+        // Simple feedback for interaction
+        deleteBtn.addEventListener('click', () => {
+            if (!deleteBtn.disabled) {
+                if(confirm("FINAL WARNING: This action is permanent. Do you wish to proceed with total data destruction?")) {
+                    alert("Account deletion protocol initiated. Access revoked.");
+                }
+            }
+        });
+
+        // Button press simulation
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('mousedown', () => btn.classList.add('scale-95'));
+            btn.addEventListener('mouseup', () => btn.classList.remove('scale-95'));
+            btn.addEventListener('mouseleave', () => btn.classList.remove('scale-95'));
+        });
+    </script>
+</body></html>

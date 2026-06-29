@@ -1,0 +1,2285 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "MedLedger API",
+    "description": "End-to-end encrypted vault, sharing, and grant API.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/auth/pow/challenge": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Pow Challenge",
+        "description": "Issue a Proof-of-Work challenge. Client must solve before registering.",
+        "operationId": "pow_challenge_api_auth_pow_challenge_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/POWChallengeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/pow/verify": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Pow Verify",
+        "description": "Verify a PoW solution. Returns success or 400 on invalid solution.",
+        "operationId": "pow_verify_api_auth_pow_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/POWVerifyRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Register",
+        "description": "Register a new user. Sends a verification code to the provided email.",
+        "operationId": "register_api_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RegisterResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/verify-email": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Verify Email",
+        "description": "Verify the email address with the 6-digit code sent during registration.",
+        "operationId": "verify_email_api_auth_verify_email_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VerifyEmailRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/resend-verification": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Resend Verification",
+        "description": "Resend the email verification code.",
+        "operationId": "resend_verification_api_auth_resend_verification_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResendVerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Login",
+        "description": "Authenticate with email + password.\nReturns tokens on success, or requires_totp=True if TOTP is enabled.",
+        "operationId": "login_api_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LoginResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/verify-totp-login": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Verify Totp Login",
+        "description": "Complete login with TOTP second factor.",
+        "operationId": "verify_totp_login_api_auth_verify_totp_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyTOTPLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LoginResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Refresh",
+        "description": "Rotate a refresh token — returns a new access + refresh token pair.",
+        "operationId": "refresh_api_auth_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RefreshTokenRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TokenResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Logout",
+        "description": "Logout from the current device.",
+        "operationId": "logout_api_auth_logout_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LogoutRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout-all": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Logout All",
+        "description": "Logout from all devices by revoking all tokens.",
+        "operationId": "logout_all_api_auth_logout_all_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/change-password": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Change Password",
+        "description": "Change password — requires current password. Revokes all sessions.",
+        "operationId": "change_password_api_auth_change_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChangePasswordRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/request-password-reset": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Request Password Reset",
+        "description": "Send a password reset code to an email address.",
+        "operationId": "request_password_reset_api_auth_request_password_reset_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestPasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/confirm-password-reset": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Confirm Password Reset",
+        "description": "Verify reset code and set a new password.",
+        "operationId": "confirm_password_reset_api_auth_confirm_password_reset_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmPasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/totp/setup": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Totp Setup",
+        "description": "Begin TOTP setup. Returns provisioning URI + backup codes.\nBackup codes are shown ONCE — store them safely.",
+        "operationId": "totp_setup_api_auth_totp_setup_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TOTPSetupResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/totp/confirm": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Totp Confirm",
+        "description": "Confirm TOTP setup with a live 6-digit code from the authenticator app.",
+        "operationId": "totp_confirm_api_auth_totp_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ConfirmTOTPRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/totp/disable": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Totp Disable",
+        "description": "Disable TOTP — requires password + current TOTP code.",
+        "operationId": "totp_disable_api_auth_totp_disable_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DisableTOTPRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "Me",
+        "description": "Return the currently authenticated user's profile.",
+        "operationId": "me_api_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UserResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keys/my": {
+      "get": {
+        "tags": ["keys"],
+        "summary": "Get My Keys",
+        "description": "Return own public keys. No audit event — not a sensitive lookup.",
+        "operationId": "get_my_keys_api_keys_my_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PublicKeysResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keys/{user_id_hex}": {
+      "get": {
+        "tags": ["keys"],
+        "summary": "Get Public Keys",
+        "description": "Get both public keys for another user. Logged as a key access event.",
+        "operationId": "get_public_keys_api_keys__user_id_hex__get",
+        "parameters": [
+          {
+            "name": "user_id_hex",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "User Id Hex" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PublicKeysResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keys/{user_id_hex}/exchange": {
+      "get": {
+        "tags": ["keys"],
+        "summary": "Get Exchange Key",
+        "description": "Get the X25519 exchange key for a user (to encrypt data for them).",
+        "operationId": "get_exchange_key_api_keys__user_id_hex__exchange_get",
+        "parameters": [
+          {
+            "name": "user_id_hex",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "User Id Hex" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ExchangeKeyResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keys/{user_id_hex}/signing": {
+      "get": {
+        "tags": ["keys"],
+        "summary": "Get Signing Key",
+        "description": "Get the Ed25519 signing key for a user (to verify their signatures).",
+        "operationId": "get_signing_key_api_keys__user_id_hex__signing_get",
+        "parameters": [
+          {
+            "name": "user_id_hex",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "User Id Hex" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SigningKeyResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/keys/update": {
+      "put": {
+        "tags": ["keys"],
+        "summary": "Update Keys",
+        "description": "Update own signing and/or exchange public keys.",
+        "operationId": "update_keys_api_keys_update_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateKeysRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shares/request": {
+      "post": {
+        "tags": ["shares"],
+        "summary": "Request Share",
+        "description": "Request an encrypted record from its owner.",
+        "operationId": "request_share_api_shares_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RequestShareRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shares/send": {
+      "post": {
+        "tags": ["shares"],
+        "summary": "Send Encrypted Payload",
+        "description": "Owner sends encrypted payload to recipient.\nPayload is never stored — returned directly in this response.",
+        "operationId": "send_encrypted_payload_api_shares_send_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendEncryptedPayloadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncryptedPayloadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shares/reject": {
+      "post": {
+        "tags": ["shares"],
+        "summary": "Reject Share Request",
+        "description": "Owner rejects a pending share request.",
+        "operationId": "reject_share_request_api_shares_reject_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RejectShareRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shares/pending": {
+      "get": {
+        "tags": ["shares"],
+        "summary": "Get Pending Requests",
+        "description": "Get pending share requests addressed to the authenticated user.",
+        "operationId": "get_pending_requests_api_shares_pending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingRequestsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shares/notifications": {
+      "get": {
+        "tags": ["shares"],
+        "summary": "Fetch Notifications",
+        "description": "Poll for pending payload-ready notifications.",
+        "operationId": "fetch_notifications_api_shares_notifications_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shares": {
+      "post": {
+        "tags": ["shares"],
+        "summary": "Create Share",
+        "description": "Create a direct encrypted share (ciphertext stored in DB).",
+        "operationId": "create_share_api_shares_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateShareRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ShareDetail" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shares/sent": {
+      "get": {
+        "tags": ["shares"],
+        "summary": "List Sent Shares",
+        "description": "List shares created by the authenticated user.",
+        "operationId": "list_sent_shares_api_shares_sent_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": { "$ref": "#/components/schemas/ShareSummary" },
+                  "type": "array",
+                  "title": "Response List Sent Shares Api Shares Sent Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shares/received": {
+      "get": {
+        "tags": ["shares"],
+        "summary": "List Received Shares",
+        "description": "List active shares received by the authenticated user.",
+        "operationId": "list_received_shares_api_shares_received_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": { "$ref": "#/components/schemas/ShareSummary" },
+                  "type": "array",
+                  "title": "Response List Received Shares Api Shares Received Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shares/code/{code}": {
+      "get": {
+        "tags": ["shares"],
+        "summary": "Resolve Short Code",
+        "description": "Resolve a short alphanumeric code to a share_id.",
+        "operationId": "resolve_short_code_api_shares_code__code__get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Code" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shares/{share_id}": {
+      "get": {
+        "tags": ["shares"],
+        "summary": "Get Share",
+        "description": "Get share detail. Only accessible by owner or grantee.",
+        "operationId": "get_share_api_shares__share_id__get",
+        "parameters": [
+          {
+            "name": "share_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Share Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ShareDetail" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["shares"],
+        "summary": "Revoke Share",
+        "description": "Revoke a share. Only the owner may revoke.",
+        "operationId": "revoke_share_api_shares__share_id__delete",
+        "parameters": [
+          {
+            "name": "share_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Share Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shares/{share_id}/ciphertext": {
+      "get": {
+        "tags": ["shares"],
+        "summary": "Get Ciphertext",
+        "description": "Stream the encrypted ciphertext for a share.",
+        "operationId": "get_ciphertext_api_shares__share_id__ciphertext_get",
+        "parameters": [
+          {
+            "name": "share_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Share Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shares/users/search": {
+      "get": {
+        "tags": ["shares"],
+        "summary": "Search Users",
+        "description": "Search users by username prefix (for share recipient lookup).",
+        "operationId": "search_users_api_shares_users_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "title": "Q" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vault/records": {
+      "get": {
+        "tags": ["vault"],
+        "summary": "List Records",
+        "description": "List all vault records owned by the authenticated user.",
+        "operationId": "list_records_api_vault_records_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": { "$ref": "#/components/schemas/VaultRecordMeta" },
+                  "type": "array",
+                  "title": "Response List Records Api Vault Records Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["vault"],
+        "summary": "Upload Record",
+        "description": "Upload a new encrypted record. Ciphertext is stored server-side.",
+        "operationId": "upload_record_api_vault_records_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVaultRecordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VaultRecordMeta" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vault/records/{record_id}": {
+      "get": {
+        "tags": ["vault"],
+        "summary": "Get Record",
+        "description": "Get vault record metadata.",
+        "operationId": "get_record_api_vault_records__record_id__get",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Record Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VaultRecordMeta" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["vault"],
+        "summary": "Delete Record",
+        "description": "Delete a vault record and its ciphertext (CASCADE).",
+        "operationId": "delete_record_api_vault_records__record_id__delete",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Record Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vault/records/{record_id}/ciphertext": {
+      "get": {
+        "tags": ["vault"],
+        "summary": "Get Record Ciphertext",
+        "description": "Stream encrypted ciphertext. Only owner or active grantee may download.",
+        "operationId": "get_record_ciphertext_api_vault_records__record_id__ciphertext_get",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Record Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/grants": {
+      "post": {
+        "tags": ["grants"],
+        "summary": "Create Grant",
+        "description": "Create a time-bounded access grant on a vault record.",
+        "operationId": "create_grant_api_grants_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateGrantRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GrantResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/grants/{grant_id}": {
+      "delete": {
+        "tags": ["grants"],
+        "summary": "Revoke Grant",
+        "description": "Revoke a grant. Only the grantor (record owner) may revoke.",
+        "operationId": "revoke_grant_api_grants__grant_id__delete",
+        "parameters": [
+          {
+            "name": "grant_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Grant Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MessageResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["grants"],
+        "summary": "Get Grant Details",
+        "description": "Get full grant details including the DEK bundle.\nOnly accessible by the grantor or grantee.",
+        "operationId": "get_grant_details_api_grants__grant_id__get",
+        "parameters": [
+          {
+            "name": "grant_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Grant Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantDetailsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/grants/my": {
+      "get": {
+        "tags": ["grants"],
+        "summary": "List My Grants",
+        "description": "List grants where the authenticated user is grantor or grantee.",
+        "operationId": "list_my_grants_api_grants_my_get",
+        "parameters": [
+          {
+            "name": "as_grantor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "True = grants I created; False = grants I received",
+              "default": true,
+              "title": "As Grantor"
+            },
+            "description": "True = grants I created; False = grants I received"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GrantListResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/grants/check/{record_id}": {
+      "get": {
+        "tags": ["grants"],
+        "summary": "Check Access",
+        "description": "Check whether the authenticated user has an active grant for a record.",
+        "operationId": "check_access_api_grants_check__record_id__get",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Record Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AccessCheckResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/grants/record/{record_id}": {
+      "get": {
+        "tags": ["grants"],
+        "summary": "List Grants For Record",
+        "description": "List all grants on a record. Only callable by the record owner.",
+        "operationId": "list_grants_for_record_api_grants_record__record_id__get",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Record Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GrantListResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccessCheckResponse": {
+        "properties": {
+          "has_access": { "type": "boolean", "title": "Has Access" },
+          "grant": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/GrantResponse" },
+              { "type": "null" }
+            ]
+          },
+          "permission_level": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Permission Level"
+          }
+        },
+        "type": "object",
+        "required": ["has_access"],
+        "title": "AccessCheckResponse"
+      },
+      "ChangePasswordRequest": {
+        "properties": {
+          "old_password": { "type": "string", "title": "Old Password" },
+          "new_password": { "type": "string", "title": "New Password" }
+        },
+        "type": "object",
+        "required": ["old_password", "new_password"],
+        "title": "ChangePasswordRequest"
+      },
+      "ConfirmPasswordResetRequest": {
+        "properties": {
+          "email": { "type": "string", "format": "email", "title": "Email" },
+          "code": { "type": "string", "title": "Code" },
+          "new_password": { "type": "string", "title": "New Password" }
+        },
+        "type": "object",
+        "required": ["email", "code", "new_password"],
+        "title": "ConfirmPasswordResetRequest"
+      },
+      "ConfirmTOTPRequest": {
+        "properties": {
+          "user_id_hex": { "type": "string", "title": "User Id Hex" },
+          "totp_code": { "type": "string", "title": "Totp Code" }
+        },
+        "type": "object",
+        "required": ["user_id_hex", "totp_code"],
+        "title": "ConfirmTOTPRequest"
+      },
+      "CreateGrantRequest": {
+        "properties": {
+          "grantee_id_hex": { "type": "string", "title": "Grantee Id Hex" },
+          "record_id": { "type": "string", "title": "Record Id" },
+          "permission_level": { "type": "string", "title": "Permission Level" },
+          "time_start": { "type": "string", "title": "Time Start" },
+          "time_end": { "type": "string", "title": "Time End" },
+          "dek_bundle_grantee": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Dek Bundle Grantee"
+          },
+          "signature_hex": { "type": "string", "title": "Signature Hex" }
+        },
+        "type": "object",
+        "required": [
+          "grantee_id_hex",
+          "record_id",
+          "permission_level",
+          "time_start",
+          "time_end",
+          "dek_bundle_grantee",
+          "signature_hex"
+        ],
+        "title": "CreateGrantRequest"
+      },
+      "CreateShareRequest": {
+        "properties": {
+          "grantee_user_id_hex": {
+            "type": "string",
+            "title": "Grantee User Id Hex"
+          },
+          "ciphertext_b64": { "type": "string", "title": "Ciphertext B64" },
+          "dek_bundle": { "type": "string", "title": "Dek Bundle" },
+          "nonce": { "type": "string", "title": "Nonce" },
+          "filename": { "type": "string", "title": "Filename" },
+          "mime_type": { "type": "string", "title": "Mime Type" },
+          "size_bytes": { "type": "integer", "title": "Size Bytes" },
+          "file_hash": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "File Hash"
+          },
+          "signature": { "type": "string", "title": "Signature" },
+          "payload_canon": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Payload Canon"
+          },
+          "expires_hours": {
+            "type": "integer",
+            "title": "Expires Hours",
+            "default": 24
+          },
+          "delete_on_download": {
+            "type": "boolean",
+            "title": "Delete On Download",
+            "default": true
+          },
+          "permission_level": {
+            "type": "string",
+            "title": "Permission Level",
+            "default": "view_only"
+          }
+        },
+        "type": "object",
+        "required": [
+          "grantee_user_id_hex",
+          "ciphertext_b64",
+          "dek_bundle",
+          "nonce",
+          "filename",
+          "mime_type",
+          "size_bytes",
+          "signature"
+        ],
+        "title": "CreateShareRequest",
+        "description": "Used by the legacy direct-share flow (not the relay flow)."
+      },
+      "CreateVaultRecordRequest": {
+        "properties": {
+          "record_id": { "type": "string", "title": "Record Id" },
+          "owner_key_hash": { "type": "string", "title": "Owner Key Hash" },
+          "owner_public_key_hex": {
+            "type": "string",
+            "title": "Owner Public Key Hex"
+          },
+          "filename": { "type": "string", "title": "Filename" },
+          "mime_type": { "type": "string", "title": "Mime Type" },
+          "size_bytes": { "type": "integer", "title": "Size Bytes" },
+          "iv_hex": { "type": "string", "title": "Iv Hex" },
+          "tags": {
+            "anyOf": [
+              { "items": { "type": "string" }, "type": "array" },
+              { "type": "null" }
+            ],
+            "title": "Tags"
+          },
+          "ciphertext": { "type": "string", "title": "Ciphertext" },
+          "dek_bundle": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Dek Bundle"
+          }
+        },
+        "type": "object",
+        "required": [
+          "record_id",
+          "owner_key_hash",
+          "owner_public_key_hex",
+          "filename",
+          "mime_type",
+          "size_bytes",
+          "iv_hex",
+          "ciphertext",
+          "dek_bundle"
+        ],
+        "title": "CreateVaultRecordRequest"
+      },
+      "DisableTOTPRequest": {
+        "properties": {
+          "user_id_hex": { "type": "string", "title": "User Id Hex" },
+          "password": { "type": "string", "title": "Password" },
+          "totp_code": { "type": "string", "title": "Totp Code" }
+        },
+        "type": "object",
+        "required": ["user_id_hex", "password", "totp_code"],
+        "title": "DisableTOTPRequest"
+      },
+      "EncryptedPayloadResponse": {
+        "properties": {
+          "encrypted_payload": {
+            "type": "string",
+            "title": "Encrypted Payload"
+          },
+          "signature": { "type": "string", "title": "Signature" },
+          "sender_signing_key": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Sender Signing Key"
+          },
+          "record_id": { "type": "string", "title": "Record Id" },
+          "sender_id_hex": { "type": "string", "title": "Sender Id Hex" }
+        },
+        "type": "object",
+        "required": [
+          "encrypted_payload",
+          "signature",
+          "sender_signing_key",
+          "record_id",
+          "sender_id_hex"
+        ],
+        "title": "EncryptedPayloadResponse"
+      },
+      "ExchangeKeyResponse": {
+        "properties": {
+          "user_id_hex": { "type": "string", "title": "User Id Hex" },
+          "exchange_public_key": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Exchange Public Key"
+          }
+        },
+        "type": "object",
+        "required": ["user_id_hex", "exchange_public_key"],
+        "title": "ExchangeKeyResponse"
+      },
+      "GrantDetailsResponse": {
+        "properties": {
+          "grant_id": { "type": "string", "title": "Grant Id" },
+          "record_id": { "type": "string", "title": "Record Id" },
+          "grantor_key_hash": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Grantor Key Hash"
+          },
+          "grantee_key_hash": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Grantee Key Hash"
+          },
+          "grantee_user_id_hex": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Grantee User Id Hex"
+          },
+          "permission_level": { "type": "string", "title": "Permission Level" },
+          "time_start": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Time Start"
+          },
+          "time_end": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Time End"
+          },
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked",
+            "default": false
+          },
+          "created_at": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Created At"
+          },
+          "retrieved_at": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Retrieved At"
+          },
+          "dek_bundle_grantee": {
+            "anyOf": [
+              { "additionalProperties": true, "type": "object" },
+              { "type": "null" }
+            ],
+            "title": "Dek Bundle Grantee"
+          }
+        },
+        "type": "object",
+        "required": ["grant_id", "record_id", "permission_level"],
+        "title": "GrantDetailsResponse"
+      },
+      "GrantListResponse": {
+        "properties": {
+          "grants": {
+            "items": { "$ref": "#/components/schemas/GrantResponse" },
+            "type": "array",
+            "title": "Grants"
+          }
+        },
+        "type": "object",
+        "required": ["grants"],
+        "title": "GrantListResponse"
+      },
+      "GrantResponse": {
+        "properties": {
+          "grant_id": { "type": "string", "title": "Grant Id" },
+          "record_id": { "type": "string", "title": "Record Id" },
+          "grantor_key_hash": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Grantor Key Hash"
+          },
+          "grantee_key_hash": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Grantee Key Hash"
+          },
+          "grantee_user_id_hex": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Grantee User Id Hex"
+          },
+          "permission_level": { "type": "string", "title": "Permission Level" },
+          "time_start": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Time Start"
+          },
+          "time_end": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Time End"
+          },
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked",
+            "default": false
+          },
+          "created_at": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Created At"
+          },
+          "retrieved_at": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Retrieved At"
+          }
+        },
+        "type": "object",
+        "required": ["grant_id", "record_id", "permission_level"],
+        "title": "GrantResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": { "$ref": "#/components/schemas/ValidationError" },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": { "type": "string", "format": "email", "title": "Email" },
+          "password": { "type": "string", "title": "Password" },
+          "totp_code": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Totp Code"
+          }
+        },
+        "type": "object",
+        "required": ["email", "password"],
+        "title": "LoginRequest"
+      },
+      "LoginResponse": {
+        "properties": {
+          "requires_totp": {
+            "type": "boolean",
+            "title": "Requires Totp",
+            "default": false
+          },
+          "user_id_hex": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "User Id Hex"
+          },
+          "tokens": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/TokenResponse" },
+              { "type": "null" }
+            ]
+          },
+          "user": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/UserResponse" },
+              { "type": "null" }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "LoginResponse"
+      },
+      "LogoutRequest": {
+        "properties": {
+          "refresh_token": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Refresh Token"
+          }
+        },
+        "type": "object",
+        "title": "LogoutRequest"
+      },
+      "MessageResponse": {
+        "properties": {
+          "message": { "type": "string", "title": "Message" },
+          "detail": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": ["message"],
+        "title": "MessageResponse"
+      },
+      "NotificationResponse": {
+        "properties": {
+          "notifications": {
+            "items": { "additionalProperties": true, "type": "object" },
+            "type": "array",
+            "title": "Notifications"
+          }
+        },
+        "type": "object",
+        "required": ["notifications"],
+        "title": "NotificationResponse"
+      },
+      "POWChallengeResponse": {
+        "properties": {
+          "challenge_id": { "type": "string", "title": "Challenge Id" },
+          "challenge": { "type": "string", "title": "Challenge" },
+          "difficulty": { "type": "integer", "title": "Difficulty" },
+          "timestamp": { "type": "number", "title": "Timestamp" }
+        },
+        "type": "object",
+        "required": ["challenge_id", "challenge", "difficulty", "timestamp"],
+        "title": "POWChallengeResponse"
+      },
+      "POWVerifyRequest": {
+        "properties": {
+          "challenge_id": { "type": "string", "title": "Challenge Id" },
+          "solution": { "type": "string", "title": "Solution" }
+        },
+        "type": "object",
+        "required": ["challenge_id", "solution"],
+        "title": "POWVerifyRequest"
+      },
+      "PendingRequestsResponse": {
+        "properties": {
+          "requests": {
+            "items": { "additionalProperties": true, "type": "object" },
+            "type": "array",
+            "title": "Requests"
+          }
+        },
+        "type": "object",
+        "required": ["requests"],
+        "title": "PendingRequestsResponse"
+      },
+      "PublicKeysResponse": {
+        "properties": {
+          "user_id_hex": { "type": "string", "title": "User Id Hex" },
+          "signing_public_key": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Signing Public Key"
+          },
+          "exchange_public_key": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Exchange Public Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id_hex",
+          "signing_public_key",
+          "exchange_public_key"
+        ],
+        "title": "PublicKeysResponse"
+      },
+      "RefreshTokenRequest": {
+        "properties": {
+          "refresh_token": { "type": "string", "title": "Refresh Token" }
+        },
+        "type": "object",
+        "required": ["refresh_token"],
+        "title": "RefreshTokenRequest"
+      },
+      "RegisterRequest": {
+        "properties": {
+          "email": { "type": "string", "format": "email", "title": "Email" },
+          "username": { "type": "string", "title": "Username" },
+          "password": { "type": "string", "title": "Password" },
+          "full_name": { "type": "string", "title": "Full Name" },
+          "signing_public_key": {
+            "type": "string",
+            "title": "Signing Public Key"
+          },
+          "exchange_public_key": {
+            "type": "string",
+            "title": "Exchange Public Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "username",
+          "password",
+          "full_name",
+          "signing_public_key",
+          "exchange_public_key"
+        ],
+        "title": "RegisterRequest"
+      },
+      "RegisterResponse": {
+        "properties": {
+          "user": { "$ref": "#/components/schemas/UserResponse" },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "Registration complete. A verification code has been sent to your email."
+          }
+        },
+        "type": "object",
+        "required": ["user"],
+        "title": "RegisterResponse"
+      },
+      "RejectShareRequest": {
+        "properties": { "share_id": { "type": "string", "title": "Share Id" } },
+        "type": "object",
+        "required": ["share_id"],
+        "title": "RejectShareRequest"
+      },
+      "RequestPasswordResetRequest": {
+        "properties": {
+          "email": { "type": "string", "format": "email", "title": "Email" }
+        },
+        "type": "object",
+        "required": ["email"],
+        "title": "RequestPasswordResetRequest"
+      },
+      "RequestShareRequest": {
+        "properties": {
+          "owner_id_hex": { "type": "string", "title": "Owner Id Hex" },
+          "record_id": { "type": "string", "title": "Record Id" },
+          "requester_public_key": {
+            "type": "string",
+            "title": "Requester Public Key"
+          }
+        },
+        "type": "object",
+        "required": ["owner_id_hex", "record_id", "requester_public_key"],
+        "title": "RequestShareRequest"
+      },
+      "ResendVerificationRequest": {
+        "properties": {
+          "user_id_hex": { "type": "string", "title": "User Id Hex" }
+        },
+        "type": "object",
+        "required": ["user_id_hex"],
+        "title": "ResendVerificationRequest"
+      },
+      "SendEncryptedPayloadRequest": {
+        "properties": {
+          "recipient_id_hex": { "type": "string", "title": "Recipient Id Hex" },
+          "record_id": { "type": "string", "title": "Record Id" },
+          "encrypted_payload": {
+            "type": "string",
+            "title": "Encrypted Payload"
+          },
+          "signature": { "type": "string", "title": "Signature" }
+        },
+        "type": "object",
+        "required": [
+          "recipient_id_hex",
+          "record_id",
+          "encrypted_payload",
+          "signature"
+        ],
+        "title": "SendEncryptedPayloadRequest"
+      },
+      "ShareDetail": {
+        "properties": {
+          "share_id": { "type": "string", "title": "Share Id" },
+          "short_code": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Short Code"
+          },
+          "filename": { "type": "string", "title": "Filename" },
+          "mime_type": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Mime Type"
+          },
+          "size_bytes": {
+            "anyOf": [{ "type": "integer" }, { "type": "null" }],
+            "title": "Size Bytes"
+          },
+          "owner_username": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Owner Username"
+          },
+          "grantee_username": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Grantee Username"
+          },
+          "created_at": {
+            "anyOf": [
+              { "type": "string", "format": "date-time" },
+              { "type": "null" }
+            ],
+            "title": "Created At"
+          },
+          "expires_at": {
+            "anyOf": [
+              { "type": "string", "format": "date-time" },
+              { "type": "null" }
+            ],
+            "title": "Expires At"
+          },
+          "delete_on_download": {
+            "type": "boolean",
+            "title": "Delete On Download",
+            "default": true
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "active"
+          },
+          "permission_level": {
+            "type": "string",
+            "title": "Permission Level",
+            "default": "view_only"
+          },
+          "dek_bundle": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Dek Bundle"
+          },
+          "nonce": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Nonce"
+          },
+          "signature": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Signature"
+          },
+          "ciphertext_url": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Ciphertext Url"
+          }
+        },
+        "type": "object",
+        "required": ["share_id", "filename"],
+        "title": "ShareDetail"
+      },
+      "ShareRequestResponse": {
+        "properties": {
+          "status": { "type": "string", "title": "Status" },
+          "share_id": { "type": "string", "title": "Share Id" },
+          "message": { "type": "string", "title": "Message" }
+        },
+        "type": "object",
+        "required": ["status", "share_id", "message"],
+        "title": "ShareRequestResponse"
+      },
+      "ShareSummary": {
+        "properties": {
+          "share_id": { "type": "string", "title": "Share Id" },
+          "short_code": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Short Code"
+          },
+          "filename": { "type": "string", "title": "Filename" },
+          "mime_type": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Mime Type"
+          },
+          "size_bytes": {
+            "anyOf": [{ "type": "integer" }, { "type": "null" }],
+            "title": "Size Bytes"
+          },
+          "owner_username": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Owner Username"
+          },
+          "grantee_username": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Grantee Username"
+          },
+          "created_at": {
+            "anyOf": [
+              { "type": "string", "format": "date-time" },
+              { "type": "null" }
+            ],
+            "title": "Created At"
+          },
+          "expires_at": {
+            "anyOf": [
+              { "type": "string", "format": "date-time" },
+              { "type": "null" }
+            ],
+            "title": "Expires At"
+          },
+          "delete_on_download": {
+            "type": "boolean",
+            "title": "Delete On Download",
+            "default": true
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "active"
+          },
+          "permission_level": {
+            "type": "string",
+            "title": "Permission Level",
+            "default": "view_only"
+          }
+        },
+        "type": "object",
+        "required": ["share_id", "filename"],
+        "title": "ShareSummary"
+      },
+      "SigningKeyResponse": {
+        "properties": {
+          "user_id_hex": { "type": "string", "title": "User Id Hex" },
+          "signing_public_key": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Signing Public Key"
+          }
+        },
+        "type": "object",
+        "required": ["user_id_hex", "signing_public_key"],
+        "title": "SigningKeyResponse"
+      },
+      "TOTPSetupResponse": {
+        "properties": {
+          "uri": { "type": "string", "title": "Uri" },
+          "backup_codes": {
+            "items": { "type": "string" },
+            "type": "array",
+            "title": "Backup Codes"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "Store backup codes safely. They will never be shown again."
+          }
+        },
+        "type": "object",
+        "required": ["uri", "backup_codes"],
+        "title": "TOTPSetupResponse"
+      },
+      "TokenResponse": {
+        "properties": {
+          "access_token": { "type": "string", "title": "Access Token" },
+          "refresh_token": { "type": "string", "title": "Refresh Token" },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "expires_in": { "type": "integer", "title": "Expires In" }
+        },
+        "type": "object",
+        "required": ["access_token", "refresh_token", "expires_in"],
+        "title": "TokenResponse"
+      },
+      "UpdateKeysRequest": {
+        "properties": {
+          "signing_public_key": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Signing Public Key"
+          },
+          "exchange_public_key": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Exchange Public Key"
+          }
+        },
+        "type": "object",
+        "title": "UpdateKeysRequest"
+      },
+      "UserResponse": {
+        "properties": {
+          "user_id_hex": { "type": "string", "title": "User Id Hex" },
+          "username": { "type": "string", "title": "Username" },
+          "email": { "type": "string", "title": "Email" },
+          "full_name": { "type": "string", "title": "Full Name" },
+          "role": { "type": "string", "title": "Role" },
+          "is_verified": { "type": "boolean", "title": "Is Verified" },
+          "totp_enabled": { "type": "boolean", "title": "Totp Enabled" },
+          "created_at": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Created At"
+          },
+          "last_login_at": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Last Login At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id_hex",
+          "username",
+          "email",
+          "full_name",
+          "role",
+          "is_verified",
+          "totp_enabled"
+        ],
+        "title": "UserResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": { "anyOf": [{ "type": "string" }, { "type": "integer" }] },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": { "type": "string", "title": "Message" },
+          "type": { "type": "string", "title": "Error Type" },
+          "input": { "title": "Input" },
+          "ctx": { "type": "object", "title": "Context" }
+        },
+        "type": "object",
+        "required": ["loc", "msg", "type"],
+        "title": "ValidationError"
+      },
+      "VaultRecordMeta": {
+        "properties": {
+          "record_id": { "type": "string", "title": "Record Id" },
+          "filename": { "type": "string", "title": "Filename" },
+          "mime_type": { "type": "string", "title": "Mime Type" },
+          "size_bytes": { "type": "integer", "title": "Size Bytes" },
+          "iv_hex": { "type": "string", "title": "Iv Hex" },
+          "tags": {
+            "items": {},
+            "type": "array",
+            "title": "Tags",
+            "default": []
+          },
+          "created_at": {
+            "anyOf": [
+              { "type": "string", "format": "date-time" },
+              { "type": "null" }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "record_id",
+          "filename",
+          "mime_type",
+          "size_bytes",
+          "iv_hex"
+        ],
+        "title": "VaultRecordMeta",
+        "description": "Used by legacy vault routes."
+      },
+      "VerifyEmailRequest": {
+        "properties": {
+          "user_id_hex": { "type": "string", "title": "User Id Hex" },
+          "code": { "type": "string", "title": "Code" }
+        },
+        "type": "object",
+        "required": ["user_id_hex", "code"],
+        "title": "VerifyEmailRequest"
+      },
+      "VerifyTOTPLoginRequest": {
+        "properties": {
+          "user_id_hex": { "type": "string", "title": "User Id Hex" },
+          "totp_code": { "type": "string", "title": "Totp Code" }
+        },
+        "type": "object",
+        "required": ["user_id_hex", "totp_code"],
+        "title": "VerifyTOTPLoginRequest"
+      }
+    }
+  }
+}

@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>VaultGuard | Security Notifications</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .fill-icon {
+            font-variation-settings: 'FILL' 1;
+        }
+        /* Custom scrollbar for technical look */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b1326;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2d3449;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #c0c1ff;
+        }
+        .glass-card {
+            background: linear-gradient(135deg, rgba(19, 27, 46, 0.8) 0%, rgba(11, 19, 38, 0.95) 100%);
+            backdrop-filter: blur(8px);
+        }
+        @keyframes subtle-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .status-pulse {
+            animation: subtle-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "tertiary-container": "#00885d",
+                      "surface-tint": "#c0c1ff",
+                      "on-background": "#dae2fd",
+                      "tertiary-fixed": "#6ffbbe",
+                      "on-secondary-fixed": "#0d1c2d",
+                      "surface": "#0b1326",
+                      "surface-container-low": "#131b2e",
+                      "secondary": "#b9c8de",
+                      "on-surface-variant": "#c7c4d7",
+                      "background": "#0b1326",
+                      "tertiary-fixed-dim": "#4edea3",
+                      "primary-fixed-dim": "#c0c1ff",
+                      "on-tertiary-container": "#000703",
+                      "primary": "#c0c1ff",
+                      "on-secondary-fixed-variant": "#39485a",
+                      "primary-container": "#8083ff",
+                      "surface-container-high": "#222a3d",
+                      "inverse-primary": "#494bd6",
+                      "on-secondary": "#233143",
+                      "on-primary-fixed": "#07006c",
+                      "on-error": "#690005",
+                      "secondary-fixed-dim": "#b9c8de",
+                      "inverse-on-surface": "#283044",
+                      "surface-variant": "#2d3449",
+                      "tertiary": "#4edea3",
+                      "error": "#ffb4ab",
+                      "on-tertiary-fixed-variant": "#005236",
+                      "on-primary-fixed-variant": "#2f2ebe",
+                      "on-surface": "#dae2fd",
+                      "on-secondary-container": "#a7b6cc",
+                      "on-primary": "#1000a9",
+                      "on-tertiary": "#003824",
+                      "outline-variant": "#464554",
+                      "secondary-fixed": "#d4e4fa",
+                      "surface-dim": "#0b1326",
+                      "secondary-container": "#39485a",
+                      "surface-container-lowest": "#060e20",
+                      "on-tertiary-fixed": "#002113",
+                      "on-error-container": "#ffdad6",
+                      "on-primary-container": "#0d0096",
+                      "surface-container": "#171f33",
+                      "surface-bright": "#31394d",
+                      "primary-fixed": "#e1e0ff",
+                      "inverse-surface": "#dae2fd",
+                      "surface-container-highest": "#2d3449",
+                      "outline": "#908fa0",
+                      "error-container": "#93000a"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "3xl": "64px",
+                      "md": "16px",
+                      "gutter": "24px",
+                      "xs": "4px",
+                      "base": "4px",
+                      "lg": "24px",
+                      "2xl": "48px",
+                      "sm": "8px",
+                      "margin": "32px",
+                      "xl": "32px"
+              },
+              "fontFamily": {
+                      "label-md": ["Geist"],
+                      "body-lg": ["Inter"],
+                      "body-sm": ["Inter"],
+                      "headline-sm": ["Inter"],
+                      "mono-data": ["Geist"],
+                      "headline-md": ["Inter"],
+                      "label-sm": ["Geist"],
+                      "headline-lg": ["Inter"],
+                      "body-md": ["Inter"]
+              },
+              "fontSize": {
+                      "label-md": ["14px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                      "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                      "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                      "mono-data": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                      "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "label-sm": ["12px", {"lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                      "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+              }
+            },
+          },
+        }
+    </script>
+</head>
+<body class="bg-surface text-on-surface font-body-md overflow-hidden">
+<!-- Top Navigation Bar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface dark:bg-surface border-b border-outline-variant">
+<div class="flex items-center gap-4">
+<span class="font-headline-md text-headline-md font-bold text-primary">VaultGuard</span>
+<nav class="hidden md:flex gap-6 ml-8">
+<a class="text-on-surface-variant font-body-md hover:text-primary transition-colors" href="#">Dashboard</a>
+<a class="text-on-surface-variant font-body-md hover:text-primary transition-colors" href="#">Files</a>
+<a class="text-on-surface-variant font-body-md hover:text-primary transition-colors" href="#">Shared</a>
+<a class="text-on-surface-variant font-body-md hover:text-primary transition-colors" href="#">Keys</a>
+</nav>
+</div>
+<div class="flex items-center gap-gutter">
+<div class="relative group hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-body-md">search</span>
+<input class="bg-surface-container-high border-none rounded-full pl-10 pr-4 py-1.5 text-sm w-64 focus:ring-1 focus:ring-primary" placeholder="Search logs..." type="text"/>
+</div>
+<div class="flex items-center gap-4">
+<button class="relative p-2 text-primary">
+<span class="material-symbols-outlined fill-icon">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-primary-container overflow-hidden border border-outline">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a security officer in a dark, high-tech control room environment. The image is crisp with soft blue ambient lighting that matches a corporate dark-themed UI. The officer has a focused and serious expression, representing the reliability and security of VaultGuard." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAsscNiYvJtdj5mVh3y_0mjSAJXcZbCbNPSMSvBSk3Bgs4IIqWjWEx2AZiIFOYN_-Hv258NJYZa3eeDyP1bBaHxXIwRwHESNp6nK2hgCUmiMF34a8Oq81ZmI4h6K2wLCpfEslfIMIkDrcVcl3TmACqNBeynk88Uj0esRUWEymKiQbYdX0EIv3hUNSQLXRwKGKx26EIqr2Cb4kxFV3cRPrOE25XoPqQ9byl9cgnrhC8p8xrXXNRDWu1zTdsxA96g72IMMz4nRW4v7vU"/>
+</div>
+</div>
+</div>
+</header>
+<div class="flex h-screen pt-16">
+<!-- Side Navigation Bar -->
+<aside class="hidden lg:flex flex-col h-full p-md space-y-sm fixed left-0 w-64 bg-surface-container-low dark:bg-surface-container-low border-r border-outline-variant">
+<div class="px-4 py-6 mb-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined">security</span>
+</div>
+<div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface leading-tight">Secure Workspace</h2>
+<p class="text-[10px] uppercase tracking-widest text-primary font-bold">AES-256 Encrypted</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all active:scale-95 duration-100" href="#">
+<span class="material-symbols-outlined">lock</span>
+<span class="font-label-md text-label-md">Vault</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all active:scale-95 duration-100" href="#">
+<span class="material-symbols-outlined">outbox</span>
+<span class="font-label-md text-label-md">Sent</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all active:scale-95 duration-100" href="#">
+<span class="material-symbols-outlined">move_to_inbox</span>
+<span class="font-label-md text-label-md">Received</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all active:scale-95 duration-100" href="#">
+<span class="material-symbols-outlined">vpn_key</span>
+<span class="font-label-md text-label-md">Key Manager</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container font-bold rounded-xl transition-all active:scale-95 duration-100" href="#">
+<span class="material-symbols-outlined fill-icon">history</span>
+<span class="font-label-md text-label-md">Audit Log</span>
+</a>
+</nav>
+<div class="pt-4 border-t border-outline-variant space-y-1">
+<button class="w-full flex items-center justify-center gap-2 py-3 bg-primary text-on-primary font-bold rounded-xl hover:opacity-90 transition-opacity active:scale-95">
+<span class="material-symbols-outlined">upload_file</span>
+                    Upload File
+                </button>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined">shield</span>
+<span class="font-label-md text-label-md">Security Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined">help_outline</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 lg:ml-64 overflow-y-auto bg-surface-container-lowest p-gutter lg:p-margin">
+<div class="max-w-6xl mx-auto">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-xl">
+<div>
+<h1 class="font-headline-lg text-headline-lg mb-2">Notification Center</h1>
+<p class="text-on-surface-variant font-body-md">Monitor recent activities, sharing events, and system security alerts.</p>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 px-4 py-2 border border-outline-variant rounded-lg text-label-md font-label-md hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined text-[18px]">done_all</span>
+                            Mark all as read
+                        </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-error-container text-on-error-container rounded-lg text-label-md font-label-md hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined text-[18px]">delete_sweep</span>
+                            Clear all
+                        </button>
+</div>
+</div>
+<!-- Bento Grid for Categories -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-lg mb-xl">
+<!-- Stat Card 1 -->
+<div class="glass-card border border-outline-variant p-lg rounded-xl flex flex-col justify-between">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-primary-container/20 rounded-lg text-primary">
+<span class="material-symbols-outlined">share</span>
+</div>
+<span class="text-label-sm font-label-sm text-on-surface-variant">Active Shares</span>
+</div>
+<div>
+<span class="text-headline-md font-headline-md">12</span>
+<p class="text-label-sm text-tertiary font-label-sm flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-[14px]">trending_up</span>
+                                +3 this week
+                            </p>
+</div>
+</div>
+<!-- Stat Card 2 -->
+<div class="glass-card border border-outline-variant p-lg rounded-xl flex flex-col justify-between">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-error-container/20 rounded-lg text-error">
+<span class="material-symbols-outlined">security_update_warning</span>
+</div>
+<span class="text-label-sm font-label-sm text-on-surface-variant">Access Requests</span>
+</div>
+<div>
+<span class="text-headline-md font-headline-md">04</span>
+<p class="text-label-sm text-error font-label-sm flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-[14px]">priority_high</span>
+                                Requires Action
+                            </p>
+</div>
+</div>
+<!-- Stat Card 3 -->
+<div class="glass-card border border-outline-variant p-lg rounded-xl flex flex-col justify-between">
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-tertiary-container/20 rounded-lg text-tertiary">
+<span class="material-symbols-outlined">verified_user</span>
+</div>
+<span class="text-label-sm font-label-sm text-on-surface-variant">System Integrity</span>
+</div>
+<div>
+<span class="text-headline-md font-headline-md">100%</span>
+<p class="text-label-sm text-tertiary font-label-sm flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-[14px]">check_circle</span>
+                                Fully Secured
+                            </p>
+</div>
+</div>
+</div>
+<!-- Notifications List -->
+<div class="space-y-md">
+<!-- Urgent Access Request -->
+<div class="group relative flex flex-col md:flex-row gap-gutter p-gutter bg-surface-container border border-outline-variant rounded-xl hover:border-primary transition-all duration-300">
+<div class="absolute top-gutter right-gutter opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+<button class="p-2 hover:bg-surface-variant rounded-full text-on-surface-variant hover:text-primary" title="Mark as read">
+<span class="material-symbols-outlined text-[20px]">check</span>
+</button>
+<button class="p-2 hover:bg-surface-variant rounded-full text-on-surface-variant hover:text-error" title="Delete">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+<div class="flex-shrink-0">
+<div class="w-12 h-12 rounded-full bg-error/10 border border-error/20 flex items-center justify-center text-error relative">
+<span class="material-symbols-outlined fill-icon">person_alert</span>
+<span class="absolute top-0 right-0 w-3 h-3 bg-error rounded-full border-2 border-surface status-pulse"></span>
+</div>
+</div>
+<div class="flex-1 space-y-2">
+<div class="flex flex-wrap items-center gap-2">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Emergency Access Request</h3>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-error text-on-error uppercase tracking-tighter">Urgent</span>
+<span class="text-on-surface-variant font-mono-data text-mono-data ml-auto">2 mins ago</span>
+</div>
+<p class="text-on-surface-variant font-body-md max-w-2xl">
+                                External user <span class="text-primary font-mono-data">sarah.j@enterprise.io</span> is requesting temporary access to the <span class="italic font-bold">"Q4_Financial_Report.pdf"</span> vault.
+                            </p>
+<div class="flex gap-3 pt-2">
+<button class="px-6 py-2 bg-primary text-on-primary font-bold rounded-lg text-label-md active:scale-95 transition-all">Grant Access</button>
+<button class="px-6 py-2 border border-outline-variant text-on-surface-variant font-bold rounded-lg text-label-md hover:bg-surface-variant active:scale-95 transition-all">Deny</button>
+</div>
+</div>
+</div>
+<!-- System Alert -->
+<div class="group relative flex flex-col md:flex-row gap-gutter p-gutter bg-surface-container border border-outline-variant rounded-xl hover:border-tertiary transition-all duration-300">
+<div class="absolute top-gutter right-gutter opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+<button class="p-2 hover:bg-surface-variant rounded-full text-on-surface-variant hover:text-tertiary">
+<span class="material-symbols-outlined text-[20px]">check</span>
+</button>
+<button class="p-2 hover:bg-surface-variant rounded-full text-on-surface-variant hover:text-error">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+<div class="flex-shrink-0">
+<div class="w-12 h-12 rounded-full bg-tertiary/10 border border-tertiary/20 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined">sync</span>
+</div>
+</div>
+<div class="flex-1 space-y-1">
+<div class="flex items-center gap-2">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">System Update Complete</h3>
+<span class="text-on-surface-variant font-mono-data text-mono-data ml-auto">45 mins ago</span>
+</div>
+<p class="text-on-surface-variant font-body-md">
+                                Protocol <span class="font-mono-data text-primary">V-2.4.9</span> has been successfully deployed. AES-256 encryption handshake speed improved by 14%.
+                            </p>
+<div class="mt-2 flex items-center gap-2">
+<span class="px-2 py-1 rounded bg-tertiary/10 text-tertiary text-[11px] font-bold border border-tertiary/20">STABLE VERSION</span>
+<a class="text-primary text-label-sm font-bold underline underline-offset-4 hover:opacity-80" href="#">View release notes</a>
+</div>
+</div>
+</div>
+<!-- Activity Log (Read) -->
+<div class="group relative flex flex-col md:flex-row gap-gutter p-gutter bg-surface-container-low/50 border border-outline-variant/30 rounded-xl opacity-80 hover:opacity-100 transition-all">
+<div class="absolute top-gutter right-gutter opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+<button class="p-2 hover:bg-surface-variant rounded-full text-on-surface-variant hover:text-error">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+<div class="flex-shrink-0">
+<div class="w-12 h-12 rounded-full bg-secondary-container/20 border border-outline-variant flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined">visibility</span>
+</div>
+</div>
+<div class="flex-1 space-y-1">
+<div class="flex items-center gap-2">
+<h3 class="font-headline-sm text-headline-sm text-on-surface-variant">File Downloaded</h3>
+<span class="text-on-surface-variant font-mono-data text-mono-data ml-auto">3 hours ago</span>
+</div>
+<p class="text-on-surface-variant font-body-md italic">
+                                Mark Stevenson (Team Lead) downloaded <span class="font-mono-data">Client_Encryption_Keys_2023.zip</span> from IP: 192.168.1.45.
+                            </p>
+</div>
+</div>
+<!-- Security Alert -->
+<div class="group relative flex flex-col md:flex-row gap-gutter p-gutter bg-surface-container border border-outline-variant rounded-xl hover:border-primary transition-all duration-300">
+<div class="absolute top-gutter right-gutter opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+<button class="p-2 hover:bg-surface-variant rounded-full text-on-surface-variant hover:text-primary">
+<span class="material-symbols-outlined text-[20px]">check</span>
+</button>
+<button class="p-2 hover:bg-surface-variant rounded-full text-on-surface-variant hover:text-error">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+<div class="flex-shrink-0">
+<div class="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">key_visualizer</span>
+</div>
+</div>
+<div class="flex-1 space-y-1">
+<div class="flex items-center gap-2">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Key Rotation Scheduled</h3>
+<span class="text-on-surface-variant font-mono-data text-mono-data ml-auto">Yesterday</span>
+</div>
+<p class="text-on-surface-variant font-body-md">
+                                Your main vault access keys are due for rotation in <span class="text-primary font-bold">48 hours</span>. Please initiate the handshake to maintain seamless access.
+                            </p>
+<div class="pt-2">
+<button class="text-primary border border-primary px-4 py-1.5 rounded-lg text-label-md font-bold hover:bg-primary/10 transition-colors">Rotate Keys Now</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Encryption Visualizer Footer -->
+<div class="mt-2xl border-t border-outline-variant pt-lg">
+<div class="bg-surface-container-low rounded-xl p-md border border-outline-variant flex items-center justify-between gap-gutter">
+<div class="flex items-center gap-4">
+<div class="w-2 h-2 rounded-full bg-tertiary status-pulse"></div>
+<span class="text-label-sm font-mono-data text-on-surface-variant uppercase tracking-widest">Global Encryption Engine Active</span>
+</div>
+<div class="hidden md:flex flex-1 max-w-md overflow-hidden bg-surface-container-highest h-1.5 rounded-full relative">
+<div class="absolute top-0 left-0 h-full bg-primary transition-all duration-1000 ease-in-out" id="encryption-bar" style="width: 65%;"></div>
+</div>
+<div class="text-mono-data text-primary" id="hex-visualizer">
+                            [0x4f 0xa2 0xcb 0x11]
+                        </div>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Mobile Bottom Navigation Bar -->
+<nav class="lg:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 bg-surface-container dark:bg-surface-container border-t border-outline-variant shadow-lg">
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant p-2 rounded-xl" href="#">
+<span class="material-symbols-outlined">lock</span>
+<span class="font-label-sm text-label-sm">Vault</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant p-2 rounded-xl" href="#">
+<span class="material-symbols-outlined">share</span>
+<span class="font-label-sm text-label-sm">Shared</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant p-2 rounded-xl" href="#">
+<span class="material-symbols-outlined">key</span>
+<span class="font-label-sm text-label-sm">Keys</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-4 py-1" href="#">
+<span class="material-symbols-outlined fill-icon">history</span>
+<span class="font-label-sm text-label-sm">Alerts</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant p-2 rounded-xl" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-sm text-label-sm">Settings</span>
+</a>
+</nav>
+<script>
+        // Micro-interaction for encryption hex visualization
+        const hexCodes = [
+            '[0x4f 0xa2 0xcb 0x11]',
+            '[0x9e 0x55 0xfe 0x8a]',
+            '[0x12 0xbc 0x3d 0xee]',
+            '[0x67 0x89 0xab 0xcd]',
+            '[0xff 0x00 0xee 0x11]',
+            '[0x23 0x45 0x67 0x89]'
+        ];
+        
+        let hexIndex = 0;
+        const hexElement = document.getElementById('hex-visualizer');
+        const barElement = document.getElementById('encryption-bar');
+
+        setInterval(() => {
+            hexIndex = (hexIndex + 1) % hexCodes.length;
+            hexElement.textContent = hexCodes[hexIndex];
+            
+            // Randomize bar slightly for "active" look
+            const randomWidth = Math.floor(Math.random() * 20) + 70;
+            barElement.style.width = randomWidth + '%';
+        }, 3000);
+
+        // Simple mock for "Mark as Read" action
+        document.querySelectorAll('button[title="Mark as read"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const parent = e.target.closest('.group');
+                parent.style.opacity = '0.5';
+                parent.classList.add('bg-surface-container-low/50');
+                parent.querySelector('.status-pulse')?.remove();
+            });
+        });
+    </script>
+</body></html>

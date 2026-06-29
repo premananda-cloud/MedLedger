@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>VaultGuard - Secure File Details</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .vault-glass {
+            background: linear-gradient(135deg, rgba(23, 31, 51, 0.7) 0%, rgba(11, 19, 38, 0.8) 100%);
+            backdrop-filter: blur(12px);
+        }
+        .glow-border:focus-within {
+            box-shadow: 0 0 0 2px rgba(192, 193, 255, 0.2);
+            border-color: #c0c1ff;
+        }
+        @keyframes subtle-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .animate-encryption {
+            animation: subtle-pulse 3s infinite ease-in-out;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-container": "#00885d",
+                        "surface-tint": "#c0c1ff",
+                        "on-background": "#dae2fd",
+                        "tertiary-fixed": "#6ffbbe",
+                        "on-secondary-fixed": "#0d1c2d",
+                        "surface": "#0b1326",
+                        "surface-container-low": "#131b2e",
+                        "secondary": "#b9c8de",
+                        "on-surface-variant": "#c7c4d7",
+                        "background": "#0b1326",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "on-tertiary-container": "#000703",
+                        "primary": "#c0c1ff",
+                        "on-secondary-fixed-variant": "#39485a",
+                        "primary-container": "#8083ff",
+                        "surface-container-high": "#222a3d",
+                        "inverse-primary": "#494bd6",
+                        "on-secondary": "#233143",
+                        "on-primary-fixed": "#07006c",
+                        "on-error": "#690005",
+                        "secondary-fixed-dim": "#b9c8de",
+                        "inverse-on-surface": "#283044",
+                        "surface-variant": "#2d3449",
+                        "tertiary": "#4edea3",
+                        "error": "#ffb4ab",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "on-surface": "#dae2fd",
+                        "on-secondary-container": "#a7b6cc",
+                        "on-primary": "#1000a9",
+                        "on-tertiary": "#003824",
+                        "outline-variant": "#464554",
+                        "secondary-fixed": "#d4e4fa",
+                        "surface-dim": "#0b1326",
+                        "secondary-container": "#39485a",
+                        "surface-container-lowest": "#060e20",
+                        "on-tertiary-fixed": "#002113",
+                        "on-error-container": "#ffdad6",
+                        "on-primary-container": "#0d0096",
+                        "surface-container": "#171f33",
+                        "surface-bright": "#31394d",
+                        "primary-fixed": "#e1e0ff",
+                        "inverse-surface": "#dae2fd",
+                        "surface-container-highest": "#2d3449",
+                        "outline": "#908fa0",
+                        "error-container": "#93000a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "3xl": "64px",
+                        "md": "16px",
+                        "gutter": "24px",
+                        "xs": "4px",
+                        "base": "4px",
+                        "lg": "24px",
+                        "2xl": "48px",
+                        "sm": "8px",
+                        "margin": "32px",
+                        "xl": "32px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Geist"],
+                        "body-lg": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "mono-data": ["Geist"],
+                        "headline-md": ["Inter"],
+                        "label-sm": ["Geist"],
+                        "headline-lg": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["14px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "mono-data": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface min-h-screen flex">
+<!-- SideNavBar -->
+<aside class="fixed left-0 h-full w-64 bg-surface-container-low border-r border-outline-variant hidden lg:flex flex-col p-md space-y-sm z-50">
+<div class="mb-xl px-2">
+<div class="flex items-center gap-3 mb-sm">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="lock" style="font-variation-settings: 'FILL' 1;">lock</span>
+<h1 class="font-headline-sm text-headline-sm text-on-surface">VaultGuard</h1>
+</div>
+<div class="flex items-center gap-2 p-2 bg-surface-container rounded-xl">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary-container text-sm" data-icon="shield">shield</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Secure Workspace</p>
+<p class="text-[10px] uppercase tracking-widest text-tertiary">AES-256 Encrypted</p>
+</div>
+</div>
+</div>
+<button class="mb-xl w-full py-3 px-4 bg-primary text-on-primary font-bold rounded-xl flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all">
+<span class="material-symbols-outlined" data-icon="upload">upload</span>
+            Upload File
+        </button>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container font-bold rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="lock" style="font-variation-settings: 'FILL' 1;">lock</span>
+<span class="font-label-md text-label-md">Vault</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="outbox">outbox</span>
+<span class="font-label-md text-label-md">Sent</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="move_to_inbox">move_to_inbox</span>
+<span class="font-label-md text-label-md">Received</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="vpn_key">vpn_key</span>
+<span class="font-label-md text-label-md">Key Manager</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+<span class="font-label-md text-label-md">Audit Log</span>
+</a>
+</nav>
+<div class="mt-auto border-t border-outline-variant pt-sm space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="shield">shield</span>
+<span class="font-label-md text-label-md">Security Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="flex-1 lg:ml-64 p-gutter pb-32">
+<!-- Top Context Header -->
+<header class="flex items-center justify-between mb-lg">
+<div class="flex items-center gap-4">
+<a class="w-10 h-10 rounded-full border border-outline-variant flex items-center justify-center hover:bg-surface-variant text-on-surface-variant transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</a>
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">Quarterly_Financial_Report_2024.pdf.vault</h2>
+<p class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-2">
+<span class="material-symbols-outlined text-xs" data-icon="verified" style="font-variation-settings: 'FILL' 1;">verified</span>
+                        Integrity Verified: SHA-256 Match
+                    </p>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="bg-surface-container border border-outline-variant px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-surface-variant transition-colors text-on-surface font-label-md">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+                    Version History
+                </button>
+</div>
+</header>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-12 gap-lg">
+<!-- File Preview Card -->
+<div class="col-span-12 lg:col-span-8 bg-surface-container border border-outline-variant rounded-xl overflow-hidden flex flex-col">
+<div class="p-md border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+<span class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant">Secure Preview (Encrypted State)</span>
+<div class="flex gap-1">
+<div class="w-2 h-2 rounded-full bg-error"></div>
+<div class="w-2 h-2 rounded-full bg-tertiary"></div>
+<div class="w-2 h-2 rounded-full bg-primary"></div>
+</div>
+</div>
+<div class="flex-1 min-h-[400px] relative flex items-center justify-center bg-surface-container-lowest overflow-hidden">
+<!-- Encryption Visualizer Layer -->
+<div class="absolute inset-0 opacity-10 font-mono-data text-[10px] leading-tight overflow-hidden p-2 break-all whitespace-pre-wrap select-none animate-encryption">
+                        0x4A2F 0x98E1 0xBC34 0x7712 0xFFAA 0x1102 0x8892 0x3341 0x7782 0x9911 0x6652 0xEE41 0xCC12 0xBB82 0xAA91 0x1122 0x3344 0x5566 0x7788 0x99AA 0xBBCC 0xDDEE 0xFF00 0x1234 0x5678 0x9ABC 0xDEF0 0x2468 0xACE1 0x3579 0xBDF2
+                        0x4A2F 0x98E1 0xBC34 0x7712 0xFFAA 0x1102 0x8892 0x3341 0x7782 0x9911 0x6652 0xEE41 0xCC12 0xBB82 0xAA91 0x1122 0x3344 0x5566 0x7788 0x99AA 0xBBCC 0xDDEE 0xFF00 0x1234 0x5678 0x9ABC 0xDEF0 0x2468 0xACE1 0x3579 0xBDF2
+                    </div>
+<div class="z-10 text-center px-lg">
+<span class="material-symbols-outlined text-surface-variant text-[80px] mb-4 block" data-icon="lock_open">lock_open</span>
+<p class="font-headline-sm text-headline-sm text-on-surface mb-2">Content Encrypted</p>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6 max-w-sm mx-auto">This file is currently secured with AES-256. Decrypt locally to view the preview or download the raw blob.</p>
+<button class="bg-primary text-on-primary font-bold px-8 py-3 rounded-xl flex items-center gap-2 mx-auto hover:scale-105 active:scale-95 transition-all shadow-lg">
+<span class="material-symbols-outlined" data-icon="key">key</span>
+                            Decrypt for Preview
+                        </button>
+</div>
+</div>
+</div>
+<!-- Metadata Panel -->
+<div class="col-span-12 lg:col-span-4 flex flex-col gap-lg">
+<!-- Action Stack -->
+<div class="bg-surface-container border border-outline-variant rounded-xl p-lg space-y-4">
+<button class="w-full bg-primary-container text-on-primary-container font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-all">
+<span class="material-symbols-outlined" data-icon="download">download</span>
+                        Download
+                    </button>
+<button class="w-full border border-outline-variant text-on-surface font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-surface-variant transition-all">
+<span class="material-symbols-outlined" data-icon="share">share</span>
+                        Share Access
+                    </button>
+<button class="w-full border border-error text-error font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-error-container hover:text-on-error-container transition-all">
+<span class="material-symbols-outlined" data-icon="delete">delete</span>
+                        Delete Permanently
+                    </button>
+</div>
+<!-- Technical Details -->
+<div class="bg-surface-container border border-outline-variant rounded-xl p-lg">
+<h3 class="font-label-md text-label-md uppercase tracking-widest text-on-surface-variant mb-4">File Metadata</h3>
+<div class="space-y-4">
+<div class="flex justify-between items-start">
+<div>
+<p class="font-label-sm text-label-sm text-outline">Size</p>
+<p class="font-mono-data text-mono-data text-on-surface">14.2 MB</p>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="straighten">straighten</span>
+</div>
+<div class="flex justify-between items-start">
+<div>
+<p class="font-label-sm text-label-sm text-outline">Algorithm</p>
+<p class="font-mono-data text-mono-data text-tertiary">AES-GCM 256</p>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="security_update_good">security_update_good</span>
+</div>
+<div>
+<p class="font-label-sm text-label-sm text-outline mb-1">SHA-256 Hash</p>
+<div class="bg-surface-container-low p-2 rounded border border-outline-variant break-all">
+<p class="font-mono-data text-[11px] text-on-surface-variant">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</p>
+</div>
+</div>
+<div class="flex justify-between items-start pt-2 border-t border-outline-variant">
+<div>
+<p class="font-label-sm text-label-sm text-outline">Created</p>
+<p class="font-label-md text-label-md text-on-surface">Oct 12, 2023 • 14:22</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Sharing History & Audit Log -->
+<div class="col-span-12 grid grid-cols-1 md:grid-cols-2 gap-lg">
+<!-- Active Shares -->
+<div class="bg-surface-container border border-outline-variant rounded-xl p-lg">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Sharing History</h3>
+<span class="bg-tertiary-container text-on-tertiary-container px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">3 Active Links</span>
+</div>
+<div class="space-y-4">
+<div class="flex items-center gap-4 p-3 border border-outline-variant rounded-lg hover:bg-surface-variant transition-colors group">
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-secondary-container" data-icon="person">person</span>
+</div>
+<div class="flex-1">
+<p class="font-label-md text-label-md text-on-surface">Sarah Connor</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">View-only • Expires in 2 days</p>
+</div>
+<button class="opacity-0 group-hover:opacity-100 text-error p-2 hover:bg-error-container rounded-full transition-all">
+<span class="material-symbols-outlined" data-icon="link_off">link_off</span>
+</button>
+</div>
+<div class="flex items-center gap-4 p-3 border border-outline-variant rounded-lg hover:bg-surface-variant transition-colors group">
+<div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary-container" data-icon="domain">domain</span>
+</div>
+<div class="flex-1">
+<p class="font-label-md text-label-md text-on-surface">Compliance Team</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Full Access • No Expiry</p>
+</div>
+<button class="opacity-0 group-hover:opacity-100 text-error p-2 hover:bg-error-container rounded-full transition-all">
+<span class="material-symbols-outlined" data-icon="link_off">link_off</span>
+</button>
+</div>
+<div class="flex items-center gap-4 p-3 border border-outline-variant rounded-lg hover:bg-surface-variant transition-colors group">
+<div class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="public">public</span>
+</div>
+<div class="flex-1">
+<p class="font-label-md text-label-md text-on-surface">Public Link #12</p>
+<p class="font-label-sm text-label-sm text-error">Expired Oct 24, 2023</p>
+</div>
+<button class="text-on-surface-variant p-2 hover:bg-surface-variant rounded-full transition-all">
+<span class="material-symbols-outlined" data-icon="refresh">refresh</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Activity Feed -->
+<div class="bg-surface-container border border-outline-variant rounded-xl p-lg">
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-6">Security Audit Log</h3>
+<div class="relative space-y-6 before:content-[''] before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[1px] before:bg-outline-variant">
+<div class="relative pl-8">
+<div class="absolute left-0 top-1 w-6 h-6 bg-surface border border-primary rounded-full flex items-center justify-center z-10">
+<div class="w-2 h-2 bg-primary rounded-full"></div>
+</div>
+<p class="font-label-md text-label-md text-on-surface">File Decrypted</p>
+<p class="font-mono-data text-mono-data text-on-surface-variant">Today, 09:12 AM • Admin Console</p>
+</div>
+<div class="relative pl-8">
+<div class="absolute left-0 top-1 w-6 h-6 bg-surface border border-outline-variant rounded-full flex items-center justify-center z-10">
+<div class="w-2 h-2 bg-outline-variant rounded-full"></div>
+</div>
+<p class="font-label-md text-label-md text-on-surface">Access Granted: Sarah Connor</p>
+<p class="font-mono-data text-mono-data text-on-surface-variant">Yesterday, 04:45 PM • via Vault Link</p>
+</div>
+<div class="relative pl-8">
+<div class="absolute left-0 top-1 w-6 h-6 bg-surface border border-outline-variant rounded-full flex items-center justify-center z-10">
+<div class="w-2 h-2 bg-outline-variant rounded-full"></div>
+</div>
+<p class="font-label-md text-label-md text-on-surface">Integrity Check Passed</p>
+<p class="font-mono-data text-mono-data text-tertiary">Oct 24, 11:20 AM • Automatic System Task</p>
+</div>
+<div class="relative pl-8">
+<div class="absolute left-0 top-1 w-6 h-6 bg-surface border border-outline-variant rounded-full flex items-center justify-center z-10">
+<div class="w-2 h-2 bg-outline-variant rounded-full"></div>
+</div>
+<p class="font-label-md text-label-md text-on-surface">File Uploaded</p>
+<p class="font-mono-data text-mono-data text-on-surface-variant">Oct 12, 02:22 PM • Workstation-04</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar for Mobile -->
+<nav class="lg:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 bg-surface-container border-t border-outline-variant shadow-lg">
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-4 py-1" href="#">
+<span class="material-symbols-outlined" data-icon="lock" style="font-variation-settings: 'FILL' 1;">lock</span>
+<span class="font-label-sm text-label-sm">Vault</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="share">share</span>
+<span class="font-label-sm text-label-sm">Shared</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="key">key</span>
+<span class="font-label-sm text-label-sm">Keys</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-sm text-label-sm">Settings</span>
+</a>
+</nav>
+<script>
+        // Micro-interaction for buttons
+        document.querySelectorAll('button').forEach(button => {
+            button.addEventListener('mousedown', () => {
+                button.classList.add('scale-95');
+            });
+            button.addEventListener('mouseup', () => {
+                button.classList.remove('scale-95');
+            });
+            button.addEventListener('mouseleave', () => {</script></body></html>

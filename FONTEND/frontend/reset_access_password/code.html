@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>VaultGuard | Secure Password Recovery</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Geist:wght@400;500&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .vault-grid-bg {
+            background-size: 40px 40px;
+            background-image: radial-gradient(circle, #1E293B 1px, transparent 1px);
+        }
+        .glass-panel {
+            background: rgba(19, 27, 46, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid #2d3449;
+        }
+        .glow-button {
+            position: relative;
+            overflow: hidden;
+        }
+        .glow-button::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(192, 193, 255, 0.15) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        .glow-button:hover::after {
+            opacity: 1;
+        }
+        input:focus {
+            box-shadow: 0 0 0 2px rgba(192, 193, 255, 0.2);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "tertiary-container": "#00885d",
+                      "surface-tint": "#c0c1ff",
+                      "on-background": "#dae2fd",
+                      "tertiary-fixed": "#6ffbbe",
+                      "on-secondary-fixed": "#0d1c2d",
+                      "surface": "#0b1326",
+                      "surface-container-low": "#131b2e",
+                      "secondary": "#b9c8de",
+                      "on-surface-variant": "#c7c4d7",
+                      "background": "#0b1326",
+                      "tertiary-fixed-dim": "#4edea3",
+                      "primary-fixed-dim": "#c0c1ff",
+                      "on-tertiary-container": "#000703",
+                      "primary": "#c0c1ff",
+                      "on-secondary-fixed-variant": "#39485a",
+                      "primary-container": "#8083ff",
+                      "surface-container-high": "#222a3d",
+                      "inverse-primary": "#494bd6",
+                      "on-secondary": "#233143",
+                      "on-primary-fixed": "#07006c",
+                      "on-error": "#690005",
+                      "secondary-fixed-dim": "#b9c8de",
+                      "inverse-on-surface": "#283044",
+                      "surface-variant": "#2d3449",
+                      "tertiary": "#4edea3",
+                      "error": "#ffb4ab",
+                      "on-tertiary-fixed-variant": "#005236",
+                      "on-primary-fixed-variant": "#2f2ebe",
+                      "on-surface": "#dae2fd",
+                      "on-secondary-container": "#a7b6cc",
+                      "on-primary": "#1000a9",
+                      "on-tertiary": "#003824",
+                      "outline-variant": "#464554",
+                      "secondary-fixed": "#d4e4fa",
+                      "surface-dim": "#0b1326",
+                      "secondary-container": "#39485a",
+                      "surface-container-lowest": "#060e20",
+                      "on-tertiary-fixed": "#002113",
+                      "on-error-container": "#ffdad6",
+                      "on-primary-container": "#0d0096",
+                      "surface-container": "#171f33",
+                      "surface-bright": "#31394d",
+                      "primary-fixed": "#e1e0ff",
+                      "inverse-surface": "#dae2fd",
+                      "surface-container-highest": "#2d3449",
+                      "outline": "#908fa0",
+                      "error-container": "#93000a"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "3xl": "64px",
+                      "md": "16px",
+                      "gutter": "24px",
+                      "xs": "4px",
+                      "base": "4px",
+                      "lg": "24px",
+                      "2xl": "48px",
+                      "sm": "8px",
+                      "margin": "32px",
+                      "xl": "32px"
+              },
+              "fontFamily": {
+                      "label-md": ["Geist"],
+                      "body-lg": ["Inter"],
+                      "body-sm": ["Inter"],
+                      "headline-sm": ["Inter"],
+                      "mono-data": ["Geist"],
+                      "headline-md": ["Inter"],
+                      "label-sm": ["Geist"],
+                      "headline-lg": ["Inter"],
+                      "body-md": ["Inter"]
+              }
+            }
+          }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-md overflow-hidden h-screen flex flex-col">
+<!-- Ambient Visual Layer -->
+<div class="fixed inset-0 vault-grid-bg opacity-30 pointer-events-none"></div>
+
+<!-- Main Content Canvas -->
+<main class="relative z-10 flex-grow flex items-center justify-center px-gutter">
+<!-- Center Auth Card -->
+<div class="w-full max-w-[440px]">
+<!-- Branding Header -->
+<div class="mb-xl text-center">
+<div class="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-surface-container-high border border-outline-variant mb-md shadow-lg">
+<span class="material-symbols-outlined text-primary text-[32px]" data-icon="lock_reset">lock_reset</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight mb-xs">VaultGuard</h1>
+<p class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Secure Access Recovery</p>
+</div>
+<!-- Recovery Form Container -->
+<div class="glass-panel p-xl rounded-xl shadow-2xl relative overflow-hidden group">
+<!-- Subtle corner accents for "Vault" feel -->
+<div class="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-primary opacity-20 group-hover:opacity-100 transition-opacity"></div>
+<div class="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-primary opacity-20 group-hover:opacity-100 transition-opacity"></div>
+<div class="mb-lg">
+<h2 class="font-headline-md text-headline-md text-primary mb-sm">Forgot Password?</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
+                        Enter your registered email address below. We'll send a cryptographic reset link to your inbox if an account exists.
+                    </p>
+</div>
+<form class="space-y-lg" id="recovery-form">
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface-variant flex justify-between" for="email">
+<span>Email Address</span>
+<span class="text-tertiary flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="verified_user">verified_user</span>
+                                Encrypted
+                            </span>
+</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="mail">mail</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-3 pl-12 pr-4 text-on-surface placeholder:text-outline focus:outline-none focus:border-primary transition-all font-body-md" id="email" name="email" placeholder="name@company.com" required="" type="email"/>
+</div>
+</div>
+<button class="glow-button w-full bg-primary-container text-on-primary-container font-headline-sm text-headline-sm py-4 rounded-lg flex items-center justify-center gap-2 hover:bg-opacity-90 active:scale-[0.98] transition-all" type="submit">
+<span>Send Recovery Link</span>
+<span class="material-symbols-outlined" data-icon="send">send</span>
+</button>
+</form>
+<!-- Status Feedback (Hidden by default) -->
+<div class="hidden mt-lg p-md rounded-lg bg-tertiary/10 border border-tertiary/30" id="status-message">
+<div class="flex gap-md">
+<span class="material-symbols-outlined text-tertiary" data-icon="check_circle">check_circle</span>
+<div>
+<p class="font-label-md text-label-md text-tertiary">Recovery email sent</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Check your inbox. The link expires in 15 minutes.</p>
+</div>
+</div>
+</div>
+<div class="mt-xl pt-lg border-t border-outline-variant flex flex-col items-center gap-md">
+<a class="group inline-flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors font-label-md text-label-md" href="/login">
+<span class="material-symbols-outlined text-[18px] group-hover:-translate-x-1 transition-transform" data-icon="arrow_back">arrow_back</span>
+                        Back to Login
+                    </a>
+<div class="flex items-center gap-2 px-md py-1 bg-surface-container-high rounded-full">
+<div class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></div>
+<span class="font-mono-data text-mono-data text-on-surface-variant">System Status: Secure</span>
+</div>
+</div>
+</div>
+<!-- Footer Compliance / Info -->
+<div class="mt-xl text-center px-lg">
+<p class="font-body-sm text-body-sm text-outline leading-tight">
+                    By requesting a reset, you initiate a secure handshake. Ensure your browser is verified. 
+                    <a class="text-on-surface-variant underline underline-offset-4 hover:text-primary" href="#">View Security Protocols</a>
+</p>
+</div>
+</div>
+</main>
+<!-- Side Decoration (Bento Style Information) -->
+<div class="hidden lg:block fixed right-margin bottom-margin w-72 space-y-md">
+<div class="glass-panel p-md rounded-xl">
+<h3 class="font-label-md text-label-md text-primary mb-xs flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]" data-icon="shield_lock">shield_lock</span>
+                ZERO-TRUST RECOVERY
+            </h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+                Password resets use multi-hop encryption and temporary session tokens to prevent MITM attacks.
+            </p>
+</div>
+<div class="glass-panel p-md rounded-xl">
+<div class="flex items-center justify-between mb-sm">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-widest">Audit Log</span>
+<span class="font-mono-data text-mono-data text-tertiary">Live</span>
+</div>
+<div class="space-y-sm font-mono-data text-[11px] text-outline">
+<div class="flex justify-between border-b border-outline-variant pb-1">
+<span>RECOVERY_REQ</span>
+<span>PENDING...</span>
+</div>
+<div class="flex justify-between border-b border-outline-variant pb-1">
+<span>IP_VALIDATE</span>
+<span class="text-on-surface-variant">SUCCESS</span>
+</div>
+<div class="flex justify-between">
+<span>GEO_FENCE</span>
+<span class="text-on-surface-variant">ACTIVE</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Interaction Script -->
+<script>
+        document.getElementById('recovery-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            const status = document.getElementById('status-message');
+            
+            // Visual feedback
+            btn.disabled = true;
+            btn.innerHTML = `
+                <span class="material-symbols-outlined animate-spin" data-icon="progress_activity">progress_activity</span>
+                <span>Encrypting Request...</span>
+            `;
+
+            setTimeout(() => {
+                btn.classList.add('hidden');
+                status.classList.remove('hidden');
+                status.classList.add('animate-in', 'fade-in', 'slide-in-from-top-4', 'duration-500');
+            }, 1500);
+        });
+
+        // Background subtle parallax effect
+        document.addEventListener('mousemove', (e) => {
+            const moveX = (e.clientX - window.innerWidth / 2) * 0.01;
+            const moveY = (e.clientY - window.innerHeight / 2) * 0.01;
+            const grid = document.querySelector('.vault-grid-bg');
+            if (grid) {
+                grid.style.transform = `translate(${moveX}px, ${moveY}px)`;
+            }
+        });
+    </script>
+</body></html>
