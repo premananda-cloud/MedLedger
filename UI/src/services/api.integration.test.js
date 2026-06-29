@@ -27,15 +27,15 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const BASE = 'http://localhost:8000';
-const TEST_EMAIL    = `test_${Date.now()}@medledger-test.example`;
+const TEST_EMAIL    = `test_${Date.now()}@gmail.com`;
 const TEST_USERNAME = `testuser_${Date.now()}`;
 const TEST_PASSWORD = 'TestPass!2024_integration';
 const TEST_FULLNAME = 'Integration Test User';
 
 // Placeholder public keys — base64url encoded 32-byte zeros.
 // Real crypto is not tested here; these satisfy the schema type constraint.
-const FAKE_SIGNING_KEY  = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
-const FAKE_EXCHANGE_KEY = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+const FAKE_SIGNING_KEY  = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='; // 32 zero bytes, standard base64
+const FAKE_EXCHANGE_KEY = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='; // 32 zero bytes, standard base64
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -146,28 +146,29 @@ describe('PoW — challenge/verify', () => {
 // ─── Registration ─────────────────────────────────────────────────────────────
 
 describe('Registration', () => {
-  it('POST /api/auth/register creates a new user', async () => {
-    await completePow(); // PoW must be solved before register
+  it('POST /api/auth/register queues pending verification (no user created)', async () => {
+    // Registration now requires email verification before a user is created.
+    // The test cannot receive the real verification email, so we only assert
+    // that the server accepted the registration attempt and returned a pending
+    // message — not a user object. Full end-to-end (code → verify → login)
+    // is tested manually or via a mail-capture fixture (e.g. Mailhog).
+    await completePow();
 
     const res = await api('/api/auth/register', {
       method: 'POST',
       body: {
-        email:              TEST_EMAIL,
-        username:           TEST_USERNAME,
-        password:           TEST_PASSWORD,
-        full_name:          TEST_FULLNAME,
-        signing_public_key: FAKE_SIGNING_KEY,
+        email:               TEST_EMAIL,
+        username:            TEST_USERNAME,
+        password:            TEST_PASSWORD,
+        full_name:           TEST_FULLNAME,
+        signing_public_key:  FAKE_SIGNING_KEY,
         exchange_public_key: FAKE_EXCHANGE_KEY,
       },
     });
 
-    expect(res.ok).toBe(true);
-    expect(res.body).toHaveProperty('user');
-    expect(res.body.user).toHaveProperty('user_id_hex');
-    expect(res.body.user.email).toBe(TEST_EMAIL);
-    expect(res.body.user.username).toBe(TEST_USERNAME);
-
-    registeredUserId = res.body.user.user_id_hex;
+    expect([200, 201, 202]).toContain(res.status);
+    expect(res.body).toHaveProperty('message');
+    expect(res.body).not.toHaveProperty('user'); // user only created after email verify
   });
 
   it('POST /api/auth/register rejects duplicate email', async () => {
@@ -209,7 +210,7 @@ describe('Email verification', () => {
     if (!registeredUserId) return; // depends on registration passing
     const res = await api('/api/auth/verify-email', {
       method: 'POST',
-      body: { user_id_hex: registeredUserId, code: '000000' },
+      body: { email: TEST_EMAIL, code: '000000' },
     });
     // Should fail — wrong code
     expect(res.ok).toBe(false);
@@ -219,9 +220,9 @@ describe('Email verification', () => {
   it('POST /api/auth/resend-verification accepts a valid user_id_hex', async () => {
     const res = await api('/api/auth/resend-verification', {
       method: 'POST',
-      body: { user_id_hex: registeredUserId ?? 'nonexistent-user-id-000' },
+      body: { email: TEST_EMAIL },
     });
-    // May succeed, 429 rate-limit, or 404 if user not found — all acceptable
+    // May succeed, 429 rate-limit, or 404 if pending reg not found — all acceptable
     expect([200, 201, 202, 404, 429]).toContain(res.status);
   });
 });

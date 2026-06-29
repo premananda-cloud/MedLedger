@@ -33,7 +33,7 @@ from models.schemas import (
     ChangePasswordRequest, ConfirmPasswordResetRequest, ConfirmTOTPRequest,
     DisableTOTPRequest, LoginRequest, LoginResponse, LogoutRequest,  # Added LoginRequest
     MessageResponse, POWChallengeResponse, POWVerifyRequest,
-    RefreshTokenRequest, RegisterRequest, RegisterResponse,
+    RefreshTokenRequest, RegisterRequest,
     RequestPasswordResetRequest, ResendVerificationRequest,
     SetupTOTPRequest, TOTPSetupResponse, TokenResponse, UserResponse,
     VerifyEmailRequest, VerifyTOTPLoginRequest,
@@ -116,7 +116,7 @@ async def pow_verify(
 # Registration
 # ─────────────────────────────────────────────────────────────────────────────
 
-@router.post("/register", response_model=RegisterResponse, status_code=201)
+@router.post("/register", response_model=MessageResponse, status_code=202)
 async def register(
     body: RegisterRequest,
     request: Request,
@@ -124,7 +124,7 @@ async def register(
 ):
     """Register a new user. Sends a verification code to the provided email."""
     try:
-        user = await auth_svc.register_user(
+        result = await auth_svc.register_user(
             email=body.email,
             username=body.username,
             password=body.password,
@@ -133,7 +133,7 @@ async def register(
             exchange_public_key=body.exchange_public_key,
             ip_address=request.client.host if request.client else "",
         )
-        return RegisterResponse(user=_user_response(user))
+        return MessageResponse(message=result["message"])
     except DuplicateError as exc:
         raise HTTPException(409, str(exc))
     except ValueError as exc:
@@ -147,20 +147,34 @@ async def register(
 # Email verification
 # ─────────────────────────────────────────────────────────────────────────────
 
-@router.post("/verify-email", response_model=MessageResponse)
+@router.post("/verify-email", response_model=LoginResponse)
 async def verify_email(
     body: VerifyEmailRequest,
     request: Request,
     auth_svc: AuthService = Depends(get_auth_service),
 ):
-    """Verify the email address with the 6-digit code sent during registration."""
+    """
+    Verify email code and auto-login.
+
+    Stage 2 of registration. On success creates the user account and
+    returns tokens — the client is immediately authenticated.
+    body.email + body.code (user_id_hex field is ignored if present).
+    """
     try:
-        await auth_svc.verify_email(
-            user_id_hex=body.user_id_hex,
+        result = await auth_svc.verify_email(
+            email=body.email,
             code=body.code,
             ip_address=request.client.host if request.client else "",
         )
-        return MessageResponse(message="Email verified successfully.")
+        if result.get("requires_totp"):
+            return LoginResponse(
+                requires_totp=True,
+                user_id_hex=result.get("user_id_hex"),
+            )
+        return LoginResponse(
+            tokens=_token_response(result),
+            user=_user_response(result["user"]),
+        )
     except RecordNotFoundError as exc:
         raise HTTPException(404, str(exc))
     except ValueError as exc:
@@ -176,15 +190,17 @@ async def resend_verification(
     request: Request,
     auth_svc: AuthService = Depends(get_auth_service),
 ):
-    """Resend the email verification code."""
+    """Resend the email verification code to a pending registration."""
     try:
         result = await auth_svc.resend_verification_code(
-            user_id_hex=body.user_id_hex,
+            email=body.email,
             ip_address=request.client.host if request.client else "",
         )
         return MessageResponse(message=result.get("message", "Verification code sent."))
     except RecordNotFoundError as exc:
         raise HTTPException(404, str(exc))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
     except Exception:
         log.exception("resend_verification failed")
         raise HTTPException(500, "Internal server error")

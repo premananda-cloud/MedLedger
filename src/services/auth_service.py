@@ -199,7 +199,7 @@ class AuthService:
             raise DuplicateError("Username is already taken.", field="username")
 
         # 3. Hash password — Argon2id returns a single self-contained string
-        password_hash = self.pw.hash_password(password)
+        password_hash = self.pw.hash_password_argon2(password)
 
         # 4. Create user
         user = await self.db.create_user(
@@ -207,8 +207,13 @@ class AuthService:
             email=email,
             full_name=full_name,
             password_hash=password_hash,
-            signing_public_key=signing_public_key,    # ADD
-            exchange_public_key=exchange_public_key,  # ADD
+        )
+
+        # 4b. Store public keys
+        await self.db.set_public_keys(
+            user_id_hex=user["user_id_hex"],
+            signing_public_key=signing_public_key,
+            exchange_public_key=exchange_public_key,
         )
 
         # 5. Send + store verification code
@@ -383,7 +388,7 @@ class AuthService:
 
         # 3. Opportunistic rehash — update Argon2 params if they've changed
         if self.pw.needs_rehash(stored_hash):
-            new_hash = self.pw.hash_password(password)
+            new_hash = self.pw.hash_password_argon2(password)
             await self.db.set_password_hash(user["user_id_hex"], new_hash)
 
         # 4. TOTP required?
@@ -729,7 +734,7 @@ class AuthService:
             raise ValueError(f"New password too weak: {'; '.join(strength.issues)}")
 
         # hash_password() returns a single Argon2id string — salt is embedded
-        new_hash = self.pw.hash_password(new_password)
+        new_hash = self.pw.hash_password_argon2(new_password)
         await self.db.set_password_hash(user_id_hex, new_hash)
         await self.db.revoke_all_user_refresh_tokens(user_id_hex)
         await self.audit.log_auth_event("password_change", user_id_hex, ip_address)
@@ -810,7 +815,7 @@ class AuthService:
             raise ValueError(f"New password too weak: {'; '.join(strength.issues)}")
 
         # hash_password() returns a single Argon2id string — salt is embedded
-        new_hash = self.pw.hash_password(new_password)
+        new_hash = self.pw.hash_password_argon2(new_password)
         await self.db.set_password_hash(user["user_id_hex"], new_hash)
         # Clear the used reset token
         await self.db.store_verification_token(user["user_id_hex"], "", "")

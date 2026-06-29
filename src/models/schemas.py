@@ -75,8 +75,8 @@ class LoginRequest(BaseModel):
 
 
 class VerifyEmailRequest(BaseModel):
-    user_id_hex: str
-    code:        str
+    email: EmailStr
+    code:  str
 
     @field_validator("code")
     @classmethod
@@ -87,7 +87,7 @@ class VerifyEmailRequest(BaseModel):
 
 
 class ResendVerificationRequest(BaseModel):
-    user_id_hex: str
+    email: EmailStr
 
 
 class SetupTOTPRequest(BaseModel):
