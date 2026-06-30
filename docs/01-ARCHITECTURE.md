@@ -1,6 +1,6 @@
 # MedLedger Architecture
 
-**Version:** 2.0 | **Date:** June 2026 | **Status:** Draft — Production Architecture
+**Version:** 2.1 | **Date:** June 2026 | **Status:** Current — Reflects Deployed System
 
 ---
 
@@ -10,11 +10,11 @@ MedLedger is a **low-trust, ephemeral sharing conduit** for patient-controlled m
 
 **Core Principle:** *We are a means, not a vault. We store ciphertext we cannot read, for a limited time, at the patient's discretion. We cannot be compelled to decrypt what we do not possess.*
 
-**Implementation Reality:** The system is split into two independent domains that communicate through a thin integration layer:
-- **Auth Domain** (`auth/`): Traditional multi-step registration (POW, email, TOTP, username/password)
-- **Crypto Domain** (`key_manager/`): libsodium-based key operations (Ed25519, X25519, sealed-box encryption)
+The system splits into two independent domains:
+- **Auth Domain** (`auth/`, `services/`): Multi-step registration (PoW, email verification, TOTP, password). Python/FastAPI, PostgreSQL, Argon2id.
+- **Crypto Domain** (`key_manager/`): libsodium-based key operations (Ed25519, X25519, sealed-box encryption). Runs entirely in the browser.
 
-These domains are bridged at registration time: the auth system creates the user account, then the crypto system generates a keypair that becomes the user's cryptographic identity.
+These domains meet at registration: the auth system creates the user account while the crypto system generates the keypair, and the public keys are stored together in one request.
 
 ---
 
@@ -23,12 +23,12 @@ These domains are bridged at registration time: the auth system creates the user
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  LAYER 1: GATE (Server-Managed, Anti-Spam)                      │
-│  ───────────────────────────────────────────────────────          │
-│  • Email (verified, disposable-allowed, spam-filtered)            │
-│  • Human verification (CAPTCHA / Turnstile)                     │
+│  ─────────────────────────────────────────────────────────────  │
+│  • Email (verified via 6-digit code)                            │
 │  • Proof-of-work (CPU cost to deter automation)                 │
-│  • Rate limiting (IP, domain, temporal)                         │
-│  • JWT session (short-lived, HttpOnly cookie)                   │
+│  • Rate limiting (per-IP, per-email lockout)                    │
+│  • TOTP optional second factor                                  │
+│  • JWT access token + opaque refresh token (Bearer header)      │
 │  • Purpose: Filter noise. Attach a human to a public key.       │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -36,13 +36,13 @@ These domains are bridged at registration time: the auth system creates the user
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  LAYER 2: KEYSET (Patient-Sovereign, Non-Recoverable)           │
-│  ───────────────────────────────────────────────────────          │
-│  • Ed25519/X25519 Keypair generated in browser (libsodium.js)   │
-│  • Private key held client-side only (memory, or keypair file)  │
-│  • Public key hash = identity anchor for all server interactions  │
-│  • Server knows: public key hash, encrypted blob (optional)     │
-│  • Server never knows: private key, password, plaintext DEK     │
-│  • Lost keyset = locked forever. No recovery. Delete & restart.  │
+│  ─────────────────────────────────────────────────────────────  │
+│  • Ed25519/X25519 keypair generated in browser (libsodium.js)   │
+│  • Private key held client-side only (memory or keypair file)   │
+│  • Public keys stored server-side as cryptographic anchor       │
+│  • Server knows: signing_public_key, exchange_public_key        │
+│  • Server never knows: private key, plaintext DEK               │
+│  • Lost keyset = locked forever. No recovery. Delete & restart. │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -52,9 +52,9 @@ These domains are bridged at registration time: the auth system creates the user
 |---------|---------------|------------------|
 | **Purpose** | Anti-spam, session identity | Cryptographic identity, encryption, signing |
 | **Who controls** | Server + User | User only |
-| **Recovery** | None. Delete account, start over. | None. Delete account, start over. |
-| **Server knowledge** | Email hash, CAPTCHA token, PoW nonce | Public key hash, encrypted blob (if stored) |
-| **Compromise impact** | Spam, noise — no data access | Nothing — private key never transmitted |
+| **Recovery** | Password reset via email code | None — delete account and start over |
+| **Server knowledge** | Email, password hash (Argon2id) | Public keys only |
+| **Compromise impact** | Account access — no data decryption | Nothing — private key never transmitted |
 | **HIPAA posture** | Minimal data (no PHI) | Zero-knowledge — server cannot decrypt |
 
 ---
@@ -74,38 +74,28 @@ These domains are bridged at registration time: the auth system creates the user
 │  │  • Keypair Modal│  │  • encryptRecord│  │  • XSalsa20-Poly1305│  │
 │  │  • Download Flow│  │  • decryptShare │  │  • BLAKE2b hashing  │  │
 │  └─────────────────┘  └─────────────────┘  └─────────────────────┘  │
-│           │                    │                    │               │
-│           └────────────────────┴────────────────────┘               │
-│                              │                                      │
-│  ┌─────────────────────────────────────────────────────────────────┐│
-│  │  Integration Layer (shared/)                                     ││
-│  │  • registerBridge.js — wires auth → key_manager                ││
-│  │  • loginBridge.js — loads keypair, unlocks vault              ││
-│  │  • apiClient.js — JWT cookie handling, fetch wrapper           ││
-│  └─────────────────────────────────────────────────────────────────┘│
-│                              │                                      │
-│                         HTTPS / JSON                                │
+│                              │                                        │
+│              HTTPS + Authorization: Bearer <access_token>            │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
 ┌──────────────────────────────┼──────────────────────────────────────┐
-│                         SERVER (FastAPI / Node.js)                  │
-│  ┌─────────────────┐  ┌──────┴──────────┐  ┌─────────────────────┐  │
-│  │  API Router     │  │  Gate Service   │  │  Share Service      │  │
-│  │  (Endpoints)    │  │  (Layer 1)      │  │  (Layer 2 aware)    │  │
-│  │                 │  │                 │  │                     │  │
-│  │  /api/register  │  │  • CAPTCHA      │  │  • Store ciphertext │  │
-│  │  /api/login     │  │  • PoW verify   │  │  • Store DEK bundle │  │
-│  │  /api/share/*   │  │  • Rate limit   │  │  • TTL enforcement  │  │
-│  │  /api/account   │  │  • JWT issue    │  │  • Delete on fetch  │  │
+│              SERVER (Python 3.11 / FastAPI / PostgreSQL)            │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐  │
+│  │  routes/        │  │  services/      │  │  database/          │  │
+│  │  auth.py        │  │  auth_service   │  │  repository.py      │  │
+│  │  keys.py        │  │  key_service    │  │                     │  │
+│  │  vault.py       │  │  grant_service  │  │  PostgreSQL via     │  │
+│  │  grants.py      │  │  audit_service  │  │  SQLAlchemy async   │  │
+│  │  shares.py      │  │  relay_service  │  │                     │  │
 │  └─────────────────┘  └─────────────────┘  └─────────────────────┘  │
-│           │                    │                    │               │
-│           └────────────────────┴────────────────────┘               │
-│                              │                                      │
-│  ┌───────────────────────────────────────────────────────────────── │
-│  │  Store Layer (PostgreSQL / JSON file)                            │
-│  │  • users (email, public_key_hash, password_hash, pubkeys, ts)     │
-│  │  • active_shares (ciphertext, DEK bundle, TTL, expiry)          │
-│  │  • audit_log (immutable, 7-year retention)                       │
+│                                                                       │
+│  ┌─────────────────────────────────────────────────────────────────┐ │
+│  │  auth/ (pure Python modules — no I/O, no DB access)            │ │
+│  │  password.py  — Argon2id hashing; PBKDF2 verify for migration  │ │
+│  │  pow.py       — PoW challenge/verify                            │ │
+│  │  email.py     — 6-digit code generation + Gmail delivery        │ │
+│  │  totp.py      — TOTP enrollment and verification                │ │
+│  │  token.py     — JWT creation and verification                   │ │
 │  └─────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -118,290 +108,276 @@ These domains are bridged at registration time: the auth system creates the user
 
 | Component | Tech | Responsibility |
 |-----------|------|----------------|
-| **React SPA** | Vite + TanStack Router | UI rendering, routing, state management |
-| **TanStack Query** | React hooks | API calls, caching, background refresh |
+| **React SPA** | Vite + React | UI rendering, routing, state management |
 | **Keyset Manager** | libsodium.js module | All crypto operations, key lifecycle, memory management |
-| **Integration Layer** | Vanilla JS | Bridges auth state and crypto state |
+| **API client** | fetch wrapper | JWT header injection, 401 refresh retry, error handling |
 
-The Keyset Manager is **encapsulated**. The React layer calls it via a defined API — never directly manipulates Uint8Array key material.
+The Keyset Manager is encapsulated. The React layer calls it via a defined API — never directly manipulates `Uint8Array` key material.
 
 ### 4.2 Auth Domain (`auth/`)
 
-| Component | Tech | Responsibility |
-|-----------|------|----------------|
-| **Auth Flow** | Node.js orchestrator | Multi-step registration: POW → Email → TOTP → User/Pass |
-| **POW Module** | SHA-256 | Anti-spam challenge generation/verification |
-| **Email Module** | crypto.randomInt | 6-digit code generation (currently used for verification) |
-| **TOTP Module** | speakeasy + qrcode | 2FA enrollment and verification |
-| **User Module** | PBKDF2-SHA512 | Password validation and hashing |
-| **Storage** | JSON file | User record persistence |
+| Module | Tech | Responsibility |
+|--------|------|----------------|
+| **PasswordModule** | argon2-cffi | Hash passwords (Argon2id). Verify legacy PBKDF2 hashes and rehash on login. |
+| **POWModule** | hashlib SHA-256 | Challenge generation and verification |
+| **EmailAuthModule** | Gmail SMTP | 6-digit code generation and delivery |
+| **TOTPModule** | pyotp | TOTP secret generation, backup codes, verification |
+| **TokenModule** | PyJWT | JWT creation and verification |
 
-**Note:** The auth domain is a standalone system. It knows nothing about cryptography. It produces a user record that the integration layer then extends with cryptographic identity.
+All modules are stateless pure functions. No DB access. No I/O except EmailAuthModule. Orchestration is in `services/auth_service.py`.
 
-### 4.3 Crypto Domain (`key_manager/`)
+### 4.3 Services Layer (`services/`)
 
-| Component | Tech | Responsibility |
-|-----------|------|----------------|
-| **make_key.js** | libsodium.js | Pure key derivation/generation function |
-| **key_manager.js** | libsodium.js | Session state machine, all crypto operations |
-| **Tests** | Vitest | Unit tests for key derivation, encryption, signing |
+| Service | Responsibility |
+|---------|----------------|
+| **AuthService** | Registration, login, email verify, TOTP, password management, token lifecycle |
+| **KeyService** | Public key storage and lookup — keys arrive from frontend, server stores and serves |
+| **GrantService** | Access grant creation, revocation, lookup, DEK bundle distribution |
+| **AuditService** | Append-only auth and vault event logging |
+| **RelayService** | Zero-knowledge share relay — stores ciphertext, never reads it |
 
-**Key design principle:** Keys are randomly generated — not derived from a password. The user receives their private keypair once at registration and must store it securely. Lost keys mean lost access to past shares.
+### 4.4 Database Layer (`database/`)
 
-### 4.4 Integration Layer (`shared/`)
-
-| Component | Responsibility |
-|-----------|-------------|
-| **registerBridge.js** | Calls authFlow.createAccount() → KeysetManager.createUser() → prompts keypair download → stores public keys server-side |
-| **loginBridge.js** | Loads keypair file → KeysetManager.loginUser() → verifies against server public keys → unlocks vault |
-| **apiClient.js** | fetch wrapper with credentials: 'include', JWT refresh logic, CSRF token handling |
+Single `DatabaseRepository` class wrapping all PostgreSQL operations via SQLAlchemy async. Services import only the repository — no raw SQL anywhere else in the codebase.
 
 ---
 
 ## 5. Data Flows
 
-### 5.1 Registration (Layer 1 + Keypair Generation)
+### 5.1 Registration
 
 ```
-Browser → User enters email + password
-       → Completes CAPTCHA (Turnstile)
-       → Browser solves PoW (~1 second, background)
-       → Browser calls authFlow.createAccount(username, password)
-           1. Auth domain validates username uniqueness
-           2. PBKDF2: hash password with random salt (600k iter)
-           3. Store user record in data/users.json
-           4. Return { userId, username }
+Browser → User fills form (email, username, password, full_name)
+       → GET /auth/pow/challenge → solve PoW
+       → KeysetManager.createUser(username)
+           → Ed25519 + X25519 keypairs generated
+           → Returns public keys + private keys
+       → Prompt user to download .medledger-key.json
+       → POST /auth/register with:
+           { email, username, password, full_name,
+             signing_public_key, exchange_public_key }
 
-       → Integration layer calls KeysetManager.createUser(username)
-           1. libsodium.js: crypto_sign_keypair() → Ed25519 keypair
-           2. libsodium.js: crypto_box_keypair() → X25519 keypair
-           3. Return: { signingPublicKey, exchangePublicKey, userIdHex,
-                        signingPrivateKey, exchangePrivateKey }
+Server → Validate password strength
+       → Check email + username availability
+       → Hash password (Argon2id — single self-contained string)
+       → Create user row (password_hash + public keys in one INSERT)
+       → Send 6-digit code to email (store SHA-256 hash, not code)
+       → Return 202 + message
 
-       → Browser triggers download: "alice.medledger-key.json"
-           { version, username, userIdHex, publicKeys, privateKeys }
+Browser → User enters the 6-digit code
+       → POST /auth/verify-email { email, code }
 
-       → Browser calls POST /api/register/keys
-           Headers: Bearer <JWT>
-           Body: { username, userIdHex, signingPublicKey, exchangePublicKey }
+Server → Verify code hash + expiry (timing-safe comparison)
+       → Mark is_verified = 1
+       → Issue JWT access token + opaque refresh token
+       → Return 200 + { tokens, user }
+
+Browser → Vault unlocked (keypair already in KeysetManager from generation)
+```
+
+### 5.2 Login
+
+```
+Browser → POST /auth/login { email, password }
+
+Server → _check_login_lockout() FIRST (prevents timing oracle for locked accounts)
+       → get_user_by_email()
+       → verify_password(password, stored_hash) — always runs, dummy hash if no user
+       → On failure: increment failure counter, raise 401
+       → On TOTP enabled: return { requires_totp: true, user_id_hex }
+       → On success: issue tokens, reset rate limit, audit log
+       → Return { tokens, user }
+
+Browser → Vault shows "Locked" until user supplies keypair file
+       → User uploads .medledger-key.json
+       → KeysetManager.loginUser(username, keypair)
+       → Vault unlocked — no server call (Layer 2 is client-side only)
+```
+
+### 5.3 Share Creation
+
+```
+Browser → Fetch recipient exchange key: GET /keys/{user_id_hex}/exchange
+       → KeysetManager.encryptRecord(fileBytes, recipientExchangePublicKey)
+           1. Random 256-bit DEK
+           2. XSalsa20-Poly1305: encrypt file → { encryptedRecord, nonce }
+           3. crypto_box_seal(DEK, recipientPublicKey) → dekBundle
+           4. memzero(DEK)
+       → KeysetManager.signPayload(grantMetadata)
+       → POST to vault/grant endpoint with ciphertext + dekBundle + signature
 
 Server → Verify JWT
-       → Store public keys in user record
-       → Return: { registered: true }
-
-→ User is now logged in (Layer 1). Vault shows "Locked" until keypair is loaded.
+       → Store ciphertext + dekBundle (cannot read either)
+       → Return record/grant ID
 ```
 
-### 5.2 Keypair Loading (Unlocking Layer 2)
+### 5.4 Share Retrieval (Client-Side Decryption)
 
 ```
-Browser → User clicks "Unlock Vault"
-       → Uploads .medledger-key.json file + enters password (if encrypted)
-       → Integration layer reads file, reconstructs keypair
-       → KeysetManager.loginUser(username, keypair)
-           1. Validate keypair format (correct lengths, valid base64)
-           2. Derive userIdHex from signingPublicKey (BLAKE2b)
-           3. Verify userIdHex matches server-stored value
-           4. Store private keys in module memory (Uint8Array)
-           5. Mark session as unlocked
-       → Dashboard shows "Unlocked"
-       → Share / download operations now available
-```
+Browser → Fetch ciphertext from server
+       → KeysetManager.decryptShare(encryptedRecord, nonce, dekBundle)
+           1. crypto_box_seal_open(dekBundle, myPublicKey, myPrivateKey) → DEK
+           2. crypto_secretbox_open_easy(ciphertext, nonce, DEK) → plaintext
+           3. memzero(DEK) in finally block
+       → Browser download of plaintext
 
-### 5.3 Share Creation (Upload & Encrypt)
-
-```
-Browser → User selects file
-       → User enters recipient's username (or scans QR)
-       → Server lookup: recipient username → exchangePublicKey
-       → KeysetManager.encryptRecord(fileBytes, recipientExchangePublicKey)
-           1. Generate random 256-bit DEK (libsodium randombytes_buf)
-           2. XSalsa20-Poly1305 encrypt file → { nonce, ciphertext }
-           3. crypto_box_seal: encrypt DEK with recipient's X25519 public key
-           4. Wipe DEK from memory (sodium.memzero)
-           5. Return: { encryptedRecord, nonce, dekBundle, fileHash }
-
-       → KeysetManager.signPayload(grantMetadata)
-           1. Canonical-JSON serialize payload
-           2. Ed25519 sign with sender's private key
-           3. Return: { payloadCanon, signature }
-
-Browser → POST /api/share
-       Headers: Bearer <JWT>
-       Body: { encryptedRecord, nonce, dekBundle, recipientUserIdHex,
-               filename, mime_type, size_bytes, ttl_days, signature, payloadCanon }
-
-Server → Verify JWT, extract user_id
-       → Verify Ed25519 signature against sender's public key
-       → Store in active_shares table
-       → Set expires_at = NOW() + ttl_days (max 90, default 30)
-       → Return: { share_id, short_url, expires_at }
-
-→ User sends short_url to recipient (out of band: SMS, email, QR)
-```
-
-### 5.4 Recipient Download (Decrypt & Delete)
-
-```
-Browser → Recipient clicks short_url
-       → Prompted to upload .medledger-key.json file
-       → Integration layer loads keypair → KeysetManager.loginUser()
-       → Browser calls POST /api/share/:id/retrieve
-           Headers: Bearer <JWT>
-           Body: { signature: Ed25519(retrievalPayload) }
-
-Server → Verify JWT, check if recipient matches share.grantee
-       → Verify Ed25519 signature
-       → Return: { encryptedRecord, nonce, dekBundle, filename, mime_type }
-       → If delete_on_download: mark row for deletion (or hard delete)
-
-Browser → KeysetManager.decryptShare(encryptedRecord, nonce, dekBundle)
-           1. crypto_box_seal_open: decrypt DEK with recipient's X25519 private key
-           2. crypto_secretbox_open_easy: decrypt file with DEK
-           3. Wipe DEK from memory (sodium.memzero)
-           4. Trigger browser download of decrypted file
-
-→ Server never sees plaintext. Decryption happens entirely in browser.
-```
-
-### 5.5 Account Deletion (Absolute Destruction)
-
-```
-Browser → User clicks "Delete My Account"
-       → Type "DELETE" to confirm
-       → Browser calls DELETE /api/account
-           Headers: Bearer <JWT>
-           Body: { password_confirmation }
-
-Server → Verify JWT, verify password (Argon2id or PBKDF2)
-       → Hard delete: user record, all active_shares, keypair data
-       → Audit logs: anonymize (strip email, keep action type)
-       → Invalidate JWT cookie
-
-Browser → Clear JWT, clear keypair from memory, redirect to landing page
-
-→ Old recipients lose access immediately. Patient can register again with new keypair.
+Server never sees plaintext. Decryption is entirely in the browser.
 ```
 
 ---
 
-## 6. State Machine: Vault Lifecycle
+## 6. Vault State Machine
 
 ```
                     ┌─────────────┐
-                    │   NO ACCOUNT │
+                    │  NO ACCOUNT  │
                     └──────┬──────┘
-                           │ Register (CAPTCHA + PoW + keygen)
+                           │ Register (PoW + keygen + email verify)
                            ▼
-                    ┌─────────────┐
-                    │  ACCOUNT +  │
-                    │  KEYPAIR    │
-                    │  Vault: LOCKED│
+                    ┌──────────────┐
+                    │  LOGGED IN   │
+                    │  Vault: LOCKED
                     └──────┬──────┘
-                           │ Upload Keypair File
+                           │ Upload Keypair File (client-side only)
                            ▼
-                    ┌─────────────┐
-                    │  KEYPAIR    │
-                    │  Vault: UNLOCKED│
+                    ┌──────────────┐
+                    │  LOGGED IN   │
+                    │ Vault: UNLOCKED
                     └──────┬──────┘
                            │
               ┌────────────┼────────────┐
               │            │            │
               ▼            ▼            ▼
-        ┌─────────┐  ┌─────────┐  ┌─────────┐
-        │ Share   │  │ Retrieve│  │ Delete  │
-        │ File    │  │ Inbox   │  │ Account │
-        └─────────┘  └─────────┘  └─────────┘
-                           │
-                           ▼
-                    ┌─────────────┐
-                    │  ACCOUNT    │
-                    │  DELETED    │
-                    │  (absolute) │
-                    └─────────────┘
+        ┌─────────┐  ┌─────────┐  ┌──────────┐
+        │ Create  │  │ Retrieve│  │ Lock /   │
+        │ Grants  │  │ Shares  │  │ Logout   │
+        └─────────┘  └─────────┘  └────┬─────┘
+                                        │
+                                 ┌──────┴──────┐
+                                 │ LOCKED or   │
+                                 │ LOGGED OUT  │
+                                 └─────────────┘
 ```
+
+**State transitions:**
+- `NO ACCOUNT → LOCKED`: Register (PoW + keys + email verify → tokens)
+- `LOGGED OUT → LOCKED`: Login with email + password
+- `LOCKED → UNLOCKED`: Client-side keypair load (KeysetManager.loginUser)
+- `UNLOCKED → LOCKED`: Lock vault (memzero private keys) — still logged in
+- `UNLOCKED → LOGGED OUT`: Full logout (revoke tokens + memzero keys)
 
 ---
 
-## 7. Database Schema
+## 7. Database Schema (Actual)
 
-### 7.1 users (Layer 1 + Layer 2 Anchor)
-
-| Column | Type | Notes |
-|--------|------|-------|
-| user_id | UUID | PK |
-| username | VARCHAR(30) | UNIQUE, case-insensitive, no recovery |
-| email | VARCHAR(255) | For rate-limiting, not verification |
-| email_hash | VARCHAR(64) | SHA-256 of email (for lookups) |
-| password_hash | VARCHAR(255) | PBKDF2-SHA512 (current) or Argon2id (target) |
-| salt | VARCHAR(64) | 16 random bytes, hex |
-| signing_public_key | VARCHAR(64) | Ed25519 public key, base64url |
-| exchange_public_key | VARCHAR(64) | X25519 public key, base64url |
-| user_id_hex | VARCHAR(32) | BLAKE2b(signingPublicKey, 16), identity anchor |
-| created_at | TIMESTAMP | UTC |
-| last_login | TIMESTAMP | UTC |
-| deleted_at | TIMESTAMP | NULL if active |
-
-### 7.2 active_shares (Ephemeral Storage)
+### 7.1 users
 
 | Column | Type | Notes |
 |--------|------|-------|
-| share_id | UUID | PK |
-| owner_user_id_hex | VARCHAR(32) | FK → users.user_id_hex |
-| grantee_user_id_hex | VARCHAR(32) | FK → users.user_id_hex |
-| ciphertext | BYTEA | XSalsa20-Poly1305 encrypted file |
-| dek_bundle | TEXT | crypto_box_seal encrypted DEK |
-| nonce | TEXT | XSalsa20 nonce, base64url |
-| filename | VARCHAR(255) | Original filename |
-| mime_type | VARCHAR(100) | File type |
-| size_bytes | INTEGER | Original size |
-| file_hash | VARCHAR(64) | BLAKE2b-256 of plaintext (integrity) |
-| signature | TEXT | Ed25519 signature of grant metadata |
-| payload_canon | TEXT | Canonical JSON that was signed |
-| created_at | TIMESTAMP | UTC |
-| expires_at | TIMESTAMP | UTC. NOW() + ttl_days. |
-| downloaded_at | TIMESTAMP | NULL if not yet downloaded |
-| delete_on_download | BOOLEAN | Default true |
-| deleted_at | TIMESTAMP | NULL if active |
+| id | INTEGER | PK, autoincrement |
+| user_id_hex | TEXT UNIQUE | Identity anchor |
+| username | TEXT UNIQUE | Case-insensitive |
+| email | TEXT UNIQUE | |
+| full_name | TEXT | |
+| role | TEXT | Default 'PATIENT' |
+| password_hash | TEXT | Argon2id string (salt embedded — no separate salt column) |
+| signing_public_key | TEXT | Ed25519, base64url |
+| exchange_public_key | TEXT | X25519, base64url |
+| is_verified | INTEGER | 0/1 |
+| totp_enabled | INTEGER | 0/1 |
+| totp_secret | TEXT | base32 |
+| is_active | INTEGER | 0/1 |
+| account_deleted | INTEGER | 0/1 |
+| verification_token | TEXT | SHA-256 of email code — not the code itself |
+| token_expires_at | TEXT | ISO timestamp |
+| last_login_at | TEXT | |
+| created_at | TEXT | |
 
-### 7.3 audit_log (Immutable, 7-Year Retention)
+### 7.2 active_shares
 
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID | PK |
-| actor_user_id_hex | VARCHAR(32) | Who did it (anonymized if account deleted) |
-| action | VARCHAR(50) | register, login, share, retrieve, delete_account |
-| share_id | UUID | FK, nullable |
-| detail | JSONB | Contextual data (no PHI, no emails) |
-| ip_address | INET | Request source |
-| timestamp | TIMESTAMP | UTC |
+| Column | Notes |
+|--------|-------|
+| share_id | UNIQUE UUID |
+| short_code | Human-readable retrieval code |
+| owner_user_id_hex, grantee_user_id_hex | Identity anchors |
+| ciphertext | Encrypted file (BLOB) |
+| dek_bundle | DEK sealed for grantee — server cannot open |
+| nonce | XSalsa20 nonce |
+| filename, mime_type, size_bytes | Plaintext metadata |
+| status | 'active', 'retrieved', 'expired', 'revoked' |
+| expires_at | TTL deadline |
+| delete_on_download | Default 1 |
+
+### 7.3 grants
+
+| Column | Notes |
+|--------|-------|
+| grant_id | UNIQUE |
+| record_id | FK → vault_records |
+| grantor_key_hash, grantee_key_hash | Crypto identity (not user_id_hex) |
+| grantee_user_id_hex | Human identity anchor |
+| grantee_public_key_hex | For DEK re-encryption if needed |
+| permission_level | 'view_only' or 'view_download' |
+| time_start, time_end | Access window |
+| dek_bundle_grantee | DEK sealed for grantee — server cannot open |
+| signature_hex | Ed25519 signature over grant payload |
+| revoked | 0/1 |
+
+### 7.4 vault_records
+
+| Column | Notes |
+|--------|-------|
+| record_id | UNIQUE |
+| owner_key_hash, owner_user_id_hex | Owner identity |
+| owner_public_key_hex | Owner's encryption key at time of upload |
+| filename, mime_type, size_bytes, iv_hex | Plaintext metadata |
+| tags | JSON array |
+
+### 7.5 audit_log
+
+| Column | Notes |
+|--------|-------|
+| actor_user_id_hex | Who performed the action |
+| action | Event type (login, register, share_created, etc.) |
+| ip_address, user_agent | Request context |
+| detail | JSON — no PHI |
+| timestamp | UTC |
 
 ---
 
 ## 8. API Endpoint Map
 
-### 8.1 Gate (Layer 1)
+### 8.1 Auth (`/auth/*`)
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | /api/pow-challenge | None | Generate SHA-256 PoW challenge |
-| POST | /api/register | None | CAPTCHA + PoW + auth registration |
-| POST | /api/register/keys | Bearer | Store public keys after registration |
-| POST | /api/login | None | Username + password → JWT |
-| POST | /api/logout | Bearer | Invalidate session |
-| GET | /api/me | Bearer | Current user profile + public keys |
-| DELETE | /api/account | Bearer | Absolute deletion |
-| GET | /api/health | None | Health check |
+| POST | /auth/pow/challenge | None | Issue PoW challenge |
+| POST | /auth/pow/verify | None | Verify PoW solution |
+| POST | /auth/register | None | Register + store public keys (single request) |
+| POST | /auth/verify-email | None | Verify email code → issue tokens |
+| POST | /auth/resend-verification | None | Resend verification code |
+| POST | /auth/login | None | Password login |
+| POST | /auth/verify-totp-login | None | Complete TOTP second factor |
+| POST | /auth/refresh | None | Rotate refresh token |
+| POST | /auth/logout | JWT | Revoke current session |
+| POST | /auth/logout-all | JWT | Revoke all sessions |
+| POST | /auth/change-password | JWT | Change password, revoke all tokens |
+| POST | /auth/request-password-reset | None | Send reset code to email |
+| POST | /auth/confirm-password-reset | None | Verify code + set new password |
+| POST | /auth/totp/setup | JWT | Begin TOTP enrollment |
+| POST | /auth/totp/confirm | JWT | Confirm with live code |
+| POST | /auth/totp/disable | JWT | Disable TOTP |
+| GET  | /auth/me | JWT | Current user profile |
 
-### 8.2 Share (Layer 2)
+### 8.2 Keys (`/keys/*`)
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | /api/share | Bearer + Keyset | Create encrypted share |
-| POST | /api/share/:id/retrieve | Bearer + Keyset | Download and decrypt |
-| GET | /api/shares/outbox | Bearer | Shares I created |
-| GET | /api/shares/inbox | Bearer | Shares sent to me |
-| DELETE | /api/share/:id | Bearer + Keyset | Revoke/cancel share |
+| GET | /keys/my | JWT | Own public keys |
+| GET | /keys/{user_id_hex} | JWT | Both keys for a user |
+| GET | /keys/{user_id_hex}/exchange | JWT | X25519 key only |
+| GET | /keys/{user_id_hex}/signing | JWT | Ed25519 key only |
+| PUT | /keys/update | JWT | Update own public keys |
 
 ---
 
@@ -416,22 +392,13 @@ Browser → Clear JWT, clear keypair from memory, redirect to landing page
   "exchange_public_key": "base64url...",
   "signing_private_key": "base64url...",
   "exchange_private_key": "base64url...",
-  "created_at": "2026-06-07T23:10:00Z",
-  "metadata": {
-    "generated_by": "MedLedger Keyset Manager",
-    "generator_version": "2.0"
-  }
+  "created_at": "2026-06-07T23:10:00Z"
 }
 ```
 
-**Constraints:**
-- `signing_public_key` is Ed25519, 32 bytes (43 chars base64url)
-- `exchange_public_key` is X25519, 32 bytes (43 chars base64url)
-- `user_id_hex` is BLAKE2b-128 of signingPublicKey, 16 bytes (32 hex chars)
-- Private keys are base64url-encoded raw bytes (not encrypted in v1)
-- File extension: `.medledger-key.json`
+Key sizes: Ed25519 public 32 bytes, private 64 bytes. X25519 public and private 32 bytes each. All base64url without padding.
 
-**Security note:** In a future version, the private keys may be encrypted with a user password before storage. For now, the user is responsible for securing the file.
+Private keys are unencrypted in v1. Password-encryption is planned for v1.1.
 
 ---
 
@@ -441,45 +408,33 @@ Browser → Clear JWT, clear keypair from memory, redirect to landing page
 ┌─────────────────┐         ┌─────────────────┐
 │   Vercel        │         │   Railway         │
 │   (Frontend)    │         │   (Backend)       │
-│                 │         │                 │
-│  React SPA      │◄──────►│  FastAPI/Node.js  │
+│                 │         │                   │
+│  React SPA      │◄──────►│  FastAPI          │
 │  Static build   │  HTTPS  │  PostgreSQL       │
-│  Edge CDN       │         │  Redis (sessions) │
 └─────────────────┘         └─────────────────┘
-         │                           │
-         │    ┌─────────────────┐   │
-         └───►│  Cloudflare DNS   │◄──┘
-              │  + SSL + DDoS     │
-              └─────────────────┘
 ```
 
-**Domains:**
-- `app.medledger.com` → Vercel (frontend)
-- `api.medledger.com` → Railway (backend)
-- CORS: `api.medledger.com` allows `app.medledger.com` with credentials
-
-**Cookies:**
-- JWT stored in HttpOnly, SameSite=Strict, Secure cookie
-- Domain: `api.medledger.com`
-- Keypair state: NOT in cookies — purely client-side memory or file
+- Frontend: `app.medledger.com` → Vercel
+- Backend: `api.medledger.com` → Railway
+- Auth: `Authorization: Bearer <access_token>` header on all protected routes
+- CORS: backend allows frontend origin with credentials
 
 ---
 
 ## 11. Invariants (Non-Negotiable)
 
-1. **Private keys never leave the browser.** Not in cookies, not in storage, not in logs.
-2. **Server stores only public material and ciphertext.** Public keys, ciphertext, encrypted DEK bundles, signatures.
+1. **Private keys never leave the browser.** Not in headers, not in logs, not in storage.
+2. **Server stores only public material and ciphertext.** Never plaintext, never private keys.
 3. **We cannot decrypt medical data.** Mathematical guarantee, not policy.
-4. **Every share is cryptographically targeted.** DEK is sealed for a specific recipient public key.
-5. **DEKs are always sealed.** Plaintext DEK never exists server-side.
-6. **No account recovery.** Lost email, password, or keypair = delete account and start over. We cannot help.
-7. **Email is anti-spam only.** Used for rate-limiting, not for recovery. Disposable emails allowed.
-8. **All shares have TTL.** Maximum 90 days, default 30 days. After expiry, server deletes.
-9. **Account deletion is absolute.** Hard delete all shares, anonymize audit logs.
-10. **Audit everything.** Every share, every retrieve, every registration logged.
-11. **Honest UI.** "We cannot recover your keypair. We cannot read your data. We are not a storage company."
+4. **Every share is cryptographically targeted.** DEK sealed for a specific recipient key.
+5. **Argon2id for all new password hashes.** PBKDF2 hashes rehashed on first login.
+6. **Lockout check before password verification.** Prevents timing oracle on locked accounts.
+7. **Verification tokens stored as SHA-256 hashes.** Plain codes never persisted.
+8. **Audit everything.** Every auth event logged with actor, IP, and timestamp.
+9. **No private keys in API responses.** Key endpoints return public keys only.
+10. **Honest UI.** "We cannot recover your keypair. We cannot read your data."
 
 ---
 
-*Document: 01-ARCHITECTURE.md | Author: Premananda (Team Praxis) | Status: Draft v2.0*
-*Updated: June 2026 to reflect actual two-domain implementation*
+*Document: 01-ARCHITECTURE.md | Version: 2.1 | June 2026*
+*Reflects deployed system: Python/FastAPI, PostgreSQL, Argon2id, Bearer JWT*
