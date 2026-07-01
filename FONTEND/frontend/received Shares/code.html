@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Received Shares | VaultGuard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Geist:wght@400;500&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary": "#b9c8de",
+                        "on-secondary-fixed-variant": "#39485a",
+                        "on-primary-container": "#0d0096",
+                        "on-primary": "#1000a9",
+                        "surface-dim": "#0b1326",
+                        "on-surface-variant": "#c7c4d7",
+                        "tertiary-fixed": "#6ffbbe",
+                        "on-tertiary": "#003824",
+                        "tertiary": "#4edea3",
+                        "surface": "#0b1326",
+                        "on-secondary-fixed": "#0d1c2d",
+                        "background": "#0b1326",
+                        "on-tertiary-container": "#000703",
+                        "on-error-container": "#ffdad6",
+                        "surface-container": "#171f33",
+                        "on-secondary": "#233143",
+                        "surface-container-highest": "#2d3449",
+                        "inverse-primary": "#494bd6",
+                        "on-primary-fixed": "#07006c",
+                        "tertiary-container": "#00885d",
+                        "inverse-on-surface": "#283044",
+                        "surface-tint": "#c0c1ff",
+                        "surface-container-lowest": "#060e20",
+                        "outline": "#908fa0",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "error": "#ffb4ab",
+                        "on-error": "#690005",
+                        "error-container": "#93000a",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "secondary-container": "#39485a",
+                        "secondary-fixed-dim": "#b9c8de",
+                        "surface-container-high": "#222a3d",
+                        "surface-bright": "#31394d",
+                        "on-surface": "#dae2fd",
+                        "on-secondary-container": "#a7b6cc",
+                        "primary-fixed": "#e1e0ff",
+                        "outline-variant": "#464554",
+                        "on-tertiary-fixed": "#002113",
+                        "on-background": "#dae2fd",
+                        "surface-variant": "#2d3449",
+                        "inverse-surface": "#dae2fd",
+                        "surface-container-low": "#131b2e",
+                        "primary-container": "#8083ff",
+                        "primary": "#c0c1ff",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "secondary-fixed": "#d4e4fa"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin": "32px",
+                        "md": "16px",
+                        "gutter": "24px",
+                        "xl": "32px",
+                        "xs": "4px",
+                        "base": "4px",
+                        "lg": "24px",
+                        "sm": "8px",
+                        "3xl": "64px",
+                        "2xl": "48px"
+                    },
+                    "fontFamily": {
+                        "headline-sm": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "label-md": ["Geist"],
+                        "label-sm": ["Geist"],
+                        "headline-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "mono-data": ["Geist"],
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "label-md": ["14px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "label-sm": ["12px", {"lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "mono-data": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .vault-glass {
+            background: rgba(23, 31, 51, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid #464554;
+        }
+        .vault-card-gradient {
+            background: linear-gradient(135deg, rgba(45, 52, 73, 0.6) 0%, rgba(19, 27, 46, 0.6) 100%);
+        }
+        .inner-glow:hover {
+            box-shadow: inset 0 0 12px rgba(192, 193, 255, 0.2);
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0b1326; }
+        ::-webkit-scrollbar-thumb { background: #2d3449; border-radius: 10px; }
+        body { background-color: #0b1326; color: #dae2fd; }
+    </style>
+</head>
+<body class="font-body-md text-body-md overflow-hidden h-screen flex">
+<!-- SideNavBar -->
+<aside class="hidden lg:flex flex-col h-full p-md space-y-sm fixed left-0 w-64 bg-surface-container-low border-r border-outline-variant z-40">
+<div class="flex flex-col gap-xs mb-lg px-2">
+<span class="font-headline-sm text-headline-sm text-on-surface">VaultGuard</span>
+<div class="flex items-center gap-sm mt-md">
+<div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary">lock</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Secure Workspace</p>
+<p class="text-[10px] uppercase tracking-widest text-primary">AES-256 Encrypted</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-1">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined">lock</span>
+<span class="font-label-md text-label-md">Vault</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined">outbox</span>
+<span class="font-label-md text-label-md">Sent</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm bg-secondary-container text-on-secondary-container font-bold rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">move_to_inbox</span>
+<span class="font-label-md text-label-md">Received</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined">vpn_key</span>
+<span class="font-label-md text-label-md">Key Manager</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined">history</span>
+<span class="font-label-md text-label-md">Audit Log</span>
+</a>
+</nav>
+<div class="mt-auto pt-lg space-y-1">
+<button class="w-full bg-primary text-on-primary font-bold py-md rounded-xl mb-lg inner-glow transition-all active:scale-95">
+                Upload File
+            </button>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined">shield</span>
+<span class="font-label-md text-label-md">Security Settings</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all" href="#">
+<span class="material-symbols-outlined">help_outline</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 lg:ml-64 relative min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<header class="fixed top-0 right-0 w-full lg:w-[calc(100%-16rem)] z-50 flex justify-between items-center px-gutter h-16 bg-surface border-b border-outline-variant">
+<div class="flex items-center gap-lg">
+<span class="lg:hidden font-headline-md text-headline-md font-bold text-primary">VaultGuard</span>
+<h1 class="font-headline-sm text-headline-sm text-on-surface hidden lg:block">Received Shares</h1>
+</div>
+<div class="flex items-center gap-md">
+<div class="hidden md:flex bg-surface-container-low px-md py-2 rounded-full border border-outline-variant items-center gap-sm h-10">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-body-sm w-48 p-0" placeholder="Search shares or files..." type="text"/>
+</div>
+<div class="flex items-center gap-sm">
+<button class="w-10 h-10 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline ml-2">
+<img alt="Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAYeKui1L8-iMgc6hlXiKjmuHY3U9CnqkgWOXtvMkb0LQKPLs67vZxQp6gmWJA8HLg-N1XruSm3cTSdmvVD0cuLfKw1n_FiZodwYG5CnUYeB_etO_q8mOkDAZmah72pSVJcS89Z1IA_95AUaujL7Bv3cZkWOOlwVHkuryRtMzvwBpU56FsYXEB_81nao9Tbg9Fn3BYc70q-SWE5Ym8d8pxJBC6Rt9Mo4O3TpemDRhCmNhWmsk29-dhYNfS3jS-JHtIf748da6KwueM"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Content Area -->
+<div class="mt-16 p-lg overflow-y-auto h-[calc(100vh-4rem)] custom-scrollbar">
+<!-- Header & Summary Cards -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-md mb-lg">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Inbound Assets</h2>
+<p class="text-on-surface-variant font-body-md mt-xs">Manage files and folders shared with your secure vault.</p>
+</div>
+</div>
+<!-- Summary Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-lg mb-xl">
+<div class="p-lg vault-card-gradient border border-outline-variant rounded-xl flex flex-col justify-between min-h-[160px]">
+<div>
+<span class="text-on-surface-variant font-label-sm uppercase tracking-wider">Total Received</span>
+<div class="font-headline-lg text-headline-lg text-primary mt-sm">12</div>
+</div>
+<div class="flex items-center gap-xs text-tertiary">
+<span class="material-symbols-outlined text-sm">download_done</span>
+<span class="font-label-sm">Active Assets</span>
+</div>
+</div>
+<div class="p-lg vault-card-gradient border border-outline-variant rounded-xl flex flex-col justify-between min-h-[160px]">
+<div>
+<span class="text-on-surface-variant font-label-sm uppercase tracking-wider">Pending Review</span>
+<div class="font-headline-lg text-headline-lg text-on-surface mt-sm">03</div>
+</div>
+<div class="flex items-center gap-xs text-error">
+<span class="material-symbols-outlined text-sm">pending_actions</span>
+<span class="font-label-sm">Awaiting Acceptance</span>
+</div>
+</div>
+<div class="p-lg vault-card-gradient border border-outline-variant rounded-xl flex flex-col justify-between min-h-[160px]">
+<div>
+<span class="text-on-surface-variant font-label-sm uppercase tracking-wider">Storage Used</span>
+<div class="font-headline-lg text-headline-lg text-on-surface mt-sm">450 MB</div>
+</div>
+<div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden mt-sm">
+<div class="w-[35%] h-full bg-secondary"></div>
+</div>
+<p class="text-label-sm text-on-surface-variant mt-2">Shared quota allocation</p>
+</div>
+</div>
+<!-- Shares Table Container -->
+<div class="vault-glass rounded-xl overflow-hidden mb-3xl">
+<div class="p-lg border-b border-outline-variant flex justify-between items-center bg-surface-container/50">
+<h3 class="font-headline-sm text-headline-sm">Recent Shares</h3>
+<div class="flex items-center gap-sm">
+<span class="w-3 h-3 rounded-full bg-tertiary animate-pulse"></span>
+<span class="font-label-md text-tertiary">Secured Connection</span>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse table-auto">
+<thead>
+<tr class="bg-surface-container-low/50">
+<th class="px-lg py-md font-label-md text-on-surface-variant uppercase tracking-wider border-b border-outline-variant text-label-sm tracking-widest">Shared Item</th>
+<th class="px-lg py-md font-label-md text-on-surface-variant uppercase tracking-wider border-b border-outline-variant text-label-sm tracking-widest">Sender</th>
+<th class="px-lg py-md font-label-md text-on-surface-variant uppercase tracking-wider border-b border-outline-variant text-label-sm tracking-widest">Access Level</th>
+<th class="px-lg py-md font-label-md text-on-surface-variant uppercase tracking-wider border-b border-outline-variant text-label-sm tracking-widest">Expiry</th>
+<th class="px-lg py-md font-label-md text-on-surface-variant uppercase tracking-wider border-b border-outline-variant text-right text-label-sm tracking-widest">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-variant/30 transition-colors group">
+<td class="px-lg py-lg align-middle">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 flex-shrink-0 rounded-lg bg-surface-container-highest flex items-center justify-center text-primary border border-outline-variant">
+<span class="material-symbols-outlined">folder_shared</span>
+</div>
+<div class="overflow-hidden">
+<p class="font-label-md text-on-surface truncate">Q4_Finance_Reports</p>
+<p class="font-mono-data text-xs text-on-surface-variant">Folder • 12 Files</p>
+</div>
+</div>
+</td>
+<td class="px-lg py-lg align-middle">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center font-bold text-xs text-on-secondary-container">SM</div>
+<div>
+<p class="font-label-md text-on-surface">Sarah Miller</p>
+<p class="text-xs text-on-surface-variant">sarah.m@enterprise.com</p>
+</div>
+</div>
+</td>
+<td class="px-lg py-lg align-middle">
+<div class="flex items-center gap-sm text-tertiary">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+<span class="font-label-md">View Only</span>
+</div>
+</td>
+<td class="px-lg py-lg font-mono-data text-on-surface-variant align-middle">In 2 days</td>
+<td class="px-lg py-lg text-right align-middle space-x-2">
+<button class="px-md py-2 text-primary bg-primary-container/10 hover:bg-primary-container/20 border border-primary/20 rounded-lg transition-all font-label-md active:scale-95">Accept</button>
+<button class="px-md py-2 text-on-surface-variant hover:text-error transition-all font-label-md">Decline</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-variant/30 transition-colors group">
+<td class="px-lg py-lg align-middle">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 flex-shrink-0 rounded-lg bg-surface-container-highest flex items-center justify-center text-secondary border border-outline-variant">
+<span class="material-symbols-outlined">description</span>
+</div>
+<div class="overflow-hidden">
+<p class="font-label-md text-on-surface truncate">Architecture_v2.pdf</p>
+<p class="font-mono-data text-xs text-on-surface-variant">File • 2.4 MB</p>
+</div>
+</div>
+</td>
+<td class="px-lg py-lg align-middle">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center font-bold text-xs text-on-primary-container">DK</div>
+<div>
+<p class="font-label-md text-on-surface">David Kim</p>
+<p class="text-xs text-on-surface-variant">d.kim@techcorp.io</p>
+</div>
+</div>
+</td>
+<td class="px-lg py-lg align-middle">
+<div class="flex items-center gap-sm text-primary">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">stars</span>
+<span class="font-label-md">Full Access</span>
+</div>
+</td>
+<td class="px-lg py-lg font-mono-data text-on-surface-variant align-middle">Never</td>
+<td class="px-lg py-lg text-right align-middle space-x-2">
+<button class="px-md py-2 text-primary bg-primary-container/10 hover:bg-primary-container/20 border border-primary/20 rounded-lg transition-all font-label-md active:scale-95">Accept</button>
+<button class="px-md py-2 text-on-surface-variant hover:text-error transition-all font-label-md">Decline</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-variant/30 transition-colors group">
+<td class="px-lg py-lg align-middle">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 flex-shrink-0 rounded-lg bg-surface-container-highest flex items-center justify-center text-on-surface-variant border border-outline-variant">
+<span class="material-symbols-outlined">image</span>
+</div>
+<div class="overflow-hidden">
+<p class="font-label-md text-on-surface truncate">Campaign_Assets.zip</p>
+<p class="font-mono-data text-xs text-on-surface-variant">Archive • 120 MB</p>
+</div>
+</div>
+</td>
+<td class="px-lg py-lg align-middle">
+<div class="flex items-center gap-sm">
+<img alt="Avatar" class="w-8 h-8 rounded-full object-cover border border-outline-variant" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAYeKui1L8-iMgc6hlXiKjmuHY3U9CnqkgWOXtvMkb0LQKPLs67vZxQp6gmWJA8HLg-N1XruSm3cTSdmvVD0cuLfKw1n_FiZodwYG5CnUYeB_etO_q8mOkDAZmah72pSVJcS89Z1IA_95AUaujL7Bv3cZkWOOlwVHkuryRtMzvwBpU56FsYXEB_81nao9Tbg9Fn3BYc70q-SWE5Ym8d8pxJBC6Rt9Mo4O3TpemDRhCmNhWmsk29-dhYNfS3jS-JHtIf748da6KwueM"/>
+<div>
+<p class="font-label-md text-on-surface">Maria Lopez</p>
+<p class="text-xs text-on-surface-variant">m.lopez@creative.net</p>
+</div>
+</div>
+</td>
+<td class="px-lg py-lg align-middle">
+<div class="flex items-center gap-sm text-tertiary">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+<span class="font-label-md">View Only</span>
+</div>
+</td>
+<td class="px-lg py-lg font-mono-data text-on-surface-variant align-middle">In 5 hours</td>
+<td class="px-lg py-lg text-right align-middle space-x-2">
+<button class="px-md py-2 text-primary bg-primary-container/10 hover:bg-primary-container/20 border border-primary/20 rounded-lg transition-all font-label-md active:scale-95">Accept</button>
+<button class="px-md py-2 text-on-surface-variant hover:text-error transition-all font-label-md">Decline</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-md bg-surface-container text-center border-t border-outline-variant">
+<button class="text-primary font-label-md hover:underline transition-all">Load historical shares</button>
+</div>
+</div>
+</div>
+<!-- BottomNavBar (Mobile) -->
+<nav class="lg:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 bg-surface-container border-t border-outline-variant shadow-lg">
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary p-2" href="#">
+<span class="material-symbols-outlined">lock</span>
+<span class="font-label-sm text-label-sm">Vault</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary p-2" href="#">
+<span class="material-symbols-outlined">move_to_inbox</span>
+<span class="font-label-sm text-label-sm">Received</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-4 py-1" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add</span>
+<span class="font-label-sm text-label-sm">Upload</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary p-2" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-sm text-label-sm">Settings</span>
+</a>
+</nav>
+</main>
+<script>
+        // Table Action Interactivity
+        document.querySelectorAll('button').forEach(btn => {
+            if (btn.innerText === 'Accept') {
+                btn.addEventListener('click', function() {
+                    const row = this.closest('tr');
+                    this.innerText = 'Accepted';
+                    this.classList.remove('bg-primary-container/10', 'text-primary');
+                    this.classList.add('bg-tertiary/10', 'text-tertiary', 'border-tertiary/20');
+                    setTimeout(() => {
+                        row.classList.add('opacity-0', 'transition-opacity', 'duration-500');
+                        setTimeout(() => row.remove(), 500);
+                    }, 1000);
+                });
+            }
+            if (btn.innerText === 'Decline') {
+                btn.addEventListener('click', function() {
+                    if(confirm('Are you sure you want to decline this share? You will lose access to the shared content.')) {
+                        const row = this.closest('tr');
+                        row.classList.add('opacity-0', 'transition-opacity', 'duration-300');
+                        setTimeout(() => row.remove(), 300);
+                    }
+                });
+            }
+        });
+
+        // Search highlight effect
+        const searchInput = document.querySelector('input');
+        if(searchInput) {
+            searchInput.addEventListener('focus', () => searchInput.parentElement.classList.add('ring-2', 'ring-primary/50'));
+            searchInput.addEventListener('blur', () => searchInput.parentElement.classList.remove('ring-2', 'ring-primary/50'));
+        }
+    </script>
+</body></html>
