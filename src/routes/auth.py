@@ -133,7 +133,10 @@ async def register(
             exchange_public_key=body.exchange_public_key,
             ip_address=request.client.host if request.client else "",
         )
-        return MessageResponse(message=result["message"])
+        return MessageResponse(
+            message=result.get("message")
+            or "Registration successful. Please verify your email to activate your account."
+        )
     except DuplicateError as exc:
         raise HTTPException(409, str(exc))
     except ValueError as exc:

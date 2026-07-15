@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MedLedger | Secure Enterprise Vault for Passwords & Files</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Geist:wght@100..900&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<style>
+    .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .vault-grid-bg {
+        background-image:
+            linear-gradient(to right, rgba(30, 41, 59, 0.5) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(30, 41, 59, 0.5) 1px, transparent 1px);
+        background-size: 40px 40px;
+    }
+    .glow-input:focus-within {
+        box-shadow: 0 0 0 2px rgba(192, 193, 255, 0.2);
+    }
+    .mono-glow {
+        text-shadow: 0 0 12px rgba(78, 222, 163, 0.35);
+    }
+</style>
+<script id="tailwind-config">
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                "colors": {
+                    "tertiary-container": "#00885d",
+                    "surface-tint": "#c0c1ff",
+                    "on-background": "#dae2fd",
+                    "tertiary-fixed": "#6ffbbe",
+                    "on-secondary-fixed": "#0d1c2d",
+                    "surface": "#0b1326",
+                    "surface-container-low": "#131b2e",
+                    "secondary": "#b9c8de",
+                    "on-surface-variant": "#c7c4d7",
+                    "background": "#0b1326",
+                    "tertiary-fixed-dim": "#4edea3",
+                    "primary-fixed-dim": "#c0c1ff",
+                    "on-tertiary-container": "#000703",
+                    "primary": "#c0c1ff",
+                    "on-secondary-fixed-variant": "#39485a",
+                    "primary-container": "#8083ff",
+                    "surface-container-high": "#222a3d",
+                    "inverse-primary": "#494bd6",
+                    "on-secondary": "#233143",
+                    "on-primary-fixed": "#07006c",
+                    "on-error": "#690005",
+                    "secondary-fixed-dim": "#b9c8de",
+                    "inverse-on-surface": "#283044",
+                    "surface-variant": "#2d3449",
+                    "tertiary": "#4edea3",
+                    "error": "#ffb4ab",
+                    "on-tertiary-fixed-variant": "#005236",
+                    "on-primary-fixed-variant": "#2f2ebe",
+                    "on-surface": "#dae2fd",
+                    "on-secondary-container": "#a7b6cc",
+                    "on-primary": "#1000a9",
+                    "on-tertiary": "#003824",
+                    "outline-variant": "#464554",
+                    "secondary-fixed": "#d4e4fa",
+                    "surface-dim": "#0b1326",
+                    "secondary-container": "#39485a",
+                    "surface-container-lowest": "#060e20",
+                    "on-tertiary-fixed": "#002113",
+                    "on-error-container": "#ffdad6",
+                    "on-primary-container": "#0d0096",
+                    "surface-container": "#171f33",
+                    "surface-bright": "#31394d",
+                    "primary-fixed": "#e1e0ff",
+                    "inverse-surface": "#dae2fd",
+                    "surface-container-highest": "#2d3449",
+                    "outline": "#908fa0",
+                    "error-container": "#93000a"
+                },
+                "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+                },
+                "spacing": {
+                    "3xl": "64px",
+                    "md": "16px",
+                    "gutter": "24px",
+                    "xs": "4px",
+                    "base": "4px",
+                    "lg": "24px",
+                    "2xl": "48px",
+                    "sm": "8px",
+                    "margin": "32px",
+                    "xl": "32px"
+                },
+                "fontFamily": {
+                    "label-md": ["Geist"],
+                    "body-lg": ["Inter"],
+                    "body-sm": ["Inter"],
+                    "headline-sm": ["Inter"],
+                    "mono-data": ["Geist"],
+                    "headline-md": ["Inter"],
+                    "label-sm": ["Geist"],
+                    "headline-lg": ["Inter"],
+                    "body-md": ["Inter"]
+                },
+                "fontSize": {
+                    "label-md": ["14px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "mono-data": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-xl": ["56px", {"lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                }
+            },
+        },
+    }
+</script>
+</head>
+<body class="bg-background text-on-surface min-h-screen font-body-md relative">
+<script src="../js/api.js"></script>
+<script>
+    if (typeof isAuthenticated === "function" && isAuthenticated()) {
+        window.location.href = "../dashboard/medledger_dashboard.html";
+    }
+</script>
+
+<!-- Background Atmospheric Layer -->
+<div class="fixed inset-0 vault-grid-bg opacity-30 pointer-events-none"></div>
+<div class="fixed top-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/10 blur-[120px] rounded-full pointer-events-none"></div>
+<div class="fixed bottom-[20%] left-[-10%] w-[40%] h-[40%] bg-tertiary/10 blur-[120px] rounded-full pointer-events-none"></div>
+
+<!-- NAV -->
+<header class="relative z-10 border-b border-outline-variant/60 bg-background/80 backdrop-blur sticky top-0">
+<div class="max-w-[1440px] mx-auto px-md md:px-margin h-16 flex items-center justify-between">
+<div class="flex items-center gap-sm">
+<div class="w-9 h-9 flex items-center justify-center bg-surface-container border border-outline-variant rounded-lg">
+<span class="material-symbols-outlined text-primary text-[20px]" style="font-variation-settings: 'FILL' 1;">lock</span>
+</div>
+<span class="font-headline-sm text-headline-sm text-on-surface">MedLedger</span>
+</div>
+<nav class="hidden md:flex items-center gap-2xl font-label-md text-label-md text-on-surface-variant">
+<a class="hover:text-on-surface transition-colors" href="#features">Features</a>
+<a class="hover:text-on-surface transition-colors" href="#security">Security</a>
+<a class="hover:text-on-surface transition-colors" href="#faq">FAQ</a>
+</nav>
+<div class="flex items-center gap-md">
+<a class="hidden sm:inline font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-colors" href="signin.html">Sign In</a>
+<a class="bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md py-2 px-md rounded-lg transition-all active:scale-95 shadow-[0_0_20px_rgba(128,131,255,0.2)]" href="create_secure_account.html">Get Started — Free</a>
+</div>
+</div>
+</header>
+
+<main class="relative z-10">
+
+<!-- HERO -->
+<section class="max-w-[1440px] mx-auto px-md md:px-margin pt-3xl pb-3xl grid lg:grid-cols-12 gap-gutter items-center">
+<div class="lg:col-span-6">
+<div class="inline-flex items-center gap-sm bg-surface-variant/30 border border-outline-variant/30 rounded-full py-1 px-md mb-lg">
+<span class="material-symbols-outlined text-tertiary text-[16px]">verified_user</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">AES-256 end-to-end encryption active</span>
+</div>
+<h1 class="font-headline-xl text-headline-xl md:text-[56px] text-on-surface tracking-tight mb-lg">
+The digital vault built for absolute trust.
+</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-xl max-w-lg">
+MedLedger secures your team's passwords, keys, and sensitive files behind a single, encrypted gateway — with full audit visibility on every access.
+</p>
+<div class="flex flex-wrap items-center gap-md mb-xl">
+<a class="bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md py-3 px-lg rounded-lg transition-all active:scale-95 flex items-center gap-sm shadow-[0_0_20px_rgba(128,131,255,0.2)]" href="create_secure_account.html">
+<span>Get Started — Free</span>
+<span class="material-symbols-outlined text-[18px]">login</span>
+</a>
+</div>
+<div class="flex items-center gap-xl font-mono-data text-mono-data text-outline">
+<div class="flex items-center gap-xs"><div class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></div><span class="text-tertiary mono-glow">Secure</span></div>
+<span>NODE_ID: 882-VG-LOGIN</span>
+<span>VERSION 4.2.0-STABLE</span>
+</div>
+</div>
+
+<!-- Hero visual: mock card -->
+<div class="lg:col-span-6 relative">
+<div class="bg-surface-container border border-outline-variant rounded-xl p-lg shadow-2xl relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-tertiary opacity-50"></div>
+<div class="flex justify-between items-center mb-lg">
+<span class="font-label-md text-label-md text-on-surface-variant">Vault / Dashboard</span>
+<div class="flex items-center gap-xs"><div class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></div><span class="font-mono-data text-mono-data text-tertiary">Live</span></div>
+</div>
+<div class="grid grid-cols-2 gap-sm mb-lg">
+<div class="bg-surface-container-low border border-outline-variant rounded-lg p-md">
+<p class="font-label-sm text-label-sm text-on-surface-variant mb-xs">Active Keys</p>
+<p class="font-headline-md text-headline-md text-on-surface">12 / 12</p>
+</div>
+<div class="bg-surface-container-low border border-outline-variant rounded-lg p-md">
+<p class="font-label-sm text-label-sm text-on-surface-variant mb-xs">Last Audit</p>
+<p class="font-headline-md text-headline-md text-on-surface">24m ago</p>
+</div>
+</div>
+<div class="space-y-sm">
+<div class="flex items-center justify-between bg-surface-container-low border border-outline-variant rounded-lg p-sm">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary text-[18px]">description</span>
+<span class="font-body-sm text-body-sm text-on-surface">Q3_Security_Audit_Report.pdf</span>
+</div>
+<span class="font-label-sm text-label-sm bg-tertiary/15 text-tertiary px-sm py-[2px] rounded">ENCRYPTED</span>
+</div>
+<div class="flex items-center justify-between bg-surface-container-low border border-outline-variant rounded-lg p-sm">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-secondary text-[18px]">key</span>
+<span class="font-body-sm text-body-sm text-on-surface">Root_Access_Keys.key</span>
+</div>
+<span class="font-label-sm text-label-sm bg-error/15 text-error px-sm py-[2px] rounded">HIGH RISK</span>
+</div>
+<div class="flex items-center justify-between bg-surface-container-low border border-outline-variant rounded-lg p-sm">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary text-[18px]">image</span>
+<span class="font-body-sm text-body-sm text-on-surface">Passport_Scan_Owner.jpg</span>
+</div>
+<span class="font-label-sm text-label-sm bg-primary/15 text-primary px-sm py-[2px] rounded">VERIFIED</span>
+</div>
+</div>
+</div>
+<!-- floating grid graphic -->
+<div class="hidden lg:block absolute -bottom-8 -right-8 w-40 h-40 opacity-20 rotate-12 -z-10">
+<div class="grid grid-cols-4 grid-rows-4 gap-2 w-full h-full">
+<div class="bg-outline-variant rounded-sm"></div><div class="bg-primary rounded-sm"></div><div class="bg-outline-variant rounded-sm"></div><div class="bg-outline-variant rounded-sm"></div>
+<div class="bg-outline-variant rounded-sm"></div><div class="bg-outline-variant rounded-sm"></div><div class="bg-tertiary rounded-sm"></div><div class="bg-outline-variant rounded-sm"></div>
+<div class="bg-outline-variant rounded-sm"></div><div class="bg-outline-variant rounded-sm"></div><div class="bg-outline-variant rounded-sm"></div><div class="bg-primary-container rounded-sm"></div>
+<div class="bg-outline-variant rounded-sm"></div><div class="bg-outline-variant rounded-sm"></div><div class="bg-outline-variant rounded-sm"></div><div class="bg-outline-variant rounded-sm"></div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- LOGOS / TRUST STRIP -->
+<section class="border-y border-outline-variant/60 bg-surface-container-lowest/40">
+<div class="max-w-[1440px] mx-auto px-md md:px-margin py-lg flex flex-wrap items-center justify-between gap-md">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-widest">Trusted by security-first teams</span>
+<div class="flex flex-wrap gap-xl font-headline-sm text-headline-sm text-on-surface-variant/50">
+<span>NORTHBRIDGE</span><span>FERROUS&nbsp;CO.</span><span>LATTICE</span><span>ORBITAL</span><span>STONEGATE</span>
+</div>
+</div>
+</section>
+
+<!-- FEATURES -->
+<section class="max-w-[1440px] mx-auto px-md md:px-margin py-3xl" id="features">
+<div class="max-w-2xl mb-2xl">
+<span class="font-label-sm text-label-sm text-primary uppercase tracking-widest">Platform</span>
+<h2 class="font-headline-lg text-headline-lg text-on-surface mt-sm mb-md">Everything a vault should be — and nothing it shouldn't.</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Calm, predictable, and engineered so the interface itself is a guarantee of safety.</p>
+</div>
+<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-gutter">
+
+<div class="bg-surface-container border border-outline-variant rounded-xl p-lg relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-tertiary opacity-50"></div>
+<div class="w-10 h-10 flex items-center justify-center bg-surface-container-low border border-outline-variant rounded-lg mb-md">
+<span class="material-symbols-outlined text-primary text-[20px]">enhanced_encryption</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-sm">AES-256 Encryption</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Every record is encrypted end-to-end, at rest and in transit, with rotating per-file keys.</p>
+</div>
+
+<div class="bg-surface-container border border-outline-variant rounded-xl p-lg relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-tertiary opacity-50"></div>
+<div class="w-10 h-10 flex items-center justify-center bg-surface-container-low border border-outline-variant rounded-lg mb-md">
+<span class="material-symbols-outlined text-primary text-[20px]">key</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-sm">Key Management</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Issue, rotate, and revoke access keys with granular, role-based permissions.</p>
+</div>
+
+<div class="bg-surface-container border border-outline-variant rounded-xl p-lg relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-tertiary opacity-50"></div>
+<div class="w-10 h-10 flex items-center justify-center bg-surface-container-low border border-outline-variant rounded-lg mb-md">
+<span class="material-symbols-outlined text-primary text-[20px]">history</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-sm">Live Audit Log</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">A real-time, mono-typed feed of every file access, share, and edit — fully transparent.</p>
+</div>
+
+<div class="bg-surface-container border border-outline-variant rounded-xl p-lg relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-tertiary opacity-50"></div>
+<div class="w-10 h-10 flex items-center justify-center bg-surface-container-low border border-outline-variant rounded-lg mb-md">
+<span class="material-symbols-outlined text-primary text-[20px]">group_add</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-sm">Secure Sharing</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Grant time-boxed, revocable access to records without ever exposing raw credentials.</p>
+</div>
+
+<div class="bg-surface-container border border-outline-variant rounded-xl p-lg relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-tertiary opacity-50"></div>
+<div class="w-10 h-10 flex items-center justify-center bg-surface-container-low border border-outline-variant rounded-lg mb-md">
+<span class="material-symbols-outlined text-primary text-[20px]">verified_user</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-sm">Identity Verification</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Multi-factor and biometric checks gate every sensitive action across the vault.</p>
+</div>
+
+<div class="bg-surface-container border border-outline-variant rounded-xl p-lg relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-tertiary opacity-50"></div>
+<div class="w-10 h-10 flex items-center justify-center bg-surface-container-low border border-outline-variant rounded-lg mb-md">
+<span class="material-symbols-outlined text-primary text-[20px]">notifications_active</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-sm">Real-Time Alerts</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Get notified instantly on unusual access patterns, expiring keys, or failed logins.</p>
+</div>
+
+</div>
+</section>
+
+<!-- SECURITY / STATS -->
+<section class="border-y border-outline-variant/60 bg-surface-container-lowest/40" id="security">
+<div class="max-w-[1440px] mx-auto px-md md:px-margin py-3xl grid lg:grid-cols-12 gap-gutter items-center">
+<div class="lg:col-span-5">
+<span class="font-label-sm text-label-sm text-tertiary uppercase tracking-widest">Security posture</span>
+<h2 class="font-headline-lg text-headline-lg text-on-surface mt-sm mb-md">Built like infrastructure, not like an app.</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-lg">Tonal layers, structural borders, and zero unnecessary motion — every surface signals that your data is grounded and protected.</p>
+<div class="flex items-center gap-sm bg-surface-variant/30 p-sm rounded-lg border border-outline-variant/30 max-w-sm">
+<span class="material-symbols-outlined text-tertiary text-[18px]">verified_user</span>
+<p class="font-label-sm text-label-sm text-on-surface-variant">SOC 2 Type II &amp; ISO 27001 certified</p>
+</div>
+</div>
+<div class="lg:col-span-7 grid grid-cols-2 md:grid-cols-4 gap-gutter">
+<div class="bg-surface-container border border-outline-variant rounded-xl p-lg text-center">
+<p class="font-headline-lg text-headline-lg text-primary mb-xs">256-bit</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Encryption Standard</p>
+</div>
+<div class="bg-surface-container border border-outline-variant rounded-xl p-lg text-center">
+<p class="font-headline-lg text-headline-lg text-tertiary mb-xs">99.99%</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Uptime SLA</p>
+</div>
+<div class="bg-surface-container border border-outline-variant rounded-xl p-lg text-center">
+<p class="font-headline-lg text-headline-lg text-primary mb-xs">12M+</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Records Secured</p>
+</div>
+<div class="bg-surface-container border border-outline-variant rounded-xl p-lg text-center">
+<p class="font-headline-lg text-headline-lg text-tertiary mb-xs">24/7</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Audit Monitoring</p>
+</div>
+</div>
+</div>
+</section>
+
+
+<!-- CTA -->
+<section class="max-w-[1440px] mx-auto px-md md:px-margin pb-3xl">
+<div class="bg-surface-container border border-outline-variant rounded-xl p-2xl text-center relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-tertiary opacity-50"></div>
+<div class="inline-flex items-center justify-center w-16 h-16 bg-surface-container-low border border-outline-variant rounded-xl mb-md">
+<span class="material-symbols-outlined text-primary text-[32px]" style="font-variation-settings: 'FILL' 1;">lock</span>
+</div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-md">Ready to lock things down?</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-xl max-w-md mx-auto">Bring your team's passwords, keys, and files into one verified, audited vault.</p>
+<a class="inline-flex items-center gap-sm bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md py-3 px-lg rounded-lg transition-all active:scale-95 shadow-[0_0_20px_rgba(128,131,255,0.2)]" href="create_secure_account.html">
+<span>Authorize Access</span>
+<span class="material-symbols-outlined text-[18px]">login</span>
+</a>
+</div>
+</section>
+
+</main>
+
+<!-- FOOTER -->
+<footer class="relative z-10 border-t border-outline-variant/60 bg-surface-container-lowest/40">
+<div class="max-w-[1440px] mx-auto px-md md:px-margin py-2xl grid md:grid-cols-4 gap-gutter">
+<div>
+<div class="flex items-center gap-sm mb-md">
+<div class="w-8 h-8 flex items-center justify-center bg-surface-container border border-outline-variant rounded-lg">
+<span class="material-symbols-outlined text-primary text-[18px]" style="font-variation-settings: 'FILL' 1;">lock</span>
+</div>
+<span class="font-headline-sm text-headline-sm text-on-surface">MedLedger</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">AES-256 Encrypted Vault</p>
+</div>
+<div>
+<p class="font-label-sm text-label-sm text-outline uppercase tracking-widest mb-md">Product</p>
+<ul class="space-y-sm font-body-sm text-body-sm text-on-surface-variant">
+<li><a class="hover:text-on-surface transition-colors" href="#features">Features</a></li>
+<li><a class="hover:text-on-surface transition-colors" href="#security">Security</a></li>
+<li><a class="hover:text-on-surface transition-colors" href="#pricing">Pricing</a></li>
+</ul>
+</div>
+<div>
+<p class="font-label-sm text-label-sm text-outline uppercase tracking-widest mb-md">Company</p>
+<ul class="space-y-sm font-body-sm text-body-sm text-on-surface-variant">
+<li><a class="hover:text-on-surface transition-colors" href="#">About</a></li>
+<li><a class="hover:text-on-surface transition-colors" href="#">Careers</a></li>
+<li><a class="hover:text-on-surface transition-colors" href="#">Contact Support</a></li>
+</ul>
+</div>
+<div>
+<p class="font-label-sm text-label-sm text-outline uppercase tracking-widest mb-md">Legal</p>
+<ul class="space-y-sm font-body-sm text-body-sm text-on-surface-variant">
+<li><a class="hover:text-on-surface transition-colors" href="#">Privacy Policy</a></li>
+<li><a class="hover:text-on-surface transition-colors" href="#">Terms of Service</a></li>
+</ul>
+</div>
+</div>
+<div class="max-w-[1440px] mx-auto px-md md:px-margin py-lg border-t border-outline-variant/60 flex flex-col sm:flex-row justify-between items-center gap-sm">
+<p class="font-mono-data text-mono-data text-outline/60">NODE_ID: 882-VG-LANDING | VERSION 4.2.0-STABLE</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">© 2026 MedLedger. All rights reserved.</p>
+</div>
+</footer>
+
+</body>
+</html>

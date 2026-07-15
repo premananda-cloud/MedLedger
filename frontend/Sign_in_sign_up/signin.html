@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MedLedger - Secure Login</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<!-- Load api.js FIRST -->
+<script src="../js/api.js"></script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .vault-grid-bg {
+            background-image: 
+                linear-gradient(to right, rgba(30, 41, 59, 0.5) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(30, 41, 59, 0.5) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+        .glow-input:focus-within {
+            box-shadow: 0 0 0 2px rgba(192, 193, 255, 0.2);
+        }
+        .shake {
+            animation: shake 0.4s ease-in-out;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+            20%, 40%, 60%, 80% { transform: translateX(4px); }
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-container": "#00885d",
+                        "surface-tint": "#c0c1ff",
+                        "on-background": "#dae2fd",
+                        "tertiary-fixed": "#6ffbbe",
+                        "on-secondary-fixed": "#0d1c2d",
+                        "surface": "#0b1326",
+                        "surface-container-low": "#131b2e",
+                        "secondary": "#b9c8de",
+                        "on-surface-variant": "#c7c4d7",
+                        "background": "#0b1326",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "on-tertiary-container": "#000703",
+                        "primary": "#c0c1ff",
+                        "on-secondary-fixed-variant": "#39485a",
+                        "primary-container": "#8083ff",
+                        "surface-container-high": "#222a3d",
+                        "inverse-primary": "#494bd6",
+                        "on-secondary": "#233143",
+                        "on-primary-fixed": "#07006c",
+                        "on-error": "#690005",
+                        "secondary-fixed-dim": "#b9c8de",
+                        "inverse-on-surface": "#283044",
+                        "surface-variant": "#2d3449",
+                        "tertiary": "#4edea3",
+                        "error": "#ffb4ab",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "on-surface": "#dae2fd",
+                        "on-secondary-container": "#a7b6cc",
+                        "on-primary": "#1000a9",
+                        "on-tertiary": "#003824",
+                        "outline-variant": "#464554",
+                        "secondary-fixed": "#d4e4fa",
+                        "surface-dim": "#0b1326",
+                        "secondary-container": "#39485a",
+                        "surface-container-lowest": "#060e20",
+                        "on-tertiary-fixed": "#002113",
+                        "on-error-container": "#ffdad6",
+                        "on-primary-container": "#0d0096",
+                        "surface-container": "#171f33",
+                        "surface-bright": "#31394d",
+                        "primary-fixed": "#e1e0ff",
+                        "inverse-surface": "#dae2fd",
+                        "surface-container-highest": "#2d3449",
+                        "outline": "#908fa0",
+                        "error-container": "#93000a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "3xl": "64px",
+                        "md": "16px",
+                        "gutter": "24px",
+                        "xs": "4px",
+                        "base": "4px",
+                        "lg": "24px",
+                        "2xl": "48px",
+                        "sm": "8px",
+                        "margin": "32px",
+                        "xl": "32px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Geist"],
+                        "body-lg": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "mono-data": ["Geist"],
+                        "headline-md": ["Inter"],
+                        "label-sm": ["Geist"],
+                        "headline-lg": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["14px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "mono-data": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface min-h-screen flex flex-col font-body-md overflow-hidden relative">
+<!-- Background Atmospheric Layer -->
+<div class="absolute inset-0 vault-grid-bg opacity-30 pointer-events-none"></div>
+<div class="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/10 blur-[120px] rounded-full pointer-events-none"></div>
+<div class="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-tertiary/10 blur-[120px] rounded-full pointer-events-none"></div>
+<!-- Login Container -->
+<main class="flex-grow flex items-center justify-center p-md relative z-10">
+<div class="w-full max-w-md">
+<!-- Branding Header -->
+<div class="text-center mb-xl">
+<div class="inline-flex items-center justify-center w-16 h-16 bg-surface-container border border-outline-variant rounded-xl mb-md shadow-lg">
+<span class="material-symbols-outlined text-primary text-[32px]" style="font-variation-settings: 'FILL' 1;">lock</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight mb-xs">MedLedger</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Secure Enterprise Access Gateway</p>
+</div>
+<!-- Login Card -->
+<div class="bg-surface-container border border-outline-variant rounded-xl p-xl shadow-2xl relative overflow-hidden">
+<!-- Subtle Gradient Overlay on Card -->
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-tertiary opacity-50"></div>
+<form class="space-y-lg" id="loginForm" novalidate>
+<!-- Credentials input block -->
+<div id="credentialsFields" class="space-y-lg">
+<!-- Email Field -->
+<div class="space-y-sm">
+<label class="font-label-md text-label-md text-on-surface-variant block" for="email-input">Work Email Address</label>
+<div class="relative group glow-input border border-outline-variant bg-surface-container-low rounded-lg transition-all">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">mail</span>
+<input class="w-full bg-transparent border-none py-3 pl-10 pr-md text-on-surface placeholder:text-outline/50 font-body-md focus:ring-0" id="email-input" placeholder="name@company.com" required="" type="email"/>
+</div>
+</div>
+<!-- Password Field -->
+<div class="space-y-sm">
+<div class="flex justify-between items-center">
+<label class="font-label-md text-label-md text-on-surface-variant block" for="password-input">Access Password</label>
+<a class="font-label-sm text-label-sm text-primary hover:text-primary-container transition-colors" href="../reset_access_password/code.html" id="forgotPasswordLink">Forgot Password?</a>
+</div>
+<div class="relative group glow-input border border-outline-variant bg-surface-container-low rounded-lg transition-all">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">key</span>
+<input class="w-full bg-transparent border-none py-3 pl-10 pr-md text-on-surface placeholder:text-outline/50 font-body-md focus:ring-0" id="password-input" placeholder="••••••••" required="" type="password"/>
+<button class="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors" type="button" onclick="togglePasswordVisibility()">
+<span class="material-symbols-outlined text-[20px]" id="password-toggle-icon">visibility</span>
+</button>
+</div>
+</div>
+</div>
+
+<!-- TOTP verification code block -->
+<div id="totpField" class="space-y-sm hidden">
+<label class="font-label-md text-label-md text-on-surface-variant block" for="totp-code-input">MFA Verification Code</label>
+<div class="relative group glow-input border border-outline-variant bg-surface-container-low rounded-lg transition-all">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">pin</span>
+<input class="w-full bg-transparent border-none py-3 pl-10 pr-md text-on-surface placeholder:text-outline/50 font-body-md focus:ring-0 font-mono-data text-center text-xl tracking-[0.5em]" id="totp-code-input" placeholder="123456" minlength="6" maxlength="6" type="text"/>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant opacity-60">Enter the 6-digit code from your authenticator application.</p>
+</div>
+
+<!-- Error feedback container -->
+<div id="errorAlert" class="hidden text-error bg-error/15 border border-error/30 p-sm rounded-lg font-body-sm text-body-sm mb-sm">
+</div>
+
+<!-- Security Verification Placeholder -->
+<div class="flex items-center space-x-sm bg-surface-variant/30 p-sm rounded-lg border border-outline-variant/30">
+<span class="material-symbols-outlined text-tertiary text-[18px]">verified_user</span>
+<p class="font-label-sm text-label-sm text-on-surface-variant">AES-256 end-to-end encryption active</p>
+</div>
+<!-- Submit Button -->
+<button class="w-full bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md py-3 px-md rounded-lg transition-all active:scale-95 flex items-center justify-center space-x-sm shadow-[0_0_20px_rgba(128,131,255,0.2)]" id="login-submit-btn" type="submit">
+<span id="login-btn-text">Authorize Access</span>
+<span class="material-symbols-outlined text-[18px]" id="login-btn-icon">login</span>
+</button>
+</form>
+<!-- Sign Up Prompt -->
+<p class="text-center font-body-sm text-body-sm text-on-surface-variant mt-lg">
+  Don't have an account?
+  <a class="text-primary hover:text-primary-container transition-colors font-label-md" href="create_secure_account.html">Create one — it's free</a>
+</p>
+<!-- Status Activity Log Mock -->
+<div class="mt-xl pt-lg border-t border-outline-variant">
+<div class="flex justify-between items-center mb-sm">
+<span class="font-mono-data text-mono-data text-outline text-xs uppercase tracking-widest">Network Status</span>
+<div class="flex items-center space-x-xs">
+<div class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></div>
+<span class="font-mono-data text-mono-data text-tertiary">Secure</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Links -->
+<div class="mt-lg flex flex-col items-center space-y-md">
+<div class="flex space-x-gutter">
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-on-surface transition-colors" href="medledger_landing.html">← Home</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-on-surface transition-colors" href="#">Privacy Policy</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-on-surface transition-colors" href="#">Terms of Service</a>
+<a class="font-label-sm text-label-sm text-on-surface-variant hover:text-on-surface transition-colors" href="#">Contact Support</a>
+</div>
+<div class="text-outline/40 font-mono-data text-[10px]">
+                    NODE_ID: 882-VG-LOGIN | VERSION 4.2.0-STABLE
+                </div>
+</div>
+</div>
+</main>
+<!-- Floating Background Graphic (Bento/Modern Element) -->
+<div class="hidden lg:block absolute bottom-12 right-12 w-64 h-64 opacity-20 rotate-12">
+<div class="grid grid-cols-4 grid-rows-4 gap-2 w-full h-full">
+<div class="bg-outline-variant rounded-sm"></div>
+<div class="bg-primary rounded-sm"></div>
+<div class="bg-outline-variant rounded-sm"></div>
+<div class="bg-outline-variant rounded-sm"></div>
+<div class="bg-outline-variant rounded-sm"></div>
+<div class="bg-outline-variant rounded-sm"></div>
+<div class="bg-tertiary rounded-sm"></div>
+<div class="bg-outline-variant rounded-sm"></div>
+<div class="bg-outline-variant rounded-sm"></div>
+<div class="bg-outline-variant rounded-sm"></div>
+<div class="bg-outline-variant rounded-sm"></div>
+<div class="bg-outline-variant rounded-sm"></div>
+<div class="bg-primary-container rounded-sm"></div>
+<div class="bg-outline-variant rounded-sm"></div>
+<div class="bg-outline-variant rounded-sm"></div>
+<div class="bg-outline-variant rounded-sm"></div>
+</div>
+</div>
+<script>
+        // ===== LOGIN STATE =====
+        let requiresTotpFlow = false;
+        let loginUserIdHex = "";
+        let loginEmail = "";
+
+        // ===== PASSWORD VISIBILITY TOGGLE =====
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('password-input');
+            const icon = document.getElementById('password-toggle-icon');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                icon.textContent = 'visibility_off';
+            } else {
+                passwordInput.type = 'password';
+                icon.textContent = 'visibility';
+            }
+        }
+
+        // ===== SHOW TOTP FIELD =====
+        function showTotpField(userIdHex) {
+            requiresTotpFlow = true;
+            loginUserIdHex = userIdHex;
+            
+            document.getElementById('credentialsFields').classList.add('hidden');
+            document.getElementById('totpField').classList.remove('hidden');
+            document.getElementById('totp-code-input').required = true;
+            
+            const btn = document.getElementById('login-submit-btn');
+            document.getElementById('login-btn-text').textContent = 'Verify MFA Code';
+            document.getElementById('login-btn-icon').textContent = 'security';
+            
+            // Focus the TOTP input
+            setTimeout(() => {
+                document.getElementById('totp-code-input').focus();
+            }, 300);
+        }
+
+        // ===== SHOW ERROR =====
+        function showError(message) {
+            const errorAlert = document.getElementById('errorAlert');
+            errorAlert.textContent = message;
+            errorAlert.classList.remove('hidden');
+            
+            // Shake the form
+            const form = document.getElementById('loginForm');
+            form.classList.add('shake');
+            setTimeout(() => form.classList.remove('shake'), 400);
+        }
+
+        // ===== CLEAR ERROR =====
+        function clearError() {
+            document.getElementById('errorAlert').classList.add('hidden');
+        }
+
+        // ===== HANDLE LOGIN FORM SUBMIT =====
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            clearError();
+            
+            const btn = document.getElementById('login-submit-btn');
+            const btnText = document.getElementById('login-btn-text');
+            const btnIcon = document.getElementById('login-btn-icon');
+            
+            btn.disabled = true;
+            const originalText = btnText.textContent;
+            const originalIcon = btnIcon.textContent;
+            btnText.textContent = 'Authenticating...';
+            btnIcon.textContent = 'progress_activity';
+            btnIcon.classList.add('animate-spin');
+            
+            try {
+                if (!requiresTotpFlow) {
+                    // --- STEP 1: Initial Login ---
+                    const email = document.getElementById('email-input').value.trim();
+                    const password = document.getElementById('password-input').value;
+                    
+                    if (!email || !password) {
+                        showError('Please enter your email and password.');
+                        btn.disabled = false;
+                        btnText.textContent = originalText;
+                        btnIcon.textContent = originalIcon;
+                        btnIcon.classList.remove('animate-spin');
+                        return;
+                    }
+                    
+                    loginEmail = email;
+                    
+                    const response = await window.apiRequest("POST", "/auth/login", { 
+                        email: email, 
+                        password: password 
+                    }, false);
+                    
+                    if (response.requires_totp) {
+                        // User has TOTP enabled - show TOTP field
+                        showTotpField(response.user_id_hex);
+                        btn.disabled = false;
+                        btnText.textContent = 'Verify MFA Code';
+                        btnIcon.textContent = 'security';
+                        btnIcon.classList.remove('animate-spin');
+                        return;
+                    }
+                    
+                    // Login successful - store tokens
+                    if (response.tokens) {
+                        window.setTokens(response.tokens, response.user);
+                    }
+                    
+                    // Show success
+                    btnText.textContent = 'Access Granted!';
+                    btnIcon.textContent = 'check_circle';
+                    btnIcon.classList.remove('animate-spin');
+                    btn.classList.remove('bg-primary');
+                    btn.classList.add('bg-tertiary');
+                    
+                    // Redirect to dashboard
+                    setTimeout(() => {
+                        window.location.href = '../dashboard/medledger_dashboard.html';
+                    }, 1000);
+                    
+                } else {
+                    // --- STEP 2: TOTP Verification ---
+                    const totpCode = document.getElementById('totp-code-input').value.trim();
+                    
+                    if (!totpCode || totpCode.length !== 6) {
+                        showError('Please enter a valid 6-digit MFA code.');
+                        btn.disabled = false;
+                        return;
+                    }
+                    
+                    const response = await window.apiRequest("POST", "/auth/verify-totp-login", {
+                        user_id_hex: loginUserIdHex,
+                        totp_code: totpCode
+                    }, false);
+                    
+                    if (response.tokens) {
+                        window.setTokens(response.tokens, response.user);
+                    }
+                    
+                    // Show success
+                    btnText.textContent = 'Access Granted!';
+                    btnIcon.textContent = 'check_circle';
+                    btnIcon.classList.remove('animate-spin');
+                    btn.classList.remove('bg-primary');
+                    btn.classList.add('bg-tertiary');
+                    
+                    // Redirect to dashboard
+                    setTimeout(() => {
+                        window.location.href = '../dashboard/medledger_dashboard.html';
+                    }, 1000);
+                }
+                
+            } catch (error) {
+                console.error("Login failed:", error);
+                showError(error.message || "Failed to authorize access. Please check your credentials.");
+                btn.disabled = false;
+                btnText.textContent = requiresTotpFlow ? 'Verify MFA Code' : 'Authorize Access';
+                btnIcon.textContent = requiresTotpFlow ? 'security' : 'login';
+                btnIcon.classList.remove('animate-spin');
+            }
+        });
+
+        // ===== TOTP INPUT AUTO-SUBMIT =====
+        document.getElementById('totp-code-input').addEventListener('input', function(e) {
+            // Auto-submit when 6 digits are entered
+            if (this.value.length === 6 && /^\d{6}$/.test(this.value)) {
+                document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+            }
+        });
+
+        // ===== ENTER KEY SUPPORT FOR TOTP =====
+        document.getElementById('totp-code-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+            }
+        });
+
+        // ===== CHECK IF ALREADY LOGGED IN =====
+        (function() {
+            if (window.isAuthenticated && window.isAuthenticated()) {
+                // Already logged in - redirect to dashboard
+                window.location.href = '../dashboard/medledger_dashboard.html';
+            }
+        })();
+
+        // ===== HANDLE PASSWORD RESET REDIRECT WITH EMAIL =====
+        (function() {
+            // Check if we have a reset email from the password reset flow
+            const resetEmail = localStorage.getItem('ml_reset_email');
+            if (resetEmail) {
+                const emailInput = document.getElementById('email-input');
+                if (emailInput) {
+                    emailInput.value = resetEmail;
+                }
+                // Don't clear it here - the reset flow might need it
+            }
+            
+            // Check for reset success query param
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('reset') === 'success') {
+                const alert = document.createElement('div');
+                alert.className = 'bg-tertiary/10 border border-tertiary/30 text-tertiary p-sm rounded-lg font-body-sm text-body-sm mb-sm';
+                alert.textContent = '✓ Password reset successful. Please log in with your new password.';
+                const form = document.getElementById('loginForm');
+                form.insertBefore(alert, form.firstChild);
+                // Remove the query param from URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        })();
+    </script>
+</body></html>

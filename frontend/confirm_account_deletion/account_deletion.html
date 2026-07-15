@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MedLedger | Confirm Account Deletion</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<!-- Load api.js and auth-guard.js -->
+<script src="../js/api.js"></script>
+<script src="../js/auth-guard.js"></script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .vault-border {
+            border: 1px solid #1E293B;
+        }
+        .glass-panel {
+            background: rgba(11, 19, 38, 0.8);
+            backdrop-filter: blur(12px);
+        }
+        @keyframes subtle-shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-2px); }
+            75% { transform: translateX(2px); }
+        }
+        .shake-on-error {
+            animation: subtle-shake 0.2s ease-in-out 0s 2;
+        }
+        .btn-inner-glow:hover {
+            box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.1);
+        }
+        .toast-enter {
+            transform: translateY(20px);
+            opacity: 0;
+        }
+        .toast-enter-active {
+            transform: translateY(0);
+            opacity: 1;
+            transition: all 0.3s ease;
+        }
+        .toast-exit {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .toast-exit-active {
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+        .error-msg {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .error-msg.show {
+            max-height: 60px;
+            opacity: 1;
+            margin-top: 8px;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                "tertiary-container": "#00885d",
+                "surface-tint": "#c0c1ff",
+                "on-background": "#dae2fd",
+                "tertiary-fixed": "#6ffbbe",
+                "on-secondary-fixed": "#0d1c2d",
+                "surface": "#0b1326",
+                "surface-container-low": "#131b2e",
+                "secondary": "#b9c8de",
+                "on-surface-variant": "#c7c4d7",
+                "background": "#0b1326",
+                "tertiary-fixed-dim": "#4edea3",
+                "primary-fixed-dim": "#c0c1ff",
+                "on-tertiary-container": "#000703",
+                "primary": "#c0c1ff",
+                "on-secondary-fixed-variant": "#39485a",
+                "primary-container": "#8083ff",
+                "surface-container-high": "#222a3d",
+                "inverse-primary": "#494bd6",
+                "on-secondary": "#233143",
+                "on-primary-fixed": "#07006c",
+                "on-error": "#690005",
+                "secondary-fixed-dim": "#b9c8de",
+                "inverse-on-surface": "#283044",
+                "surface-variant": "#2d3449",
+                "tertiary": "#4edea3",
+                "error": "#ffb4ab",
+                "on-tertiary-fixed-variant": "#005236",
+                "on-primary-fixed-variant": "#2f2ebe",
+                "on-surface": "#dae2fd",
+                "on-secondary-container": "#a7b6cc",
+                "on-primary": "#1000a9",
+                "on-tertiary": "#003824",
+                "outline-variant": "#464554",
+                "secondary-fixed": "#d4e4fa",
+                "surface-dim": "#0b1326",
+                "secondary-container": "#39485a",
+                "surface-container-lowest": "#060e20",
+                "on-tertiary-fixed": "#002113",
+                "on-error-container": "#ffdad6",
+                "on-primary-container": "#0d0096",
+                "surface-container": "#171f33",
+                "surface-bright": "#31394d",
+                "primary-fixed": "#e1e0ff",
+                "inverse-surface": "#dae2fd",
+                "surface-container-highest": "#2d3449",
+                "outline": "#908fa0",
+                "error-container": "#93000a"
+              },
+              "borderRadius": {
+                "DEFAULT": "0.125rem",
+                "lg": "0.25rem",
+                "xl": "0.5rem",
+                "full": "0.75rem"
+              },
+              "spacing": {
+                "3xl": "64px",
+                "md": "16px",
+                "gutter": "24px",
+                "xs": "4px",
+                "base": "4px",
+                "lg": "24px",
+                "2xl": "48px",
+                "sm": "8px",
+                "margin": "32px",
+                "xl": "32px"
+              },
+              "fontFamily": {
+                "label-md": ["Geist"],
+                "body-lg": ["Inter"],
+                "body-sm": ["Inter"],
+                "headline-sm": ["Inter"],
+                "mono-data": ["Geist"],
+                "headline-md": ["Inter"],
+                "label-sm": ["Geist"],
+                "headline-lg": ["Inter"],
+                "body-md": ["Inter"]
+              },
+              "fontSize": {
+                "label-md": ["14px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                "mono-data": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                "label-sm": ["12px", {"lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+              }
+            }
+          }
+        }
+      </script>
+</head>
+<body class="bg-background text-on-surface font-body-md min-h-screen flex flex-col overflow-x-hidden">
+<!-- Toast Container -->
+<div class="fixed bottom-24 right-8 z-[120] flex flex-col gap-sm" id="toast-container"></div>
+
+<!-- TopNavBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface border-b border-outline-variant">
+<div class="flex items-center gap-sm">
+<span class="font-headline-md text-headline-md font-bold text-primary tracking-tight">MedLedger</span>
+</div>
+<div class="flex items-center gap-gutter">
+<a class="flex items-center gap-xs text-on-surface-variant hover:text-primary transition-colors font-label-md text-label-md" href="../dashboard/medledger_dashboard.html">
+<span class="material-symbols-outlined text-[20px]">arrow_back</span>
+                Return to Settings
+            </a>
+</div>
+</header>
+
+<main class="flex-grow flex items-center justify-center px-4 pt-16 pb-12 relative overflow-hidden">
+<!-- Subtle Atmospheric Background -->
+<div class="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+<div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(147,0,10,0.2),transparent_70%)]"></div>
+</div>
+
+<!-- High-Friction Confirmation Content -->
+<div class="max-w-2xl w-full">
+<div class="bg-surface-container-low vault-border rounded-xl p-xl shadow-2xl relative overflow-hidden">
+<!-- Urgent Status Header -->
+<div class="flex flex-col items-center text-center space-y-md mb-2xl">
+<div class="w-16 h-16 rounded-full bg-error-container flex items-center justify-center mb-md border border-error/20">
+<span class="material-symbols-outlined text-error text-[40px]" style="font-variation-settings: 'FILL' 1;">warning</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-background tracking-tight">Permanent Account Deletion</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-md">
+                        This action is irreversible. You are about to terminate your digital vault and all associated security protocols.
+                    </p>
+</div>
+
+<!-- Consequences Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-md mb-2xl">
+<div class="bg-surface-container-highest p-md rounded-lg vault-border">
+<div class="flex items-start gap-sm">
+<span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">folder_delete</span>
+<div>
+<p class="font-label-md text-label-md text-on-surface font-bold">Encrypted Data</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">All stored documents and media will be purged from our cold-storage servers immediately.</p>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-highest p-md rounded-lg vault-border">
+<div class="flex items-start gap-sm">
+<span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">key_off</span>
+<div>
+<p class="font-label-md text-label-md text-on-surface font-bold">Recovery Keys</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Your AES-256 master recovery keys will be destroyed. Access can never be restored.</p>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-highest p-md rounded-lg vault-border md:col-span-2">
+<div class="flex items-start gap-sm">
+<span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">history_toggle_off</span>
+<div>
+<p class="font-label-md text-label-md text-on-surface font-bold">Audit History & Logs</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-xs">Your workspace compliance history and user activity logs will be permanently scrubbed.</p>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Error Alert -->
+<div id="errorAlert" class="hidden text-error bg-error/15 border border-error/30 p-sm rounded-lg font-body-sm text-body-sm mb-sm">
+</div>
+
+<!-- Friction Control -->
+<div class="space-y-md">
+<div class="bg-error-container/10 border border-error/30 p-md rounded-lg">
+<p class="font-body-sm text-body-sm text-error text-center italic">
+                            To confirm you understand the risks, please type the word below exactly as it appears.
+                        </p>
+</div>
+<div class="space-y-sm">
+<label class="font-label-sm text-label-sm text-on-surface-variant flex justify-between" for="delete-confirmation">
+<span>TYPE: <span class="text-error font-bold tracking-widest">DELETE</span></span>
+<span class="text-outline" id="char-count">0 / 6</span>
+</label>
+<input autocomplete="off" 
+       class="w-full bg-surface-container-lowest vault-border rounded-lg px-md py-lg font-mono-data text-mono-data text-on-surface focus:outline-none focus:ring-2 focus:ring-error focus:border-transparent transition-all uppercase tracking-[0.2em]" 
+       id="delete-confirmation" 
+       placeholder="Type here..." 
+       type="text"/>
+</div>
+<div class="flex flex-col sm:flex-row gap-md pt-md">
+<button class="flex-1 order-2 sm:order-1 h-12 rounded-lg font-label-md text-label-md text-on-surface border border-outline hover:bg-surface-variant transition-all btn-inner-glow" 
+        id="abort-btn" 
+        onclick="window.history.back()">
+                            Abort Process
+                        </button>
+<button class="flex-1 order-1 sm:order-2 h-12 rounded-lg font-label-md text-label-md bg-error text-on-error opacity-50 cursor-not-allowed transition-all btn-inner-glow flex items-center justify-center gap-sm" 
+        disabled="" 
+        id="delete-btn" 
+        onclick="triggerDeletion()">
+<span class="material-symbols-outlined text-[18px]">delete_forever</span>
+                            Permanently Delete Account
+                        </button>
+</div>
+</div>
+</div>
+
+<!-- Visual Security Metaphor -->
+<div class="mt-xl text-center">
+<div class="inline-flex items-center gap-sm px-md py-xs bg-surface-container-high rounded-full border border-outline-variant">
+<span class="w-2 h-2 rounded-full bg-error animate-pulse"></span>
+<span class="font-mono-data text-[11px] text-on-surface-variant tracking-tighter uppercase">Security Protocol: Final Destruction Override Active</span>
+</div>
+</div>
+</div>
+</main>
+
+<!-- Modal for Final Encryption Wipe Representation -->
+<div class="fixed inset-0 z-[100] bg-surface flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-500" id="wipe-overlay">
+<div class="text-center space-y-md p-gutter">
+<div class="font-mono-data text-error text-[12px] break-all max-w-lg leading-tight mb-xl h-24 overflow-hidden" id="cipher-text"></div>
+<h2 class="font-headline-md text-headline-md text-on-surface">Purging Vault Contents...</h2>
+<div class="w-64 h-1 bg-surface-container-highest mx-auto rounded-full overflow-hidden">
+<div class="h-full bg-error w-0 transition-all duration-[3000ms] ease-out" id="wipe-progress"></div>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Do not close your browser</p>
+</div>
+</div>
+
+<!-- Success Modal -->
+<div id="success-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-[200]">
+    <div class="bg-surface-container border border-tertiary/30 rounded-xl p-8 w-[420px] text-center shadow-2xl">
+        <div class="mx-auto w-20 h-20 rounded-full bg-green-500/15 flex items-center justify-center mb-5">
+            <span class="material-symbols-outlined text-green-400 text-[46px]">
+                check_circle
+            </span>
+        </div>
+        <h2 class="text-2xl font-bold mb-2">Account Deleted</h2>
+        <p class="text-on-surface-variant mb-6">Your MedLedger account has been permanently deleted.</p>
+        <p class="text-sm text-tertiary mb-5">Redirecting in <span id="countdown">3</span> seconds...</p>
+        <button onclick="window.location.href='../Sign_in_sign_up/medledger_landing.html'" 
+                class="bg-tertiary text-black px-6 py-3 rounded-lg hover:opacity-90 transition">
+            Go to Home
+        </button>
+    </div>
+</div>
+
+<script>
+        // ============================================================
+        // TOAST SYSTEM
+        // ============================================================
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const icon = type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'verified_user';
+            const borderColor = type === 'error' ? 'border-error/50' : type === 'warning' ? 'border-tertiary/50' : 'border-primary/50';
+            const toast = document.createElement('div');
+            toast.className = `glass-panel px-lg py-md rounded-xl text-on-surface border ${borderColor} shadow-2xl flex items-center gap-md transform translate-y-10 opacity-0 transition-all duration-300`;
+            toast.innerHTML = `<span class="material-symbols-outlined text-primary">${icon}</span><span class="font-label-md">${escapeHtml(message)}</span>`;
+            container.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.remove('translate-y-10', 'opacity-0'));
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-4');
+                setTimeout(() => toast.remove(), 500);
+            }, 4000);
+        }
+
+        function escapeHtml(unsafe) {
+            if (!unsafe) return '';
+            return String(unsafe)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function showError(message) {
+            const alert = document.getElementById('errorAlert');
+            alert.textContent = message;
+            alert.classList.remove('hidden');
+            const input = document.getElementById('delete-confirmation');
+            input.classList.add('shake-on-error');
+            setTimeout(() => input.classList.remove('shake-on-error'), 400);
+        }
+
+        function clearError() {
+            document.getElementById('errorAlert').classList.add('hidden');
+        }
+
+        // ============================================================
+        // DELETE CONFIRMATION INPUT
+        // ============================================================
+        const input = document.getElementById('delete-confirmation');
+        const deleteBtn = document.getElementById('delete-btn');
+        const charCount = document.getElementById('char-count');
+        const TARGET = 'DELETE';
+
+        input.addEventListener('input', function(e) {
+            const val = e.target.value.toUpperCase();
+            e.target.value = val;
+            
+            charCount.textContent = `${val.length} / 6`;
+            clearError();
+            
+            if (val === TARGET) {
+                deleteBtn.disabled = false;
+                deleteBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                deleteBtn.classList.add('hover:bg-[#d32f2f]', 'shadow-lg', 'shadow-error/20');
+                input.classList.add('ring-2', 'ring-tertiary');
+            } else {
+                deleteBtn.disabled = true;
+                deleteBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                deleteBtn.classList.remove('hover:bg-[#d32f2f]', 'shadow-lg', 'shadow-error/20');
+                input.classList.remove('ring-2', 'ring-tertiary');
+            }
+        });
+
+        // ============================================================
+        // TRIGGER DELETION
+        // ============================================================
+        async function triggerDeletion() {
+            clearError();
+            
+            if (input.value !== TARGET) {
+                showError('Please type "DELETE" exactly as shown to confirm.');
+                return;
+            }
+
+            deleteBtn.disabled = true;
+            deleteBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            const wipeOverlay = document.getElementById('wipe-overlay');
+            const wipeProgress = document.getElementById('wipe-progress');
+            const cipherDisplay = document.getElementById('cipher-text');
+
+            try {
+                // Step 1: Logout from all devices
+                showToast('Terminating all active sessions...', 'warning');
+                try {
+                    await window.apiRequest('POST', '/auth/logout-all', null, true);
+                } catch (err) {
+                    console.warn('logout-all during deletion:', err.message);
+                    // Continue even if logout fails - we still want to delete
+                }
+
+                // Step 2: Clear all local tokens and keys
+                window.clearTokens();
+                localStorage.removeItem('ml_signing_priv');
+                localStorage.removeItem('ml_exchange_priv');
+                localStorage.removeItem('ml_signing_pub');
+                localStorage.removeItem('ml_exchange_pub');
+                localStorage.removeItem('ml_user');
+
+                // Step 3: Show wipe animation
+                wipeOverlay.classList.remove('pointer-events-none', 'opacity-0');
+                
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress += 1;
+                    wipeProgress.style.width = `${progress}%`;
+                    
+                    // Generate random "encrypted" strings for visual effect
+                    let randomHex = '';
+                    for (let i = 0; i < 200; i++) {
+                        randomHex += Math.floor(Math.random() * 16).toString(16);
+                    }
+                    cipherDisplay.textContent = randomHex;
+
+                    if (progress >= 100) {
+                        clearInterval(interval);
+                        cipherDisplay.textContent = "VAULT_TERMINATED_SUCCESSFULLY [0x000000]";
+                        cipherDisplay.classList.replace('text-error', 'text-tertiary');
+                        setTimeout(showSuccessModal, 1000);
+                    }
+                }, 30);
+
+            } catch (error) {
+                console.error('Deletion failed:', error);
+                showToast('Deletion failed: ' + error.message, 'error');
+                deleteBtn.disabled = false;
+                deleteBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                wipeOverlay.classList.add('pointer-events-none', 'opacity-0');
+            }
+        }
+
+        // ============================================================
+        // SHOW SUCCESS MODAL
+        // ============================================================
+        function showSuccessModal() {
+            const modal = document.getElementById("success-modal");
+            const countdown = document.getElementById("countdown");
+            modal.classList.remove("hidden");
+            modal.classList.add("flex");
+            let time = 3;
+            countdown.textContent = time;
+            const timer = setInterval(() => {
+                time--;
+                countdown.textContent = time;
+                if (time <= 0) {
+                    clearInterval(timer);
+                    window.location.href = "../Sign_in_sign_up/medledger_landing.html";
+                }
+            }, 1000);
+        }
+
+        // ============================================================
+        // CHECK IF AUTHENTICATED (Redirect if not)
+        // ============================================================
+        (function() {
+            if (window.isAuthenticated && !window.isAuthenticated()) {
+                // Not authenticated - redirect to login
+                window.location.href = '../Sign_in_sign_up/signin.html';
+            }
+        })();
+
+        // ============================================================
+        // KEYBOARD SHORTCUT: ENTER TO SUBMIT
+        // ============================================================
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !deleteBtn.disabled) {
+                e.preventDefault();
+                triggerDeletion();
+            }
+        });
+    </script>
+</body></html>

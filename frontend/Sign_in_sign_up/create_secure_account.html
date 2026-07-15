@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MedLedger | Secure Registration</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Geist:wght@400;500&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<!-- Load api.js FIRST to expose global functions -->
+<script src="../js/api.js"></script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .step-transition {
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glow-border:focus-within {
+            box-shadow: 0 0 0 2px rgba(192, 193, 255, 0.2);
+            border-color: #c0c1ff;
+        }
+        .glow-border-error {
+            box-shadow: 0 0 0 2px rgba(255, 180, 171, 0.3) !important;
+            border-color: #ffb4ab !important;
+        }
+        .glow-border-success {
+            box-shadow: 0 0 0 2px rgba(78, 222, 163, 0.3) !important;
+            border-color: #4edea3 !important;
+        }
+        .vault-grid {
+            background-image: radial-gradient(circle at 2px 2px, #1e293b 1px, transparent 0);
+            background-size: 32px 32px;
+        }
+        @keyframes pulse-subtle {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .animate-pulse-subtle {
+            animation: pulse-subtle 2s infinite ease-in-out;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+            20%, 40%, 60%, 80% { transform: translateX(4px); }
+        }
+        .shake {
+            animation: shake 0.4s ease-in-out;
+        }
+        .strength-bar {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .error-msg {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .error-msg.show {
+            max-height: 60px;
+            opacity: 1;
+            margin-top: 8px;
+        }
+        .password-toggle {
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .password-toggle:hover {
+            opacity: 0.7;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-container": "#00885d",
+                        "surface-tint": "#c0c1ff",
+                        "on-background": "#dae2fd",
+                        "tertiary-fixed": "#6ffbbe",
+                        "on-secondary-fixed": "#0d1c2d",
+                        "surface": "#0b1326",
+                        "surface-container-low": "#131b2e",
+                        "secondary": "#b9c8de",
+                        "on-surface-variant": "#c7c4d7",
+                        "background": "#0b1326",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "on-tertiary-container": "#000703",
+                        "primary": "#c0c1ff",
+                        "on-secondary-fixed-variant": "#39485a",
+                        "primary-container": "#8083ff",
+                        "surface-container-high": "#222a3d",
+                        "inverse-primary": "#494bd6",
+                        "on-secondary": "#233143",
+                        "on-primary-fixed": "#07006c",
+                        "on-error": "#690005",
+                        "secondary-fixed-dim": "#b9c8de",
+                        "inverse-on-surface": "#283044",
+                        "surface-variant": "#2d3449",
+                        "tertiary": "#4edea3",
+                        "error": "#ffb4ab",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "on-surface": "#dae2fd",
+                        "on-secondary-container": "#a7b6cc",
+                        "on-primary": "#1000a9",
+                        "on-tertiary": "#003824",
+                        "outline-variant": "#464554",
+                        "secondary-fixed": "#d4e4fa",
+                        "surface-dim": "#0b1326",
+                        "secondary-container": "#39485a",
+                        "surface-container-lowest": "#060e20",
+                        "on-tertiary-fixed": "#002113",
+                        "on-error-container": "#ffdad6",
+                        "on-primary-container": "#0d0096",
+                        "surface-container": "#171f33",
+                        "surface-bright": "#31394d",
+                        "primary-fixed": "#e1e0ff",
+                        "inverse-surface": "#dae2fd",
+                        "surface-container-highest": "#2d3449",
+                        "outline": "#908fa0",
+                        "error-container": "#93000a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "3xl": "64px", "md": "16px", "gutter": "24px", "xs": "4px", "base": "4px", "lg": "24px", "2xl": "48px", "sm": "8px", "margin": "32px", "xl": "32px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Geist"], "body-lg": ["Inter"], "body-sm": ["Inter"], "headline-sm": ["Inter"], "mono-data": ["Geist"], "headline-md": ["Inter"], "label-sm": ["Geist"], "headline-lg": ["Inter"], "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["14px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "mono-data": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface min-h-screen vault-grid selection:bg-primary selection:text-on-primary">
+<!-- Top Navigation (Shared Component Integration) -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface border-b border-outline-variant">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">shield</span>
+<span class="font-headline-md text-headline-md font-bold text-primary tracking-tight">MedLedger</span>
+</div>
+<div class="hidden md:flex items-center space-x-xl">
+<a class="text-on-surface-variant font-label-md text-label-md hover:text-primary transition-colors" href="medledger_landing.html">← Home</a>
+<a class="text-on-surface-variant font-label-md text-label-md hover:text-primary transition-colors" href="#">Documentation</a>
+<a class="text-on-surface-variant font-label-md text-label-md hover:text-primary transition-colors" href="#">Security Audit</a>
+<a href="signin.html" class="bg-primary text-on-primary px-lg py-sm rounded-xl font-label-md text-label-md font-bold transition-all active:scale-95 inline-block">Sign In</a>
+</div>
+</header>
+<main class="pt-3xl pb-2xl flex items-center justify-center min-h-screen px-md">
+<div class="max-w-xl w-full">
+<!-- Step 1: Initial Registration -->
+<div class="step-transition opacity-100 transform translate-x-0" id="step-1">
+<div class="mb-xl text-center">
+<h1 class="font-headline-lg text-headline-lg mb-sm">Create Secure Vault</h1>
+<p class="text-on-surface-variant font-body-md text-body-md">Begin your journey toward absolute data sovereignty.</p>
+</div>
+<!-- Security Notice -->
+<div class="bg-surface-container-high border border-outline-variant rounded-xl p-lg mb-xl flex gap-lg items-start">
+<div class="p-base bg-tertiary-container/20 rounded-lg">
+<span class="material-symbols-outlined text-tertiary">lock_reset</span>
+</div>
+<div>
+<h3 class="font-headline-sm text-headline-sm text-tertiary mb-xs">Zero-Knowledge Architecture</h3>
+<p class="text-on-surface-variant font-body-sm text-body-sm">Your password never leaves your browser. All encryption keys are generated locally. If you lose your recovery key, we cannot reset your access.</p>
+</div>
+</div>
+<!-- Form -->
+<form class="space-y-lg bg-surface-container-low border border-outline-variant p-xl rounded-xl" id="registration-form" onsubmit="event.preventDefault(); handleSubmit();">
+<!-- Email Field -->
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface-variant ml-xs">Workspace Email</label>
+<div id="email-wrapper" class="glow-border bg-surface-container-highest border border-outline-variant rounded-xl flex items-center px-md py-sm transition-all">
+<span class="material-symbols-outlined text-outline mr-sm">alternate_email</span>
+<input id="email-input" class="bg-transparent border-none focus:ring-0 w-full text-on-surface font-body-md" placeholder="name@company.com" type="email" oninput="validateEmail()" onblur="validateEmail()"/>
+</div>
+<div id="email-error" class="error-msg flex items-center gap-xs text-error font-body-sm text-body-sm ml-xs">
+<span class="material-symbols-outlined text-[16px]">error</span>
+<span id="email-error-text">Please enter a valid email address with a proper domain</span>
+</div>
+<div id="email-domain-info" class="hidden flex items-center gap-xs text-tertiary font-body-sm text-body-sm ml-xs mt-xs">
+<span class="material-symbols-outlined text-[16px]">check_circle</span>
+<span id="domain-text">Domain detected</span>
+</div>
+</div>
+<!-- Master Password Field -->
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface-variant ml-xs">Master Password</label>
+<div id="password-wrapper" class="glow-border bg-surface-container-highest border border-outline-variant rounded-xl flex items-center px-md py-sm transition-all">
+<span class="material-symbols-outlined text-outline mr-sm">key</span>
+<input id="password-input" class="bg-transparent border-none focus:ring-0 w-full text-on-surface font-body-md" placeholder="••••••••••••" type="password" oninput="checkPasswordStrength(); checkPasswordMatch()"/>
+<span id="password-toggle" class="material-symbols-outlined text-outline password-toggle ml-sm" onclick="togglePasswordVisibility('password-input', 'password-toggle')">visibility_off</span>
+</div>
+<!-- Strength Meter -->
+<div class="flex gap-xs mt-xs">
+<div id="strength-bar-1" class="strength-bar h-1 flex-1 rounded-full bg-surface-variant"></div>
+<div id="strength-bar-2" class="strength-bar h-1 flex-1 rounded-full bg-surface-variant"></div>
+<div id="strength-bar-3" class="strength-bar h-1 flex-1 rounded-full bg-surface-variant"></div>
+<div id="strength-bar-4" class="strength-bar h-1 flex-1 rounded-full bg-surface-variant"></div>
+</div>
+<p id="strength-text" class="text-on-surface-variant text-[11px] font-mono-data uppercase tracking-wider mt-xs">Strength: Enter password</p>
+</div>
+<!-- Confirm Password Field -->
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface-variant ml-xs">Confirm Password</label>
+<div id="confirm-wrapper" class="glow-border bg-surface-container-highest border border-outline-variant rounded-xl flex items-center px-md py-sm transition-all">
+<span class="material-symbols-outlined text-outline mr-sm">verified_user</span>
+<input id="confirm-input" class="bg-transparent border-none focus:ring-0 w-full text-on-surface font-body-md" placeholder="••••••••••••" type="password" oninput="checkPasswordMatch()"/>
+<span id="confirm-toggle" class="material-symbols-outlined text-outline password-toggle ml-sm" onclick="togglePasswordVisibility('confirm-input', 'confirm-toggle')">visibility_off</span>
+</div>
+<div id="match-error" class="error-msg flex items-center gap-xs text-error font-body-sm text-body-sm ml-xs">
+<span class="material-symbols-outlined text-[16px]">error</span>
+<span>Passwords do not match</span>
+</div>
+<div id="match-success" class="hidden flex items-center gap-xs text-tertiary font-body-sm text-body-sm ml-xs mt-xs">
+<span class="material-symbols-outlined text-[16px]">check_circle</span>
+<span>Passwords match</span>
+</div>
+</div>
+<button id="submit-btn" class="w-full bg-primary text-on-primary py-md rounded-xl font-label-md text-label-md font-bold transition-all hover:brightness-110 active:scale-95 shadow-lg flex items-center justify-center gap-sm" type="submit">
+                        Initialize Identity
+                        <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</form>
+</div>
+<!-- Step 2: Proof of Work Calculation -->
+<div class="step-transition hidden opacity-0 transform translate-x-8" id="step-2">
+<div class="bg-surface-container border border-outline-variant rounded-xl p-2xl text-center relative overflow-hidden">
+
+<div class="relative z-10">
+<div class="w-20 h-20 bg-primary-container/20 rounded-full flex items-center justify-center mx-auto mb-xl border border-primary/30">
+<span class="material-symbols-outlined text-primary text-3xl animate-spin" style="animation-duration: 3s">settings_suggest</span>
+</div>
+<h2 class="font-headline-md text-headline-md mb-md">Generating Cryptographic Proof</h2>
+<p class="text-on-surface-variant font-body-md text-body-md mb-xl max-w-sm mx-auto">Calculating anti-spam hash puzzles locally to secure your vault against brute-force attempts...</p>
+<!-- Progress Visualizer -->
+<div class="w-full bg-surface-variant h-2 rounded-full mb-md overflow-hidden">
+<div class="h-full bg-primary w-0 transition-all duration-300" id="pow-progress"></div>
+</div>
+<div class="flex justify-between items-center text-on-surface-variant font-mono-data text-mono-data">
+<span id="pow-status">ITERATION: 0x4A2F...</span>
+<span id="pow-percent">0%</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Step 3: Keypair Generation & Backup -->
+<div class="step-transition hidden opacity-0 transform translate-x-8" id="step-3">
+<div class="text-center mb-xl">
+<div class="inline-flex items-center gap-xs bg-tertiary-container/20 text-tertiary px-md py-xs rounded-full font-mono-data text-[12px] mb-md border border-tertiary/20">
+<span class="material-symbols-outlined text-[14px]">check_circle</span>
+                        POW_VERIFIED_SUCCESS
+                    </div>
+<h2 class="font-headline-lg text-headline-lg mb-sm">Secure Your Recovery Key</h2>
+<p class="text-on-surface-variant font-body-md text-body-md">Your Private Key is your only way to regain access if you forget your password.</p>
+</div>
+<div class="bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden mb-xl">
+<div class="p-lg bg-surface-container-high border-b border-outline-variant flex justify-between items-center">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-outline">description</span>
+<span class="font-label-md text-label-md">recovery_key_MedLedger.txt</span>
+</div>
+<span class="font-mono-data text-mono-data text-outline">AES-256-GCM</span>
+</div>
+<div class="p-xl font-mono-data text-mono-data bg-surface-container-lowest text-primary break-all leading-relaxed relative group">
+<div class="absolute inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center transition-opacity group-hover:opacity-0" id="key-blur">
+<button class="bg-surface-variant border border-outline-variant px-lg py-sm rounded-lg flex items-center gap-sm text-on-surface" onclick="revealKey()">
+<span class="material-symbols-outlined">visibility</span>
+                                View Key
+                            </button>
+</div>
+<span id="mock-key">VG-RECOVERY-87A2-119D-FF04-E23B-9981-CC5A-6623-009F-A1D4-B4B4-789E-CC32-88EF</span>
+</div>
+</div>
+<div class="space-y-lg">
+<button class="w-full bg-primary text-on-primary py-md rounded-xl font-label-md text-label-md font-bold transition-all hover:brightness-110 active:scale-95 shadow-lg flex items-center justify-center gap-sm" onclick="downloadAndEnable()">
+<span class="material-symbols-outlined">download</span>
+                        Download &amp; Continue
+                    </button>
+<div class="flex items-start gap-md p-md bg-error-container/10 border border-error/20 rounded-xl">
+<span class="material-symbols-outlined text-error">warning</span>
+<p class="text-error font-body-sm text-body-sm">The "Continue" button will remain locked until the recovery file has been safely downloaded to your device.</p>
+</div>
+</div>
+</div>
+
+<!-- Step Verify: Email Verification -->
+<div class="step-transition hidden opacity-0 transform translate-x-8" id="step-verify">
+<div class="text-center mb-xl">
+<h2 class="font-headline-lg text-headline-lg mb-sm">Verify Email Address</h2>
+<p class="text-on-surface-variant font-body-md text-body-md">We have sent a verification code to <span id="verification-email-display" class="text-primary font-bold">your email</span>.</p>
+</div>
+<form class="space-y-lg bg-surface-container-low border border-outline-variant p-xl rounded-xl" id="verification-form" onsubmit="event.preventDefault(); handleEmailVerification();">
+<div class="space-y-xs">
+<label class="font-label-md text-label-md text-on-surface-variant ml-xs">Verification Code</label>
+<div id="verify-code-wrapper" class="glow-border bg-surface-container-highest border border-outline-variant rounded-xl flex items-center px-md py-sm transition-all">
+<span class="material-symbols-outlined text-outline mr-sm">pin</span>
+<input id="verify-code-input" class="bg-transparent border-none focus:ring-0 w-full text-on-surface font-body-md font-mono-data" placeholder="123456" minlength="6" maxlength="6" required="" type="text"/>
+</div>
+<div id="verify-error" class="error-msg flex items-center gap-xs text-error font-body-sm text-body-sm ml-xs">
+<span class="material-symbols-outlined text-[16px]">error</span>
+<span id="verify-error-text">Incorrect code. Please try again.</span>
+</div>
+</div>
+<button id="verify-submit-btn" class="w-full bg-primary text-on-primary py-md rounded-xl font-label-md text-label-md font-bold transition-all hover:brightness-110 active:scale-95 shadow-lg flex items-center justify-center gap-sm" type="submit">
+Verify &amp; Initialize
+<span class="material-symbols-outlined">arrow_forward</span>
+</button>
+<div class="text-center pt-sm">
+<button type="button" class="text-primary hover:text-primary-container text-label-sm font-label-sm transition-colors" onclick="resendVerificationCode()">Resend Code</button>
+</div>
+</form>
+</div>
+
+<!-- Step 4: Success Splash -->
+<div class="step-transition hidden opacity-0 transform scale-95" id="step-4">
+<div class="text-center bg-surface-container p-2xl rounded-xl border border-outline-variant shadow-2xl relative">
+<div class="absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 bg-tertiary text-on-tertiary rounded-full flex items-center justify-center shadow-lg border-4 border-background">
+<span class="material-symbols-outlined text-4xl">lock_open</span>
+</div>
+<div class="mt-lg">
+<h2 class="font-headline-lg text-headline-lg mb-md">Vault Initialized</h2>
+<p class="text-on-surface-variant font-body-md text-body-md mb-2xl">Your secure environment is ready. Welcome to the next standard of privacy.</p>
+<div class="grid grid-cols-2 gap-md mb-2xl">
+<div class="p-md bg-surface-container-low border border-outline-variant rounded-xl text-left">
+<span class="material-symbols-outlined text-primary mb-sm">fingerprint</span>
+<p class="font-label-sm text-label-sm text-outline">STATUS</p>
+<p class="font-headline-sm text-headline-sm">Active</p>
+</div>
+<div class="p-md bg-surface-container-low border border-outline-variant rounded-xl text-left">
+<span class="material-symbols-outlined text-primary mb-sm">security</span>
+<p class="font-label-sm text-label-sm text-outline">ENCRYPTION</p>
+<p class="font-headline-sm text-headline-sm">Client-Side</p>
+</div>
+</div>
+<button onclick="window.location.href='../dashboard/medledger_dashboard.html'" class="w-full bg-primary text-on-primary py-md rounded-xl font-label-md text-label-md font-bold transition-all hover:shadow-[0_0_20px_rgba(192,193,255,0.4)]">
+                            Enter Dashboard
+                        </button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer Identity -->
+<footer class="fixed bottom-8 left-0 w-full px-gutter pointer-events-none">
+<div class="max-w-7xl mx-auto flex justify-between items-end opacity-40">
+<div class="space-y-xs">
+<p class="font-mono-data text-mono-data">NODE_STATUS: STABLE</p>
+<p class="font-mono-data text-mono-data">VERSION: 2.4.0-STABLE</p>
+</div>
+<div class="text-right">
+<p class="font-mono-data text-mono-data">ENCRYPTION_ENGINE: AES-NI ENABLED</p>
+<p class="font-mono-data text-mono-data">© 2024 MedLedger PROTOCOL</p>
+</div>
+</div>
+</footer>
+<script>
+        // ===== VALIDATION STATE =====
+        let isEmailValid = false;
+        let isPasswordMatch = false;
+        let passwordStrength = 0;
+        let pendingEmail = '';
+        let pendingUsername = '';
+
+        // ===== EMAIL VALIDATION =====
+        function validateEmail() {
+            const email = document.getElementById('email-input').value.trim();
+            const wrapper = document.getElementById('email-wrapper');
+            const errorDiv = document.getElementById('email-error');
+            const errorText = document.getElementById('email-error-text');
+            const domainInfo = document.getElementById('email-domain-info');
+            const domainText = document.getElementById('domain-text');
+
+            // RFC-compliant regex with domain requirement
+            const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+            if (email === '') {
+                wrapper.classList.remove('glow-border-error', 'glow-border-success');
+                wrapper.classList.add('glow-border');
+                errorDiv.classList.remove('show');
+                domainInfo.classList.add('hidden');
+                isEmailValid = false;
+                return;
+            }
+
+            if (!emailRegex.test(email)) {
+                // Check if missing TLD
+                if (email.includes('@') && !email.includes('.', email.indexOf('@'))) {
+                    errorText.textContent = 'Email must include a valid domain extension (e.g., .com, .in, .org)';
+                } else if (!email.includes('@')) {
+                    errorText.textContent = 'Email must contain an @ symbol';
+                } else {
+                    errorText.textContent = 'Please enter a valid email address with a proper domain';
+                }
+                wrapper.classList.remove('glow-border', 'glow-border-success');
+                wrapper.classList.add('glow-border-error');
+                errorDiv.classList.add('show');
+                domainInfo.classList.add('hidden');
+                isEmailValid = false;
+            } else {
+                // Valid email - extract domain
+                const domain = email.split('@')[1];
+                wrapper.classList.remove('glow-border', 'glow-border-error');
+                wrapper.classList.add('glow-border-success');
+                errorDiv.classList.remove('show');
+                domainInfo.classList.remove('hidden');
+                domainText.textContent = `Domain verified: ${domain}`;
+                isEmailValid = true;
+                pendingEmail = email;
+            }
+        }
+
+        // ===== PASSWORD STRENGTH METER =====
+        function checkPasswordStrength() {
+            const password = document.getElementById('password-input').value;
+            const strengthText = document.getElementById('strength-text');
+            const bars = [
+                document.getElementById('strength-bar-1'),
+                document.getElementById('strength-bar-2'),
+                document.getElementById('strength-bar-3'),
+                document.getElementById('strength-bar-4')
+            ];
+
+            // Reset all bars
+            bars.forEach(bar => {
+                bar.className = 'strength-bar h-1 flex-1 rounded-full bg-surface-variant';
+            });
+
+            if (password.length === 0) {
+                strengthText.textContent = 'Strength: Enter password';
+                strengthText.className = 'text-on-surface-variant text-[11px] font-mono-data uppercase tracking-wider mt-xs';
+                passwordStrength = 0;
+                return;
+            }
+
+            let score = 0;
+
+            // Length check
+            if (password.length >= 8) score++;
+            if (password.length >= 12) score++;
+
+            // Character variety
+            const hasLower = /[a-z]/.test(password);
+            const hasUpper = /[A-Z]/.test(password);
+            const hasNumber = /\d/.test(password);
+            const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\|,.<>\/?]/.test(password);
+
+            const varietyCount = [hasLower, hasUpper, hasNumber, hasSpecial].filter(Boolean).length;
+
+            if (varietyCount >= 2) score++;
+            if (varietyCount >= 3) score++;
+            if (varietyCount >= 4 && password.length >= 10) score++;
+
+            // Cap score at 4
+            passwordStrength = Math.min(score, 4);
+
+            // Apply colors based on strength
+            const colors = {
+                1: { bg: 'bg-red-500', text: 'text-red-400', label: 'Weak' },
+                2: { bg: 'bg-yellow-500', text: 'text-yellow-400', label: 'Moderate' },
+                3: { bg: 'bg-blue-500', text: 'text-blue-400', label: 'Strong' },
+                4: { bg: 'bg-green-500', text: 'text-green-400', label: 'Very Strong' }
+            };
+
+            // For very short passwords, force weak
+            if (password.length < 6) {
+                passwordStrength = 1;
+            }
+
+            const level = colors[passwordStrength] || colors[1];
+
+            // Fill bars
+            for (let i = 0; i < passwordStrength; i++) {
+                bars[i].classList.remove('bg-surface-variant');
+                bars[i].classList.add(level.bg);
+            }
+
+            strengthText.textContent = `Strength: ${level.label}`;
+            strengthText.className = `${level.text} text-[11px] font-mono-data uppercase tracking-wider mt-xs`;
+        }
+
+        // ===== PASSWORD MATCH CHECK =====
+        function checkPasswordMatch() {
+            const password = document.getElementById('password-input').value;
+            const confirm = document.getElementById('confirm-input').value;
+            const wrapper = document.getElementById('confirm-wrapper');
+            const errorDiv = document.getElementById('match-error');
+            const successDiv = document.getElementById('match-success');
+
+            if (confirm === '') {
+                wrapper.classList.remove('glow-border-error', 'glow-border-success');
+                wrapper.classList.add('glow-border');
+                errorDiv.classList.remove('show');
+                successDiv.classList.add('hidden');
+                isPasswordMatch = false;
+                return;
+            }
+
+            if (password !== confirm) {
+                wrapper.classList.remove('glow-border', 'glow-border-success');
+                wrapper.classList.add('glow-border-error');
+                errorDiv.classList.add('show');
+                successDiv.classList.add('hidden');
+                isPasswordMatch = false;
+            } else {
+                wrapper.classList.remove('glow-border', 'glow-border-error');
+                wrapper.classList.add('glow-border-success');
+                errorDiv.classList.remove('show');
+                successDiv.classList.remove('hidden');
+                isPasswordMatch = true;
+            }
+        }
+
+        // ===== PASSWORD VISIBILITY TOGGLE =====
+        function togglePasswordVisibility(inputId, toggleId) {
+            const input = document.getElementById(inputId);
+            const toggle = document.getElementById(toggleId);
+
+            if (input.type === 'password') {
+                input.type = 'text';
+                toggle.textContent = 'visibility';
+            } else {
+                input.type = 'password';
+                toggle.textContent = 'visibility_off';
+            }
+        }
+
+        // ===== FORM SUBMISSION =====
+        function handleSubmit() {
+            const email = document.getElementById('email-input').value.trim();
+            const password = document.getElementById('password-input').value;
+            const confirm = document.getElementById('confirm-input').value;
+            const form = document.getElementById('registration-form');
+
+            let hasError = false;
+
+            // Validate email
+            if (!isEmailValid || email === '') {
+                validateEmail();
+                const wrapper = document.getElementById('email-wrapper');
+                wrapper.classList.remove('glow-border', 'glow-border-success');
+                wrapper.classList.add('glow-border-error');
+                document.getElementById('email-error').classList.add('show');
+                hasError = true;
+            }
+
+            // Validate password match
+            if (!isPasswordMatch || password === '' || confirm === '') {
+                checkPasswordMatch();
+                if (password !== confirm) {
+                    const wrapper = document.getElementById('confirm-wrapper');
+                    wrapper.classList.remove('glow-border', 'glow-border-success');
+                    wrapper.classList.add('glow-border-error');
+                    document.getElementById('match-error').classList.add('show');
+                }
+                hasError = true;
+            }
+
+            // Validate password strength (minimum moderate)
+            if (passwordStrength < 2) {
+                const strengthText = document.getElementById('strength-text');
+                strengthText.textContent = 'Strength: Too weak - use 8+ chars with mixed case, numbers & symbols';
+                strengthText.className = 'text-red-400 text-[11px] font-mono-data uppercase tracking-wider mt-xs';
+                hasError = true;
+            }
+
+            if (hasError) {
+                // Shake the form
+                form.classList.add('shake');
+                setTimeout(() => form.classList.remove('shake'), 400);
+                return;
+            }
+
+            // Store pending email for verification step
+            pendingEmail = email;
+            pendingUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '_');
+            if (pendingUsername.length < 3) pendingUsername = (pendingUsername + '_user');
+            pendingUsername = pendingUsername.substring(0, 30);
+            
+            localStorage.setItem('ml_pending_email', pendingEmail);
+            localStorage.setItem('ml_pending_username', pendingUsername);
+
+            // All validations passed - proceed to PoW step
+            goToStep(2);
+        }
+
+        // ===== STEP TRANSITIONS =====
+        function goToStep(stepId) {
+            const currentStep = document.querySelector('.step-transition:not(.hidden)');
+            const nextId = typeof stepId === 'number' ? `step-${stepId}` : stepId;
+            const nextStep = document.getElementById(nextId);
+
+            if (currentStep) {
+                currentStep.classList.add('opacity-0', '-translate-x-8');
+                setTimeout(() => {
+                    currentStep.classList.add('hidden');
+                    nextStep.classList.remove('hidden');
+                    setTimeout(() => {
+                        nextStep.classList.remove('opacity-0', 'translate-x-8');
+                        nextStep.classList.add('opacity-100', 'translate-x-0');
+
+                        if (stepId === 2) {
+                            runRealPoWFlow();
+                        }
+                    }, 50);
+                }, 500);
+            } else {
+                // If no current step (first load), just show the target
+                nextStep.classList.remove('hidden');
+                setTimeout(() => {
+                    nextStep.classList.remove('opacity-0', 'translate-x-8');
+                    nextStep.classList.add('opacity-100', 'translate-x-0');
+                }, 50);
+            }
+        }
+
+        // ===== REAL POW FLOW =====
+        async function runRealPoWFlow() {
+            const bar = document.getElementById('pow-progress');
+            const percent = document.getElementById('pow-percent');
+            const status = document.getElementById('pow-status');
+            
+            try {
+                status.innerText = "REQUESTING CHALLENGE...";
+                const challengeData = await window.apiRequest("POST", "/auth/pow/challenge", null, false);
+                
+                status.innerText = "SOLVING CRYPTOGRAPHIC PUZZLE...";
+                const difficulty = challengeData.difficulty;
+                const challenge = challengeData.challenge;
+                const challengeId = challengeData.challenge_id;
+                
+                const prefix = "0".repeat(difficulty);
+                let nonce = 0;
+                
+                async function findSolution() {
+                    const maxPerBatch = 2000;
+                    for (let i = 0; i < maxPerBatch; i++) {
+                        const solution = nonce.toString();
+                        const hash = await window.sha256(challenge + solution);
+                        if (hash.startsWith(prefix)) {
+                            return solution;
+                        }
+                        nonce++;
+                    }
+                    
+                    let progress = Math.min((nonce / 30000) * 100, 99);
+                    bar.style.width = `${progress}%`;
+                    percent.innerText = `${Math.floor(progress)}%`;
+                    status.innerText = `HASHING: Nonce ${nonce} (Diff: ${difficulty})...`;
+                    
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                    return null;
+                }
+                
+                let solution = null;
+                while (solution === null) {
+                    solution = await findSolution();
+                }
+                
+                bar.style.width = "100%";
+                percent.innerText = "100%";
+                status.innerText = "VERIFYING PROOF ON SERVER...";
+                
+                await window.apiRequest("POST", "/auth/pow/verify", {
+                    challenge_id: challengeId,
+                    solution: solution
+                }, false);
+                
+                status.innerText = "GENERATING CLIENT KEYS...";
+                const keys = await window.generateKeyPair();
+                
+                status.innerText = "REGISTERING IDENTITY...";
+                const email = pendingEmail || document.getElementById('email-input').value.trim();
+                const password = document.getElementById('password-input').value;
+                const username = pendingUsername;
+                const fullName = email.split('@')[0];
+
+                const registerResponse = await window.apiRequest("POST", "/auth/register", {
+                    email: email,
+                    username: username,
+                    password: password,
+                    full_name: fullName,
+                    signing_public_key: keys.signingPublicKey,
+                    exchange_public_key: keys.exchangePublicKey
+                }, false);
+                
+                // Store registration info for verification
+                localStorage.setItem('ml_pending_email', email);
+                document.getElementById('verification-email-display').innerText = email;
+                
+                // Store backup key info
+                const backupPayload = {
+                    email: email,
+                    username: username,
+                    signing_public_key: keys.signingPublicKey,
+                    exchange_public_key: keys.exchangePublicKey,
+                    signing_private_key_jwk: keys.signingPrivJwk,
+                    exchange_private_key_jwk: keys.exchangePrivJwk
+                };
+                
+                document.getElementById('mock-key').innerText = JSON.stringify(backupPayload, null, 2);
+                
+                setTimeout(() => goToStep(3), 800);
+            } catch (error) {
+                console.error("PoW / KeyGen / Register error:", error);
+                status.innerText = "ERROR: " + (error.message || "Failed to initialize identity.");
+                setTimeout(() => {
+                    goToStep(1);
+                }, 3000);
+            }
+        }
+
+        // ===== EMAIL VERIFICATION =====
+        async function handleEmailVerification() {
+            const email = localStorage.getItem('ml_pending_email') || document.getElementById('email-input').value.trim();
+            const code = document.getElementById('verify-code-input').value.trim();
+            const errorDiv = document.getElementById('verify-error');
+            const submitBtn = document.getElementById('verify-submit-btn');
+            
+            // Clear previous error
+            errorDiv.classList.remove('show');
+            
+            // Validate code format
+            if (code.length !== 6 || !/^\d{6}$/.test(code)) {
+                document.getElementById('verify-error-text').innerText = 'Please enter a valid 6-digit code.';
+                errorDiv.classList.add('show');
+                return;
+            }
+            
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `
+                <span class="animate-spin material-symbols-outlined text-[18px]">progress_activity</span>
+                <span>Verifying...</span>
+            `;
+            
+            try {
+                // Call the verification endpoint
+                const response = await window.apiRequest("POST", "/auth/verify-email", {
+                    email: email,
+                    code: code
+                }, false);
+                
+                // The response should contain tokens and user info
+                if (response.tokens) {
+                    window.setTokens(response.tokens, response.user);
+                } else if (response.user) {
+                    // If tokens are not in the response, we might need to login
+                    console.warn("No tokens in verification response, user may need to login manually");
+                }
+                
+                // Clear pending data
+                localStorage.removeItem('ml_pending_email');
+                localStorage.removeItem('ml_pending_username');
+                
+                // Go to success step
+                goToStep(4);
+                
+                // Update button to show success
+                submitBtn.innerHTML = `
+                    <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                    <span>Verified!</span>
+                `;
+                submitBtn.classList.replace('bg-primary', 'bg-tertiary');
+                submitBtn.classList.replace('text-on-primary', 'text-on-tertiary');
+                
+            } catch (error) {
+                console.error("Verification failed:", error);
+                document.getElementById('verify-error-text').innerText = error.message || "Incorrect code. Please try again.";
+                errorDiv.classList.add('show');
+                
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `
+                    Verify &amp; Initialize
+                    <span class="material-symbols-outlined">arrow_forward</span>
+                `;
+            }
+        }
+
+        // ===== RESEND VERIFICATION CODE =====
+        async function resendVerificationCode() {
+            const email = localStorage.getItem('ml_pending_email') || document.getElementById('email-input').value.trim();
+            
+            if (!email) {
+                alert('No email found. Please restart the registration process.');
+                return;
+            }
+            
+            try {
+                await window.apiRequest("POST", "/auth/resend-verification", { email }, false);
+                alert("Verification code resent to your email.");
+            } catch (error) {
+                alert("Failed to resend code: " + (error.message || "Unknown error"));
+            }
+        }
+
+        // ===== REVEAL KEY =====
+        function revealKey() {
+            document.getElementById('key-blur').style.display = 'none';
+        }
+
+        // ===== DOWNLOAD AND CONTINUE =====
+        function downloadAndEnable() {
+            const keyContent = document.getElementById('mock-key').innerText;
+            const blob = new Blob([keyContent], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'recovery_key_MedLedger.txt';
+            a.click();
+            window.URL.revokeObjectURL(url);
+
+            // Go to verification step
+            setTimeout(() => goToStep('step-verify'), 1000);
+        }
+
+        // ===== INITIALIZATION =====
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if we have a pending email from a previous attempt
+            const savedEmail = localStorage.getItem('ml_pending_email');
+            if (savedEmail) {
+                document.getElementById('email-input').value = savedEmail;
+                validateEmail();
+            }
+            
+            // Set the initial step visibility
+            const step1 = document.getElementById('step-1');
+            if (step1) {
+                step1.classList.remove('hidden');
+                step1.classList.add('opacity-100', 'translate-x-0');
+            }
+        });
+    </script>
+</body></html>

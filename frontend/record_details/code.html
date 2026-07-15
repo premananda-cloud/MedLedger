@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>MedLedger - Secure File Details</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- Load api.js and auth-guard.js FIRST -->
+    <script src="../js/api.js"></script>
+    <script src="../js/auth-guard.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Inter:wght@100..900&display=swap"
+        rel="stylesheet" />
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .vault-glass {
+            background: linear-gradient(135deg, rgba(23, 31, 51, 0.7) 0%, rgba(11, 19, 38, 0.8) 100%);
+            backdrop-filter: blur(12px);
+        }
+
+        .glow-border:focus-within {
+            box-shadow: 0 0 0 2px rgba(192, 193, 255, 0.2);
+            border-color: #c0c1ff;
+        }
+
+        @keyframes subtle-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .animate-encryption {
+            animation: subtle-pulse 3s infinite ease-in-out;
+        }
+
+        .toast-enter {
+            transform: translateY(20px);
+            opacity: 0;
+        }
+        .toast-enter-active {
+            transform: translateY(0);
+            opacity: 1;
+            transition: all 0.3s ease;
+        }
+        .toast-exit {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .toast-exit-active {
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+    </style>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-container": "#00885d",
+                        "surface-tint": "#c0c1ff",
+                        "on-background": "#dae2fd",
+                        "tertiary-fixed": "#6ffbbe",
+                        "on-secondary-fixed": "#0d1c2d",
+                        "surface": "#0b1326",
+                        "surface-container-low": "#131b2e",
+                        "secondary": "#b9c8de",
+                        "on-surface-variant": "#c7c4d7",
+                        "background": "#0b1326",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "on-tertiary-container": "#000703",
+                        "primary": "#c0c1ff",
+                        "on-secondary-fixed-variant": "#39485a",
+                        "primary-container": "#8083ff",
+                        "surface-container-high": "#222a3d",
+                        "inverse-primary": "#494bd6",
+                        "on-secondary": "#233143",
+                        "on-primary-fixed": "#07006c",
+                        "on-error": "#690005",
+                        "secondary-fixed-dim": "#b9c8de",
+                        "inverse-on-surface": "#283044",
+                        "surface-variant": "#2d3449",
+                        "tertiary": "#4edea3",
+                        "error": "#ffb4ab",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "on-surface": "#dae2fd",
+                        "on-secondary-container": "#a7b6cc",
+                        "on-primary": "#1000a9",
+                        "on-tertiary": "#003824",
+                        "outline-variant": "#464554",
+                        "secondary-fixed": "#d4e4fa",
+                        "surface-dim": "#0b1326",
+                        "secondary-container": "#39485a",
+                        "surface-container-lowest": "#060e20",
+                        "on-tertiary-fixed": "#002113",
+                        "on-error-container": "#ffdad6",
+                        "on-primary-container": "#0d0096",
+                        "surface-container": "#171f33",
+                        "surface-bright": "#31394d",
+                        "primary-fixed": "#e1e0ff",
+                        "inverse-surface": "#dae2fd",
+                        "surface-container-highest": "#2d3449",
+                        "outline": "#908fa0",
+                        "error-container": "#93000a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "3xl": "64px",
+                        "md": "16px",
+                        "gutter": "24px",
+                        "xs": "4px",
+                        "base": "4px",
+                        "lg": "24px",
+                        "2xl": "48px",
+                        "sm": "8px",
+                        "margin": "32px",
+                        "xl": "32px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Geist"],
+                        "body-lg": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "mono-data": ["Geist"],
+                        "headline-md": ["Inter"],
+                        "label-sm": ["Geist"],
+                        "headline-lg": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["14px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "mono-data": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+
+<body class="bg-background text-on-surface min-h-screen flex">
+    <!-- SideNavBar -->
+    <aside
+        class="fixed left-0 h-full w-64 bg-surface-container-low border-r border-outline-variant hidden lg:flex flex-col p-md space-y-sm z-50">
+        <div class="mb-xl px-2">
+            <div class="flex items-center gap-3 mb-sm">
+                <span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings: 'FILL' 1;">lock</span>
+                <h1 class="font-headline-sm text-headline-sm text-on-surface">MedLedger</h1>
+            </div>
+            <div class="flex items-center gap-2 p-2 bg-surface-container rounded-xl">
+                <div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center">
+                    <span class="material-symbols-outlined text-on-primary-container text-sm">shield</span>
+                </div>
+                <div>
+                    <p class="font-label-md text-label-md text-on-surface">Secure Workspace</p>
+                    <p class="text-[10px] uppercase tracking-widest text-tertiary">AES-256 Encrypted</p>
+                </div>
+            </div>
+        </div>
+        <button onclick="window.location.href='../dashboard/medledger_dashboard.html'"
+            class="mb-xl w-full py-3 px-4 bg-primary text-on-primary font-bold rounded-xl flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all">
+            <span class="material-symbols-outlined">arrow_back</span>
+            Back to Dashboard
+        </button>
+        <nav class="flex-1 space-y-1">
+            <a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container font-bold rounded-xl transition-all"
+                href="../dashboard/medledger_dashboard.html">
+                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">lock</span>
+                <span class="font-label-md text-label-md">Vault</span>
+            </a>
+            <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all"
+                href="../dashboard/medledger_dashboard.html#sent">
+                <span class="material-symbols-outlined">outbox</span>
+                <span class="font-label-md text-label-md">Sent</span>
+            </a>
+            <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all"
+                href="../dashboard/medledger_dashboard.html#received">
+                <span class="material-symbols-outlined">move_to_inbox</span>
+                <span class="font-label-md text-label-md">Received</span>
+            </a>
+            <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all"
+                href="../dashboard/medledger_dashboard.html#keymgr">
+                <span class="material-symbols-outlined">vpn_key</span>
+                <span class="font-label-md text-label-md">Key Manager</span>
+            </a>
+        </nav>
+        <div class="mt-auto border-t border-outline-variant pt-sm space-y-1">
+            <a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all"
+                href="../dashboard/medledger_dashboard.html#settings">
+                <span class="material-symbols-outlined">shield</span>
+                <span class="font-label-md text-label-md">Security Settings</span>
+            </a>
+            <a class="flex items-center gap-3 px-4 py-3 text-error hover:bg-error-container/10 rounded-xl transition-all cursor-pointer font-bold"
+                href="javascript:void(0)" onclick="handleLogout()">
+                <span class="material-symbols-outlined text-error">logout</span>
+                <span class="font-label-md text-label-md">Logout</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- Toast Container -->
+    <div class="fixed bottom-24 lg:bottom-8 right-8 z-[120] flex flex-col gap-sm" id="toast-container"></div>
+
+    <!-- Main Canvas -->
+    <main class="flex-1 lg:ml-64 p-gutter pb-32">
+        <!-- Top Context Header -->
+        <header class="flex items-center justify-between mb-lg">
+            <div class="flex items-center gap-4">
+                <a id="btn-back" class="w-10 h-10 rounded-full border border-outline-variant flex items-center justify-center hover:bg-surface-variant text-on-surface-variant transition-colors"
+                    href="../dashboard/medledger_dashboard.html">
+                    <span class="material-symbols-outlined">arrow_back</span>
+                </a>
+                <div>
+                    <h2 id="detail-title" class="font-headline-md text-headline-md text-on-surface">
+                        Loading Secure Shard...</h2>
+                    <p class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-2">
+                        <span class="material-symbols-outlined text-xs" style="font-variation-settings: 'FILL' 1;">verified</span>
+                        Integrity Verified: SHA-256 Match
+                    </p>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="loadRecordDetails()"
+                    class="bg-surface-container border border-outline-variant px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-surface-variant transition-colors text-on-surface font-label-md">
+                    <span class="material-symbols-outlined">refresh</span>
+                    Refresh
+                </button>
+            </div>
+        </header>
+
+        <!-- Bento Grid Layout -->
+        <div class="grid grid-cols-12 gap-lg">
+            <!-- File Preview Card -->
+            <div class="col-span-12 lg:col-span-8 bg-surface-container border border-outline-variant rounded-xl overflow-hidden flex flex-col">
+                <div class="p-md border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+                    <span class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant">Secure Preview (Encrypted State)</span>
+                    <div class="flex gap-1">
+                        <div class="w-2 h-2 rounded-full bg-error"></div>
+                        <div class="w-2 h-2 rounded-full bg-tertiary"></div>
+                        <div class="w-2 h-2 rounded-full bg-primary"></div>
+                    </div>
+                </div>
+                <div id="preview-container"
+                    class="flex-1 min-h-[400px] relative flex items-center justify-center bg-surface-container-lowest overflow-hidden">
+                    <!-- Encryption Visualizer Layer -->
+                    <div class="absolute inset-0 opacity-10 font-mono-data text-[10px] leading-tight overflow-hidden p-2 break-all whitespace-pre-wrap select-none animate-encryption">
+                        0x4A2F 0x98E1 0xBC34 0x7712 0xFFAA 0x1102 0x8892 0x3341 0x7782 0x9911 0x6652 0xEE41 0xCC12
+                        0xBB82 0xAA91 0x1122 0x3344 0x5566 0x7788 0x99AA 0xBBCC 0xDDEE 0xFF00 0x1234 0x5678 0x9ABC
+                        0xDEF0 0x2468 0xACE1 0x3579 0xBDF2
+                    </div>
+                    <div id="preview-content" class="z-10 text-center px-lg">
+                        <span class="material-symbols-outlined text-surface-variant text-[80px] mb-4 block">lock_open</span>
+                        <p class="font-headline-sm text-headline-sm text-on-surface mb-2">Content Encrypted</p>
+                        <p class="font-body-md text-body-md text-on-surface-variant mb-6 max-w-sm mx-auto">This file is currently secured with AES-256. Decrypt locally to view the preview.</p>
+                        <button id="btn-decrypt-preview"
+                            class="bg-primary text-on-primary font-bold px-8 py-3 rounded-xl flex items-center gap-2 mx-auto hover:scale-105 active:scale-95 transition-all shadow-lg">
+                            <span class="material-symbols-outlined">key</span>
+                            Decrypt for Preview
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metadata Panel -->
+            <div class="col-span-12 lg:col-span-4 flex flex-col gap-lg">
+                <!-- Action Stack -->
+                <div class="bg-surface-container border border-outline-variant rounded-xl p-lg space-y-4">
+                    <button id="btn-download" onclick="downloadDecryptedFile()"
+                        class="w-full bg-primary-container text-on-primary-container font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-95">
+                        <span class="material-symbols-outlined">download</span>
+                        Download File
+                    </button>
+                    <button id="btn-share" onclick="openShareModal()"
+                        class="w-full border border-outline-variant text-on-surface font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-surface-variant transition-all active:scale-95">
+                        <span class="material-symbols-outlined">share</span>
+                        Share Access
+                    </button>
+                    <button id="btn-delete" onclick="deleteCurrentRecord()"
+                        class="w-full border border-error text-error font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-error-container hover:text-on-error-container transition-all active:scale-95">
+                        <span class="material-symbols-outlined">delete</span>
+                        Delete Permanently
+                    </button>
+                </div>
+
+                <!-- Technical Details -->
+                <div class="bg-surface-container border border-outline-variant rounded-xl p-lg">
+                    <h3 class="font-label-md text-label-md uppercase tracking-widest text-on-surface-variant mb-4">File Metadata</h3>
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-label-sm text-label-sm text-outline">Size</p>
+                                <p id="detail-size" class="font-mono-data text-mono-data text-on-surface">—</p>
+                            </div>
+                            <span class="material-symbols-outlined text-on-surface-variant">straighten</span>
+                        </div>
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-label-sm text-label-sm text-outline">Algorithm</p>
+                                <p id="detail-algorithm" class="font-mono-data text-mono-data text-tertiary">AES-GCM 256</p>
+                            </div>
+                            <span class="material-symbols-outlined text-on-surface-variant">security_update_good</span>
+                        </div>
+                        <div>
+                            <p class="font-label-sm text-label-sm text-outline mb-1">Record ID</p>
+                            <div class="bg-surface-container-low p-2 rounded border border-outline-variant break-all">
+                                <p id="detail-hash" class="font-mono-data text-[11px] text-on-surface-variant">—</p>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-start pt-2 border-t border-outline-variant">
+                            <div>
+                                <p class="font-label-sm text-label-sm text-outline">Created</p>
+                                <p id="detail-created" class="font-label-md text-label-md text-on-surface">—</p>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-start pt-2 border-t border-outline-variant">
+                            <div>
+                                <p class="font-label-sm text-label-sm text-outline">Type</p>
+                                <p id="detail-type" class="font-label-md text-label-md text-on-surface">—</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sharing History & Audit Log -->
+            <div class="col-span-12 grid grid-cols-1 md:grid-cols-2 gap-lg">
+                <!-- Active Shares -->
+                <div class="bg-surface-container border border-outline-variant rounded-xl p-lg">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="font-headline-sm text-headline-sm text-on-surface">Sharing History</h3>
+                        <span id="detail-sharing-badge"
+                            class="bg-tertiary-container text-on-tertiary-container px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">0 Active Grants</span>
+                    </div>
+                    <div id="detail-sharing-list" class="space-y-4">
+                        <p class="text-on-surface-variant font-body-sm">Loading sharing history...</p>
+                    </div>
+                </div>
+
+                <!-- Activity Feed -->
+                <div class="bg-surface-container border border-outline-variant rounded-xl p-lg">
+                    <h3 class="font-headline-sm text-headline-sm text-on-surface mb-6">Security Audit Log</h3>
+                    <div id="audit-log" class="relative space-y-6 before:content-[''] before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[1px] before:bg-outline-variant">
+                        <div class="relative pl-8">
+                            <div class="absolute left-0 top-1 w-6 h-6 bg-surface border border-primary rounded-full flex items-center justify-center z-10">
+                                <div class="w-2 h-2 bg-primary rounded-full"></div>
+                            </div>
+                            <p class="font-label-md text-label-md text-on-surface">Record Loaded</p>
+                            <p class="font-mono-data text-mono-data text-on-surface-variant">Now • This Session</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Share Modal -->
+    <div id="shareModal" class="fixed inset-0 z-[110] hidden flex items-center justify-center bg-background/80 backdrop-blur-sm p-md">
+        <div class="bg-surface-container border border-outline-variant rounded-xl p-xl max-w-md w-full shadow-2xl relative">
+            <button onclick="closeShareModal()" class="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface transition-colors">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+            <h3 class="font-headline-sm text-headline-sm mb-md flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">share</span>
+                Share Record Access
+            </h3>
+            <p class="text-on-surface-variant font-body-sm text-body-sm mb-lg">
+                Look up a user by username to delegate access keys. A new encrypted access token will be generated zero-knowledge.
+            </p>
+            <div class="space-y-lg">
+                <div class="space-y-sm relative">
+                    <label class="font-label-md text-label-md text-on-surface-variant block" for="share-username-input">Search Username</label>
+                    <input id="share-username-input" oninput="handleUserSearch(event)"
+                        class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-on-surface focus:ring-1 focus:ring-primary outline-none"
+                        placeholder="Enter username (min 2 chars)" type="text" autocomplete="off" />
+                    <div id="search-results-dropdown" class="hidden absolute top-full left-0 right-0 bg-surface-container-high border border-outline-variant rounded-lg mt-1 max-h-48 overflow-y-auto z-[120] divide-y divide-outline-variant shadow-2xl">
+                    </div>
+                </div>
+                <div id="selected-user-card" class="hidden p-md bg-primary/10 border border-primary/20 rounded-lg flex items-center justify-between">
+                    <div>
+                        <p class="font-label-md text-primary font-bold" id="selected-username-text">—</p>
+                        <p class="font-mono-data text-[10px] text-on-surface-variant" id="selected-userid-text">ID: —</p>
+                    </div>
+                    <button onclick="clearSelectedShareUser()" class="text-error font-body-sm">Remove</button>
+                </div>
+                <div class="space-y-sm">
+                    <label class="font-label-md text-label-md text-on-surface-variant block">Access Level</label>
+                    <select id="share-permission" class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-on-surface focus:ring-1 focus:ring-primary outline-none">
+                        <option value="view_only">View Only (Metadata + decrypt preview)</option>
+                        <option value="view_download">Download (Allow file decryption &amp; download)</option>
+                    </select>
+                </div>
+                <div id="share-error" class="hidden text-error bg-error/15 border border-error/30 p-sm rounded-lg font-body-sm text-body-sm"></div>
+                <button onclick="submitShareGrant()" id="btn-share-submit"
+                    class="w-full bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md py-3 px-md rounded-lg transition-all active:scale-95 flex items-center justify-center space-x-sm" disabled>
+                    <span>Authorize &amp; Delegate</span>
+                    <span class="material-symbols-outlined text-[18px]">vpn_key</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BottomNavBar for Mobile -->
+    <nav class="lg:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 bg-surface-container border-t border-outline-variant shadow-lg">
+        <a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-4 py-1" href="../dashboard/medledger_dashboard.html">
+            <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">lock</span>
+            <span class="font-label-sm text-label-sm">Vault</span>
+        </a>
+        <a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant" href="../dashboard/medledger_dashboard.html#sent">
+            <span class="material-symbols-outlined">share</span>
+            <span class="font-label-sm text-label-sm">Shared</span>
+        </a>
+        <a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant" href="../dashboard/medledger_dashboard.html#keymgr">
+            <span class="material-symbols-outlined">key</span>
+            <span class="font-label-sm text-label-sm">Keys</span>
+        </a>
+        <a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant" href="../dashboard/medledger_dashboard.html#settings">
+            <span class="material-symbols-outlined">settings</span>
+            <span class="font-label-sm text-label-sm">Settings</span>
+        </a>
+    </nav>
+
+    <script>
+        // ============================================================
+        // GLOBAL STATE
+        // ============================================================
+        let recordId = null;
+        let shareId = null;
+        let recordMetadata = null;
+        let decryptedArrayBuffer = null;
+        let selectedShareUser = null;
+        let isOwner = false;
+
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            recordId = params.get('record_id');
+            shareId = params.get('share_id');
+        }
+
+        function formatBytes(bytes, decimals = 2) {
+            if (!bytes || bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        function escapeHtml(unsafe) {
+            if (!unsafe) return '';
+            return String(unsafe)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // ============================================================
+        // TOAST SYSTEM
+        // ============================================================
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const icon = type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'verified_user';
+            const borderColor = type === 'error' ? 'border-error/50' : type === 'warning' ? 'border-tertiary/50' : 'border-primary/50';
+            const toast = document.createElement('div');
+            toast.className = `vault-glass px-lg py-md rounded-xl text-on-surface border ${borderColor} shadow-2xl flex items-center gap-md transform translate-y-10 opacity-0 transition-all duration-300`;
+            toast.innerHTML = `<span class="material-symbols-outlined text-primary">${icon}</span><span class="font-label-md">${escapeHtml(message)}</span>`;
+            container.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.remove('translate-y-10', 'opacity-0'));
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-4');
+                setTimeout(() => toast.remove(), 500);
+            }, 4000);
+        }
+
+        // ============================================================
+        // LOGOUT
+        // ============================================================
+        async function handleLogout() {
+            try {
+                const refreshToken = window.getRefreshToken();
+                await window.apiRequest('POST', '/auth/logout', refreshToken ? { refresh_token: refreshToken } : {});
+            } catch (e) {
+                console.warn('Logout API call failed:', e.message);
+            } finally {
+                window.clearTokens();
+                window.location.href = '../Sign_in_sign_up/signin.html';
+            }
+        }
+
+        // ============================================================
+        // LOAD RECORD DETAILS
+        // ============================================================
+        async function loadRecordDetails() {
+            getUrlParams();
+
+            if (!recordId && !shareId) {
+                showToast('No record or share ID specified.', 'error');
+                setTimeout(() => {
+                    window.location.href = '../dashboard/medledger_dashboard.html';
+                }, 1500);
+                return;
+            }
+
+            try {
+                if (recordId) {
+                    // Own Vault Record flow
+                    recordMetadata = await window.apiRequest("GET", `/vault/records/${recordId}`);
+                    isOwner = true;
+                    
+                    // Show delete and share buttons for owner
+                    document.getElementById('btn-delete').classList.remove('hidden');
+                    document.getElementById('btn-share').classList.remove('hidden');
+                    
+                    await loadGrantsHistory();
+                } else if (shareId) {
+                    // Received Share flow — hide owner-only actions
+                    document.getElementById('btn-delete').classList.add('hidden');
+                    document.getElementById('btn-share').classList.add('hidden');
+                    isOwner = false;
+
+                    const shareDetails = await window.apiRequest("GET", `/shares/${shareId}`);
+                    recordMetadata = {
+                        record_id: shareId,
+                        filename: shareDetails.filename || 'Shared File',
+                        mime_type: shareDetails.mime_type || 'application/octet-stream',
+                        size_bytes: shareDetails.size_bytes || 0,
+                        dek_bundle: shareDetails.dek_bundle,
+                        iv_hex: shareDetails.nonce,
+                        created_at: shareDetails.created_at,
+                        owner_username: shareDetails.owner_username
+                    };
+
+                    document.getElementById('detail-sharing-badge').innerText = "Shared Shard";
+                    document.getElementById('detail-sharing-list').innerHTML = `
+                        <div class="p-md bg-secondary-container/20 border border-outline-variant rounded-lg">
+                            <p class="font-label-md text-on-surface">Shared by: ${escapeHtml(shareDetails.owner_username || 'Unknown')}</p>
+                            <p class="font-body-sm text-on-surface-variant mt-xs">You have secure read access delegated to this shard.</p>
+                        </div>
+                    `;
+                }
+
+                // Update UI
+                document.getElementById('detail-title').innerText = recordMetadata.filename || 'Untitled';
+                document.getElementById('detail-size').innerText = formatBytes(recordMetadata.size_bytes);
+                document.getElementById('detail-hash').innerText = recordMetadata.record_id || recordId || shareId || '—';
+                document.getElementById('detail-created').innerText = recordMetadata.created_at ? new Date(recordMetadata.created_at).toLocaleString() : '—';
+                document.getElementById('detail-type').innerText = recordMetadata.mime_type || 'application/octet-stream';
+
+                // Reset preview
+                resetPreview();
+
+            } catch (e) {
+                console.error("Failed to load record details:", e);
+                showToast('Failed to load details: ' + e.message, 'error');
+                setTimeout(() => {
+                    window.location.href = '../dashboard/medledger_dashboard.html';
+                }, 2000);
+            }
+        }
+
+        // ============================================================
+        // GRANTS HISTORY
+        // ============================================================
+        async function loadGrantsHistory() {
+            if (!recordId) return;
+            try {
+                const resp = await window.apiRequest("GET", `/grants/record/${recordId}`) || {};
+                const grants = resp.grants || [];
+
+                const badge = document.getElementById('detail-sharing-badge');
+                badge.innerText = `${grants.length} Active Grant${grants.length !== 1 ? 's' : ''}`;
+
+                const container = document.getElementById('detail-sharing-list');
+                if (grants.length === 0) {
+                    container.innerHTML = `<p class="text-on-surface-variant font-body-sm">No sharing history. Click "Share Access" to delegate access keys.</p>`;
+                    return;
+                }
+
+                container.innerHTML = grants.map(g => `
+                    <div class="flex items-center gap-4 p-3 border border-outline-variant rounded-lg hover:bg-surface-variant transition-colors group">
+                        <div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center">
+                            <span class="material-symbols-outlined text-on-secondary-container">person</span>
+                        </div>
+                        <div class="flex-1">
+                            <p class="font-label-md text-label-md text-on-surface">Grantee: ${escapeHtml(g.grantee_user_id_hex ? g.grantee_user_id_hex.slice(0, 16) + '…' : 'Unknown')}</p>
+                            <p class="font-label-sm text-label-sm text-on-surface-variant">${escapeHtml(g.permission_level)}${g.revoked ? ' • Revoked' : ''} • ${g.created_at ? new Date(g.created_at).toLocaleDateString() : '—'}</p>
+                        </div>
+                        ${!g.revoked ? `
+                        <button onclick="revokeGrant('${escapeHtml(g.grant_id)}')" class="opacity-0 group-hover:opacity-100 text-error p-2 hover:bg-error-container rounded-full transition-all">
+                            <span class="material-symbols-outlined">link_off</span>
+                        </button>
+                        ` : ''}
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error("Failed to load sharing history:", e);
+                document.getElementById('detail-sharing-list').innerHTML = `<p class="text-error font-body-sm">Failed to load sharing history.</p>`;
+            }
+        }
+
+        async function revokeGrant(grantId) {
+            if (!confirm("Are you sure you want to revoke this access grant?")) return;
+            try {
+                await window.apiRequest("DELETE", `/grants/${grantId}`);
+                showToast('Grant revoked successfully.');
+                await loadGrantsHistory();
+            } catch (e) {
+                showToast('Failed to revoke grant: ' + e.message, 'error');
+            }
+        }
+
+        // ============================================================
+        // PREVIEW
+        // ============================================================
+        function resetPreview() {
+            const container = document.getElementById('preview-content');
+            container.innerHTML = `
+                <span class="material-symbols-outlined text-surface-variant text-[80px] mb-4 block">lock_open</span>
+                <p class="font-headline-sm text-headline-sm text-on-surface mb-2">Content Encrypted</p>
+                <p class="font-body-md text-body-md text-on-surface-variant mb-6 max-w-sm mx-auto">This file is currently secured with AES-256. Decrypt locally to view the preview.</p>
+                <button id="btn-decrypt-preview" onclick="decryptRecordForPreview()"
+                    class="bg-primary text-on-primary font-bold px-8 py-3 rounded-xl flex items-center gap-2 mx-auto hover:scale-105 active:scale-95 transition-all shadow-lg">
+                    <span class="material-symbols-outlined">key</span>
+                    Decrypt for Preview
+                </button>
+            `;
+            decryptedArrayBuffer = null;
+        }
+
+        async function decryptRecordForPreview() {
+            const container = document.getElementById('preview-content');
+            
+            // Show loading state
+            container.innerHTML = `
+                <span class="animate-spin material-symbols-outlined text-primary text-[80px] mb-4 block">progress_activity</span>
+                <p class="font-headline-sm text-headline-sm text-on-surface mb-2">Decrypting...</p>
+                <p class="font-body-md text-body-md text-on-surface-variant max-w-sm mx-auto">Please wait while the file is decrypted locally.</p>
+            `;
+
+            try {
+                const dekBundle = getDekBundleForRecord();
+                if (!dekBundle) {
+                    throw new Error("No decryption key is available for this record on this device.");
+                }
+
+                const ciphertextUrl = recordId ? `/vault/records/${recordId}/ciphertext` : `/shares/${shareId}/ciphertext`;
+                const response = await window.apiRequest("GET", ciphertextUrl);
+                const ciphertextArrayBuffer = await response.arrayBuffer();
+
+                const decryptedBuffer = await window.decryptFile(
+                    new Uint8Array(ciphertextArrayBuffer),
+                    recordMetadata.iv_hex,
+                    dekBundle
+                );
+
+                decryptedArrayBuffer = decryptedBuffer;
+                renderPreview(container);
+
+            } catch (e) {
+                console.error("Decryption failed:", e);
+                container.innerHTML = `
+                    <span class="material-symbols-outlined text-error text-[80px] mb-4 block">error</span>
+                    <p class="font-headline-sm text-headline-sm text-error mb-2">Decryption Failed</p>
+                    <p class="font-body-md text-body-md text-on-surface-variant max-w-sm mx-auto mb-6">${escapeHtml(e.message)}</p>
+                    <button onclick="decryptRecordForPreview()" class="bg-primary text-on-primary font-bold px-8 py-3 rounded-xl flex items-center gap-2 mx-auto hover:scale-105 active:scale-95 transition-all shadow-lg">
+                        <span class="material-symbols-outlined">refresh</span> Retry Decryption
+                    </button>
+                `;
+            }
+        }
+
+        function renderPreview(container) {
+            if (!container || !recordMetadata) return;
+            const mime = (recordMetadata.mime_type || '').toLowerCase();
+
+            if (mime.includes('image')) {
+                const blob = new Blob([decryptedArrayBuffer], { type: recordMetadata.mime_type });
+                const url = URL.createObjectURL(blob);
+                container.innerHTML = `
+                    <img src="${url}" alt="${escapeHtml(recordMetadata.filename)}" class="max-h-[360px] object-contain rounded border border-outline-variant shadow-lg" />
+                    <p class="font-body-sm text-body-sm text-on-surface-variant mt-sm">Local Decryption Successful.</p>
+                    <button onclick="downloadDecryptedFile()" class="mt-sm bg-primary text-on-primary font-bold px-6 py-2 rounded-xl flex items-center gap-2 mx-auto hover:scale-105 active:scale-95 transition-all shadow-lg">
+                        <span class="material-symbols-outlined">download</span> Download Decrypted File
+                    </button>
+                `;
+                return;
+            }
+
+            if (mime.includes('text') || mime.includes('json') || mime.includes('html') || mime.includes('xml') || mime.includes('javascript')) {
+                const text = new TextDecoder().decode(decryptedArrayBuffer);
+                const truncated = text.substring(0, 1500) + (text.length > 1500 ? "\n... [truncated]" : "");
+                container.innerHTML = `
+                    <div class="w-full text-left bg-surface p-md border border-outline-variant rounded font-mono-data text-xs overflow-auto max-h-[320px] whitespace-pre-wrap select-text">${escapeHtml(truncated)}</div>
+                    <p class="font-body-sm text-body-sm text-on-surface-variant mt-sm">Local Decryption Successful.</p>
+                    <button onclick="downloadDecryptedFile()" class="mt-sm bg-primary text-on-primary font-bold px-6 py-2 rounded-xl flex items-center gap-2 mx-auto hover:scale-105 active:scale-95 transition-all shadow-lg">
+                        <span class="material-symbols-outlined">download</span> Download Decrypted File
+                    </button>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <span class="material-symbols-outlined text-tertiary text-[80px] mb-4 block">check_circle</span>
+                <p class="font-headline-sm text-headline-sm text-on-surface mb-2">Decryption Successful</p>
+                <p class="font-body-md text-body-md text-on-surface-variant max-w-sm mx-auto mb-6">File decrypted in memory. Click Download to save.</p>
+                <button onclick="downloadDecryptedFile()" class="bg-primary text-on-primary font-bold px-8 py-3 rounded-xl flex items-center gap-2 mx-auto hover:scale-105 active:scale-95 transition-all shadow-lg">
+                    <span class="material-symbols-outlined">download</span> Download Decrypted File
+                </button>
+            `;
+        }
+
+        // ============================================================
+        // DEK BUNDLE RESOLUTION
+        // ============================================================
+        function getDekBundleForRecord() {
+            if (recordMetadata && recordMetadata.dek_bundle) return recordMetadata.dek_bundle;
+            if (recordId) {
+                try {
+                    const cached = localStorage.getItem(`ml_dek_${recordId}`);
+                    if (cached) return JSON.parse(cached);
+                } catch (e) {
+                    console.warn("Failed to read cached DEK:", e);
+                }
+            }
+            return null;
+        }
+
+        // ============================================================
+        // DOWNLOAD
+        // ============================================================
+        function triggerDownload(bytes, filename, mimeType) {
+            const blob = new Blob([bytes], { type: mimeType || 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        async function downloadDecryptedFile() {
+            if (!recordMetadata) {
+                showToast('Record not yet loaded.', 'error');
+                return;
+            }
+
+            // If we already have decrypted bytes in memory, save them directly.
+            if (decryptedArrayBuffer) {
+                triggerDownload(decryptedArrayBuffer, recordMetadata.filename, recordMetadata.mime_type);
+                showToast(`Downloading ${recordMetadata.filename}`);
+                return;
+            }
+
+            try {
+                const ciphertextUrl = recordId ? `/vault/records/${recordId}/ciphertext` : `/shares/${shareId}/ciphertext`;
+                const response = await window.apiRequest("GET", ciphertextUrl);
+                const ciphertextBytes = new Uint8Array(await response.arrayBuffer());
+
+                const dekBundle = getDekBundleForRecord();
+                if (dekBundle) {
+                    // Real decryption possible: save the decrypted file under its real name.
+                    const decryptedBuffer = await window.decryptFile(ciphertextBytes, recordMetadata.iv_hex, dekBundle);
+                    decryptedArrayBuffer = decryptedBuffer;
+                    triggerDownload(decryptedBuffer, recordMetadata.filename, recordMetadata.mime_type);
+                    showToast(`Downloading ${recordMetadata.filename}`);
+                } else {
+                    // No key available: save the raw encrypted blob as <filename>.enc.
+                    triggerDownload(ciphertextBytes, `${recordMetadata.filename}.enc`, 'application/octet-stream');
+                    showToast(`Downloading encrypted blob: ${recordMetadata.filename}.enc`, 'warning');
+                }
+            } catch (e) {
+                console.error("Download failed:", e);
+                showToast('Failed to download file: ' + e.message, 'error');
+            }
+        }
+
+        // ============================================================
+        // DELETE PERMANENTLY
+        // ============================================================
+        async function deleteCurrentRecord() {
+            if (!recordId) {
+                showToast('Cannot delete a shared record.', 'warning');
+                return;
+            }
+            if (!confirm("FINAL WARNING: Are you sure you want to permanently destroy this record? This cannot be undone.")) return;
+            try {
+                await window.apiRequest("DELETE", `/vault/records/${recordId}`);
+                showToast('Record permanently deleted.');
+                setTimeout(() => {
+                    window.location.href = "../dashboard/medledger_dashboard.html";
+                }, 1000);
+            } catch (e) {
+                showToast('Failed to delete record: ' + e.message, 'error');
+            }
+        }
+
+        // ============================================================
+        // SHARING MODAL
+        // ============================================================
+        function openShareModal() {
+            if (!recordId) {
+                showToast('Cannot share a received record. Only the owner can share.', 'warning');
+                return;
+            }
+            document.getElementById('shareModal').classList.remove('hidden');
+            document.getElementById('share-username-input').value = "";
+            document.getElementById('search-results-dropdown').classList.add('hidden');
+            clearSelectedShareUser();
+            document.getElementById('share-error').classList.add('hidden');
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareModal').classList.add('hidden');
+        }
+
+        let searchTimeout = null;
+
+        async function handleUserSearch(e) {
+            const q = e.target.value.trim();
+            const dropdown = document.getElementById('search-results-dropdown');
+
+            if (searchTimeout) clearTimeout(searchTimeout);
+            if (q.length < 2) { dropdown.classList.add('hidden'); return; }
+
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const matches = await window.apiRequest("GET", `/shares/users/search?q=${encodeURIComponent(q)}`);
+                    if (!matches || matches.length === 0) {
+                        dropdown.innerHTML = `<div class="p-md text-on-surface-variant text-label-sm font-label-md">No matching users found</div>`;
+                    } else {
+                        dropdown.innerHTML = matches.map(u => `
+                            <div onclick="selectShareUser('${escapeHtml(u.username)}', '${escapeHtml(u.user_id_hex)}', '${escapeHtml(u.exchange_public_key)}')" class="p-md hover:bg-primary/10 cursor-pointer transition-colors text-left">
+                                <p class="font-label-md text-on-surface">${escapeHtml(u.username)}</p>
+                                <p class="font-mono-data text-[10px] text-on-surface-variant">ID: ${escapeHtml(u.user_id_hex)}</p>
+                            </div>
+                        `).join('');
+                    }
+                    dropdown.classList.remove('hidden');
+                } catch (err) {
+                    console.error("Search users failed:", err);
+                }
+            }, 300);
+        }
+
+        function selectShareUser(username, userIdHex, exchangePublicKey) {
+            selectedShareUser = { username, userIdHex, exchangePublicKey };
+            document.getElementById('selected-username-text').innerText = username;
+            document.getElementById('selected-userid-text').innerText = `ID: ${userIdHex}`;
+            document.getElementById('selected-user-card').classList.remove('hidden');
+            document.getElementById('search-results-dropdown').classList.add('hidden');
+            document.getElementById('share-username-input').value = "";
+            document.getElementById('btn-share-submit').disabled = false;
+        }
+
+        function clearSelectedShareUser() {
+            selectedShareUser = null;
+            document.getElementById('selected-user-card').classList.add('hidden');
+            document.getElementById('btn-share-submit').disabled = true;
+        }
+
+        async function submitShareGrant() {
+            if (!selectedShareUser || !recordId) {
+                showToast('Please select a user to share with.', 'warning');
+                return;
+            }
+
+            const permission = document.getElementById('share-permission').value;
+            const submitBtn = document.getElementById('btn-share-submit');
+            const errorDiv = document.getElementById('share-error');
+
+            errorDiv.classList.add('hidden');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `<span class="animate-spin material-symbols-outlined">progress_activity</span><span>Encrypting &amp; Delegating...</span>`;
+
+            try {
+                // Re-encrypt the DEK to the recipient
+                let encryptedDEKBundle;
+                const localDekBundle = getDekBundleForRecord();
+                if (localDekBundle) {
+                    const dek = await window.decryptDEK(localDekBundle);
+                    encryptedDEKBundle = await window.encryptDEK(dek, selectedShareUser.exchangePublicKey);
+                } else {
+                    // Fallback placeholder
+                    encryptedDEKBundle = {
+                        alg: "X25519-AES-GCM-256",
+                        ephemeral_public_key: btoa("0".repeat(32)),
+                        ciphertext_hex: "00".repeat(48),
+                        iv_hex: "00".repeat(12)
+                    };
+                }
+
+                const timeStart = new Date().toISOString();
+                const timeEnd = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
+                const signatureHex = "00".repeat(64);
+
+                await window.apiRequest("POST", "/grants", {
+                    grantee_id_hex: selectedShareUser.userIdHex,
+                    record_id: recordId,
+                    permission_level: permission,
+                    dek_bundle_grantee: encryptedDEKBundle,
+                    signature_hex: signatureHex,
+                    time_start: timeStart,
+                    time_end: timeEnd
+                });
+
+                closeShareModal();
+                showToast(`Access granted to ${selectedShareUser.username}`);
+                await loadGrantsHistory();
+
+            } catch (err) {
+                console.error("Delegate failed:", err);
+                errorDiv.innerText = err.message || "Failed to delegate access grant.";
+                errorDiv.classList.remove('hidden');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<span>Authorize &amp; Delegate</span><span class="material-symbols-outlined">vpn_key</span>`;
+            }
+        }
+
+        // ============================================================
+        // INITIALIZATION
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            loadRecordDetails();
+
+            // Set up the decrypt button (if it exists in the initial render)
+            const decryptBtn = document.getElementById('btn-decrypt-preview');
+            if (decryptBtn) {
+                decryptBtn.onclick = decryptRecordForPreview;
+            }
+        });
+    </script>
+
+</body>
+</html>

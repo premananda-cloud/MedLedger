@@ -201,17 +201,15 @@ class AuthService:
         # 3. Hash password — Argon2id returns a single self-contained string
         password_hash = self.pw.hash_password_argon2(password)
 
-        # 4. Create user
+        # 4. Create user — pass the public keys at INSERT time so the DB
+        #    trigger (BEFORE INSERT OF signing_public_key) derives user_id_hex.
+        #    Creating the row without keys leaves user_id_hex NULL, which then
+        #    breaks the follow-up key update (User 'None' not found).
         user = await self.db.create_user(
             username=username,
             email=email,
             full_name=full_name,
             password_hash=password_hash,
-        )
-
-        # 4b. Store public keys
-        await self.db.set_public_keys(
-            user_id_hex=user["user_id_hex"],
             signing_public_key=signing_public_key,
             exchange_public_key=exchange_public_key,
         )
@@ -229,10 +227,19 @@ class AuthService:
 
     async def _send_and_store_verification_code(self, user: dict, ip_address: str) -> None:
         """Generate, send, and store a verification code for a user."""
+        # Gmail credentials are optional; when absent, skip sending rather than
+        # crashing registration. The account is still created and can be
+        # verified out-of-band (e.g. by an admin) if email is not configured.
+        gmail_user = getattr(self.config, "gmail_user", "") or ""
+        gmail_app_password = getattr(self.config, "gmail_app_password", "") or ""
+        if not gmail_user or not gmail_app_password:
+            log.warning("Gmail not configured; skipping verification email for %s", user["email"])
+            return
+
         result = self.email.validate_and_send_code(
             email=user["email"],
-            gmail_user=self.config.gmail_user,
-            gmail_app_password=self.config.gmail_app_password,
+            gmail_user=gmail_user,
+            gmail_app_password=gmail_app_password,
         )
         if not result.success:
             log.warning("Failed to send verification email to %s: %s", user["email"], result.error)

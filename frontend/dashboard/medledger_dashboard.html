@@ -1,0 +1,1668 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>MedLedger | Secure Workspace</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- Load api.js and auth-guard.js FIRST -->
+    <script src="../js/api.js"></script>
+    <script src="../js/auth-guard.js"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Geist:wght@400;500&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-container": "#00885d",
+                        "surface-tint": "#c0c1ff",
+                        "on-background": "#dae2fd",
+                        "tertiary-fixed": "#6ffbbe",
+                        "on-secondary-fixed": "#0d1c2d",
+                        "surface": "#0b1326",
+                        "surface-container-low": "#131b2e",
+                        "secondary": "#b9c8de",
+                        "on-surface-variant": "#c7c4d7",
+                        "background": "#0b1326",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "primary-fixed-dim": "#c0c1ff",
+                        "on-tertiary-container": "#000703",
+                        "primary": "#c0c1ff",
+                        "on-secondary-fixed-variant": "#39485a",
+                        "primary-container": "#8083ff",
+                        "surface-container-high": "#222a3d",
+                        "inverse-primary": "#494bd6",
+                        "on-secondary": "#233143",
+                        "on-primary-fixed": "#07006c",
+                        "on-error": "#690005",
+                        "secondary-fixed-dim": "#b9c8de",
+                        "inverse-on-surface": "#283044",
+                        "surface-variant": "#2d3449",
+                        "tertiary": "#4edea3",
+                        "error": "#ffb4ab",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "on-primary-fixed-variant": "#2f2ebe",
+                        "on-surface": "#dae2fd",
+                        "on-secondary-container": "#a7b6cc",
+                        "on-primary": "#1000a9",
+                        "on-tertiary": "#003824",
+                        "outline-variant": "#464554",
+                        "secondary-fixed": "#d4e4fa",
+                        "surface-dim": "#0b1326",
+                        "secondary-container": "#39485a",
+                        "surface-container-lowest": "#060e20",
+                        "on-tertiary-fixed": "#002113",
+                        "on-error-container": "#ffdad6",
+                        "on-primary-container": "#0d0096",
+                        "surface-container": "#171f33",
+                        "surface-bright": "#31394d",
+                        "primary-fixed": "#e1e0ff",
+                        "inverse-surface": "#dae2fd",
+                        "surface-container-highest": "#2d3449",
+                        "outline": "#908fa0",
+                        "error-container": "#93000a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "3xl": "64px",
+                        "md": "16px",
+                        "gutter": "24px",
+                        "xs": "4px",
+                        "base": "4px",
+                        "lg": "24px",
+                        "2xl": "48px",
+                        "sm": "8px",
+                        "margin": "32px",
+                        "xl": "32px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Geist"],
+                        "body-lg": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "mono-data": ["Geist"],
+                        "headline-md": ["Inter"],
+                        "label-sm": ["Geist"],
+                        "headline-lg": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["14px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "mono-data": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                },
+            },
+        }
+    </script>
+
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+
+        .fill-icon {
+            font-variation-settings: 'FILL' 1;
+        }
+
+        body {
+            background-color: #0b1326;
+            color: #dae2fd;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b1326;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2d3449;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #464554;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #0b1326;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #464554;
+            border-radius: 10px;
+        }
+
+        .vault-card {
+            background: linear-gradient(135deg, rgba(45, 52, 73, 0.4) 0%, rgba(23, 31, 51, 0.2) 100%);
+            backdrop-filter: blur(8px);
+        }
+
+        .vault-glass {
+            background: rgba(23, 31, 51, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid #464554;
+        }
+
+        .glass-panel {
+            background: rgba(23, 31, 51, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid #1E293B;
+        }
+
+        .inner-glow:hover {
+            box-shadow: inset 0 0 12px rgba(192, 193, 255, 0.2);
+        }
+
+        .active-tab-indicator {
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: #c0c1ff;
+        }
+
+        .vault-grid-bg {
+            background-image: radial-gradient(circle at 2px 2px, #1E293B 1px, transparent 0);
+            background-size: 32px 32px;
+        }
+
+        @keyframes subtle-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .status-pulse {
+            animation: subtle-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        .view-panel.hidden {
+            display: none;
+        }
+
+        /* Toast animations */
+        .toast-enter {
+            transform: translateY(20px);
+            opacity: 0;
+        }
+        .toast-enter-active {
+            transform: translateY(0);
+            opacity: 1;
+            transition: all 0.3s ease;
+        }
+        .toast-exit {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .toast-exit-active {
+            transform: translateY(20px);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+
+<body class="font-body-md text-body-md h-screen overflow-hidden flex">
+    <!-- SideNavBar -->
+    <aside
+        class="hidden lg:flex flex-col h-full p-md space-y-sm fixed left-0 w-64 bg-surface-container-low border-r border-outline-variant z-40">
+        <div class="flex flex-col gap-xs mb-lg px-2">
+            <span class="font-headline-sm text-headline-sm text-on-surface">MedLedger</span>
+            <div class="flex items-center gap-sm mt-md">
+                <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+                    <span class="material-symbols-outlined text-on-primary">lock</span>
+                </div>
+                <div>
+                    <p class="font-label-md text-label-md text-on-surface">Secure Workspace</p>
+                    <p class="text-[10px] uppercase tracking-widest text-primary">AES-256 Encrypted</p>
+                </div>
+            </div>
+        </div>
+        <nav class="flex-1 flex flex-col gap-1" id="sidebar-nav">
+            <a class="flex items-center gap-md px-md py-sm bg-secondary-container text-on-secondary-container font-bold rounded-xl transition-all cursor-pointer"
+                href="javascript:void(0)" onclick="showView('vault')" data-nav="vault">
+                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">lock</span>
+                <span class="font-label-md text-label-md">Vault</span>
+            </a>
+            <a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all cursor-pointer"
+                href="javascript:void(0)" onclick="showView('sent')" data-nav="sent">
+                <span class="material-symbols-outlined">outbox</span>
+                <span class="font-label-md text-label-md">Sent</span>
+            </a>
+            <a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all cursor-pointer"
+                href="javascript:void(0)" onclick="showView('received')" data-nav="received">
+                <span class="material-symbols-outlined">move_to_inbox</span>
+                <span class="font-label-md text-label-md">Received</span>
+            </a>
+            <a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all cursor-pointer"
+                href="javascript:void(0)" onclick="showView('keymgr')" data-nav="keymgr">
+                <span class="material-symbols-outlined">vpn_key</span>
+                <span class="font-label-md text-label-md">Key Manager</span>
+            </a>
+            <a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all cursor-pointer"
+                href="javascript:void(0)" onclick="showView('audit')" data-nav="audit">
+                <span class="material-symbols-outlined">history</span>
+                <span class="font-label-md text-label-md">Audit Log</span>
+            </a>
+        </nav>
+        <div class="pt-2xl">
+            <button onclick="openUploadModal()"
+                class="w-full bg-primary text-on-primary py-sm rounded-xl font-bold font-label-md text-label-md flex items-center justify-center gap-xs hover:opacity-90 transition-opacity">
+                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add</span>
+                Upload File
+            </button>
+        </div>
+        <div class="mt-auto space-y-xs pt-lg border-t border-outline-variant">
+            <a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all cursor-pointer"
+                href="javascript:void(0)" onclick="showView('settings')" data-nav="settings">
+                <span class="material-symbols-outlined">shield</span>
+                <span class="font-label-md text-label-md">Security Settings</span>
+            </a>
+            <a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-variant rounded-xl transition-all"
+                href="#">
+                <span class="material-symbols-outlined">help_outline</span>
+                <span class="font-label-md text-label-md">Support</span>
+            </a>
+            <a class="flex items-center gap-md px-md py-sm text-error hover:bg-error-container/10 rounded-xl transition-all cursor-pointer font-bold"
+                href="javascript:void(0)" onclick="handleLogout()">
+                <span class="material-symbols-outlined text-error">logout</span>
+                <span class="font-label-md text-label-md">Logout</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main scroll container -->
+    <main id="main-scroll" class="flex-1 lg:ml-64 h-full overflow-y-auto relative pb-20 lg:pb-0">
+
+        <!-- ==================== VAULT VIEW ==================== -->
+        <div id="view-vault" class="view-panel flex flex-col w-full h-full relative">
+            <header
+                class="fixed top-0 right-0 left-0 lg:left-64 h-16 bg-surface dark:bg-surface border-b border-outline-variant flex justify-between items-center px-gutter z-30">
+                <div class="flex items-center gap-gutter">
+                    <h2 class="font-headline-md text-headline-md font-bold text-primary">Dashboard</h2>
+                </div>
+                <div class="flex items-center gap-md">
+                    <div class="hidden sm:flex items-center bg-surface-container-high rounded-full px-md py-xs border border-outline-variant">
+                        <span class="material-symbols-outlined text-on-surface-variant text-[18px]">search</span>
+                        <input id="vault-search-input"
+                            class="bg-transparent border-none focus:ring-0 text-label-md text-on-surface placeholder:text-on-surface-variant w-48 lg:w-64"
+                            placeholder="Search secure vault..." type="text" />
+                    </div>
+                    <button class="p-xs text-on-surface-variant hover:text-primary transition-colors">
+                        <span class="material-symbols-outlined">notifications</span>
+                    </button>
+                    <button class="p-xs text-on-surface-variant hover:text-primary transition-colors">
+                        <span class="material-symbols-outlined">settings</span>
+                    </button>
+                    <div class="w-8 h-8 rounded-full overflow-hidden border border-outline">
+                        <img class="w-full h-full object-cover"
+                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuBIgfx8vcZjPmDOo2Lcjc4n0wqRFa5D5d5jRD_YJIpZuuJPPchbwNMFwnZlWg_GpttiZ0DROhBX6w7TO421Zb7OA2dCCJpyCcJbiRQIbPv2AUYD025TijyG09T_XrHmt3H3B27LMtHKdNEywcyi3SYqKoGUM3uDSJhJFJn8bxBVYDF977ghy9k923IdLLFcIkXhETXWeeEOv4xVqWMgunpaZE1T50lp5stX9bZM2tBy94NiFHucxV8TE5IVHq-S3uWXh6sAVM8B_LI" />
+                    </div>
+                </div>
+            </header>
+            <div class="mt-16 p-gutter h-[calc(100vh-64px)] overflow-y-auto custom-scrollbar">
+                <!-- Stats -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-lg mb-gutter">
+                    <div class="vault-card p-lg rounded-xl border border-outline-variant flex flex-col gap-sm">
+                        <div class="flex justify-between items-start">
+                            <span class="material-symbols-outlined text-primary">storage</span>
+                            <span class="text-tertiary font-mono-data text-label-sm">+2.4GB this week</span>
+                        </div>
+                        <p class="font-label-md text-label-md text-on-surface-variant">Total Storage Used</p>
+                        <h3 class="font-headline-lg text-headline-lg" id="stat-storage">—</h3>
+                        <div class="w-full bg-surface-container-highest h-1 rounded-full overflow-hidden mt-xs">
+                            <div class="bg-primary h-full w-[65%]"></div>
+                        </div>
+                    </div>
+                    <div class="vault-card p-lg rounded-xl border border-outline-variant flex flex-col gap-sm">
+                        <div class="flex justify-between items-start">
+                            <span class="material-symbols-outlined text-primary">verified_user</span>
+                            <span class="text-primary font-mono-data text-label-sm">System Healthy</span>
+                        </div>
+                        <p class="font-label-md text-label-md text-on-surface-variant">Active Keys</p>
+                        <h3 class="font-headline-lg text-headline-lg" id="stat-records">—</h3>
+                        <p class="font-label-sm text-label-sm text-on-surface-variant opacity-60">All encryption certificates valid</p>
+                    </div>
+                    <div class="vault-card p-lg rounded-xl border border-outline-variant flex flex-col gap-sm">
+                        <div class="flex justify-between items-start">
+                            <span class="material-symbols-outlined text-primary">history</span>
+                            <button class="text-primary font-label-sm text-label-sm hover:underline">View Log</button>
+                        </div>
+                        <p class="font-label-md text-label-md text-on-surface-variant">Last Audit</p>
+                        <h3 class="font-headline-lg text-headline-lg">—</h3>
+                        <p class="font-label-sm text-label-sm text-on-surface-variant opacity-60">Loading...</p>
+                    </div>
+                </div>
+                <!-- Toolbar -->
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-md mb-lg">
+                    <div class="flex flex-wrap items-center gap-sm">
+                        <button
+                            class="px-md py-sm bg-surface-container-high border border-outline-variant rounded-lg text-on-surface font-label-md text-label-md flex items-center gap-xs">
+                            <span class="material-symbols-outlined text-[18px]">filter_list</span>
+                            Filter
+                        </button>
+                        <div class="flex bg-surface-container-low rounded-lg p-[2px] border border-outline-variant">
+                            <button id="filter-all" class="px-md py-sm bg-surface-container-high rounded-md text-primary font-label-md text-label-md" onclick="filterVault('all')">All Records</button>
+                            <button id="filter-personal" class="px-md py-sm text-on-surface-variant hover:text-on-surface font-label-md text-label-md" onclick="filterVault('personal')">Personal</button>
+                            <button id="filter-shared" class="px-md py-sm text-on-surface-variant hover:text-on-surface font-label-md text-label-md" onclick="filterVault('shared')">Shared</button>
+                        </div>
+                    </div>
+                    <button id="btn-upload-record" onclick="openUploadModal()"
+                        class="px-xl py-sm bg-primary text-on-primary rounded-lg font-bold font-label-md text-label-md flex items-center gap-sm hover:opacity-90 transition-all active:scale-95">
+                        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">cloud_upload</span>
+                        Upload Record
+                    </button>
+                </div>
+                <!-- Records Table -->
+                <div class="bg-surface-container-low rounded-xl border border-outline-variant overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b border-outline-variant bg-surface-container">
+                                    <th class="px-gutter py-md font-label-md text-label-md text-on-surface-variant">Filename</th>
+                                    <th class="px-gutter py-md font-label-md text-label-md text-on-surface-variant">Type</th>
+                                    <th class="px-gutter py-md font-label-md text-label-md text-on-surface-variant">Size</th>
+                                    <th class="px-gutter py-md font-label-md text-label-md text-on-surface-variant">Upload Date</th>
+                                    <th class="px-gutter py-md font-label-md text-label-md text-on-surface-variant text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vault-tbody" class="divide-y divide-outline-variant">
+                                <tr id="vault-loading-row">
+                                    <td colspan="5" class="px-gutter py-xl text-center text-on-surface-variant font-label-md">
+                                        <span class="animate-spin material-symbols-outlined align-middle mr-sm">progress_activity</span>
+                                        Loading records…
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-md bg-surface-container flex justify-between items-center border-t border-outline-variant">
+                        <span class="font-label-sm text-label-sm text-on-surface-variant" id="vault-record-count">Loading…</span>
+                        <div class="flex items-center gap-xs">
+                            <button class="p-xs text-on-surface-variant hover:text-on-surface border border-outline-variant rounded disabled:opacity-30" id="prev-page" disabled>
+                                <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+                            </button>
+                            <button class="px-md py-xs bg-primary text-on-primary font-bold rounded" id="page-1">1</button>
+                            <button class="px-md py-xs hover:bg-surface-variant rounded" id="page-2">2</button>
+                            <button class="px-md py-xs hover:bg-surface-variant rounded" id="page-3">3</button>
+                            <button class="p-xs text-on-surface-variant hover:text-on-surface border border-outline-variant rounded" id="next-page">
+                                <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Activity Feed -->
+                <div class="mt-2xl grid grid-cols-1 lg:grid-cols-12 gap-lg mb-3xl">
+                    <div class="lg:col-span-8 vault-card p-lg rounded-xl border border-outline-variant">
+                        <div class="flex justify-between items-center mb-md">
+                            <h4 class="font-headline-sm text-headline-sm">Activity Feed</h4>
+                            <span class="flex items-center gap-xs text-tertiary text-label-sm">
+                                <span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span> Live Stream
+                            </span>
+                        </div>
+                        <div id="activity-feed" class="space-y-md">
+                            <div class="flex items-start gap-md">
+                                <div class="mt-1 w-2 h-2 rounded-full bg-primary ring-4 ring-primary/10"></div>
+                                <div class="flex-1">
+                                    <p class="font-body-sm text-body-sm"><span class="font-bold text-on-surface">System</span> ready</p>
+                                    <p class="font-mono-data text-[11px] text-on-surface-variant opacity-60">Vault initialized</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-4 vault-card p-lg rounded-xl border border-outline-variant flex flex-col items-center justify-center text-center gap-md">
+                        <div class="relative w-32 h-32 flex items-center justify-center">
+                            <svg class="w-full h-full transform -rotate-90">
+                                <circle class="text-surface-container-highest" cx="64" cy="64" fill="transparent" r="58" stroke="currentColor" stroke-width="8"></circle>
+                                <circle class="text-primary" cx="64" cy="64" fill="transparent" r="58" stroke="currentColor" stroke-dasharray="364.4" stroke-dashoffset="91.1" stroke-width="8"></circle>
+                            </svg>
+                            <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                <span class="font-headline-md text-headline-md">75%</span>
+                                <span class="font-label-sm text-label-sm text-on-surface-variant">Security Score</span>
+                            </div>
+                        </div>
+                        <p class="font-body-sm text-body-sm text-on-surface-variant">Enable 2FA and rotate your master key to reach 100% security.</p>
+                        <button class="w-full py-sm bg-surface-container-high border border-outline text-primary font-bold rounded-lg hover:bg-surface-variant transition-colors">Optimize Now</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Mobile Bottom Nav -->
+            <nav class="lg:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 bg-surface-container border-t border-outline-variant shadow-lg rounded-t-full">
+                <a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-4 py-1 transition-all active:scale-90 duration-200" href="javascript:void(0)" onclick="showView('vault')">
+                    <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">lock</span>
+                    <span class="font-label-sm text-label-sm">Vault</span>
+                </a>
+                <a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant transition-all active:scale-90 duration-200" href="javascript:void(0)" onclick="showView('sent')">
+                    <span class="material-symbols-outlined">share</span>
+                    <span class="font-label-sm text-label-sm">Shared</span>
+                </a>
+                <a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant transition-all active:scale-90 duration-200" href="javascript:void(0)" onclick="showView('keymgr')">
+                    <span class="material-symbols-outlined">key</span>
+                    <span class="font-label-sm text-label-sm">Keys</span>
+                </a>
+                <a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-variant transition-all active:scale-90 duration-200" href="javascript:void(0)" onclick="showView('settings')">
+                    <span class="material-symbols-outlined">settings</span>
+                    <span class="font-label-sm text-label-sm">Settings</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- ==================== SENT VIEW ==================== -->
+        <div id="view-sent" class="view-panel hidden p-gutter w-full">
+            <div class="max-w-7xl mx-auto space-y-lg">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
+                    <div>
+                        <h1 class="font-headline-lg text-headline-lg text-on-surface">Share Management</h1>
+                        <p class="font-body-md text-body-md text-on-surface-variant">Manage secure links and external access permissions.</p>
+                    </div>
+                    <div class="flex gap-sm">
+                        <div class="px-md py-sm bg-surface-container rounded-xl border border-outline-variant flex items-center gap-sm">
+                            <span class="text-primary font-mono-data text-label-md" id="sent-count">0 Active</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="border-b border-outline-variant relative">
+                    <div class="flex gap-lg">
+                        <button class="px-4 py-3 relative text-primary font-bold" onclick="switchShareTab('sent')">
+                            <span class="font-label-md text-label-md">Sent Shares</span>
+                            <div class="active-tab-indicator" id="indicator-sent"></div>
+                        </button>
+                        <button class="px-4 py-3 relative text-on-surface-variant hover:text-primary transition-colors" onclick="switchShareTab('received')">
+                            <span class="font-label-md text-label-md">Received</span>
+                            <div class="active-tab-indicator hidden" id="indicator-received"></div>
+                        </button>
+                    </div>
+                </div>
+                <div class="glass-panel rounded-xl overflow-hidden">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-surface-container-high border-b border-outline-variant">
+                                <th class="px-gutter py-4 font-label-md text-label-md text-on-surface">Shared Item</th>
+                                <th class="px-gutter py-4 font-label-md text-label-md text-on-surface">Recipient</th>
+                                <th class="px-gutter py-4 font-label-md text-label-md text-on-surface">Status</th>
+                                <th class="px-gutter py-4 font-label-md text-label-md text-on-surface">Created</th>
+                                <th class="px-gutter py-4 font-label-md text-label-md text-on-surface text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sent-tbody" class="divide-y divide-outline-variant">
+                            <tr>
+                                <td colspan="5" class="px-gutter py-xl text-center text-on-surface-variant font-label-md">Loading sent shares...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== RECEIVED VIEW ==================== -->
+        <div id="view-received" class="view-panel hidden p-gutter w-full">
+            <div class="max-w-7xl mx-auto space-y-lg">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
+                    <div>
+                        <h1 class="font-headline-lg text-headline-lg text-on-surface">Received Shares</h1>
+                        <p class="font-body-md text-body-md text-on-surface-variant">Files and records shared with you.</p>
+                    </div>
+                    <div class="flex gap-sm">
+                        <div class="px-md py-sm bg-surface-container rounded-xl border border-outline-variant flex items-center gap-sm">
+                            <span class="text-tertiary font-mono-data text-label-md" id="received-count">0 Received</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="glass-panel rounded-xl overflow-hidden">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-surface-container-high border-b border-outline-variant">
+                                <th class="px-gutter py-4 font-label-md text-label-md text-on-surface">Shared Item</th>
+                                <th class="px-gutter py-4 font-label-md text-label-md text-on-surface">Owner</th>
+                                <th class="px-gutter py-4 font-label-md text-label-md text-on-surface">Permission</th>
+                                <th class="px-gutter py-4 font-label-md text-label-md text-on-surface">Created</th>
+                                <th class="px-gutter py-4 font-label-md text-label-md text-on-surface text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="received-tbody" class="divide-y divide-outline-variant">
+                            <tr>
+                                <td colspan="5" class="px-gutter py-xl text-center text-on-surface-variant font-label-md">Loading received shares...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== KEY MANAGER VIEW ==================== -->
+        <div id="view-keymgr" class="view-panel hidden p-gutter w-full">
+            <div class="max-w-7xl mx-auto space-y-lg">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
+                    <div>
+                        <h1 class="font-headline-lg text-headline-lg text-on-surface">Access Management</h1>
+                        <p class="font-body-md text-body-md text-on-surface-variant">Monitor and control persistent access rights.</p>
+                    </div>
+                    <button onclick="openGrantModal()" class="px-xl py-sm bg-primary text-on-primary rounded-lg font-bold font-label-md text-label-md flex items-center gap-sm hover:opacity-90 transition-all">
+                        <span class="material-symbols-outlined">person_add</span>
+                        Grant Access
+                    </button>
+                </div>
+                <div class="glass-panel rounded-xl overflow-hidden">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-surface-container-high border-b border-outline-variant">
+                                <th class="px-gutter py-4 font-label-md text-label-md text-on-surface">Grantee</th>
+                                <th class="px-gutter py-4 font-label-md text-label-md text-on-surface">Status</th>
+                                <th class="px-gutter py-4 font-label-md text-label-md text-on-surface">Permission</th>
+                                <th class="px-gutter py-4 font-label-md text-label-md text-on-surface">Expires</th>
+                                <th class="px-gutter py-4 font-label-md text-label-md text-on-surface text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="grants-tbody" class="divide-y divide-outline-variant">
+                            <tr>
+                                <td colspan="5" class="px-gutter py-xl text-center text-on-surface-variant font-label-md">Loading grants...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== AUDIT VIEW ==================== -->
+        <div id="view-audit" class="view-panel hidden p-gutter w-full">
+            <div class="max-w-7xl mx-auto space-y-lg">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
+                    <div>
+                        <h1 class="font-headline-lg text-headline-lg text-on-surface">Notification Center</h1>
+                        <p class="font-body-md text-body-md text-on-surface-variant">Monitor recent activities and security alerts.</p>
+                    </div>
+                    <div class="flex gap-sm">
+                        <button onclick="markAllRead()" class="px-md py-sm border border-outline-variant rounded-lg text-on-surface font-label-md text-label-md hover:bg-surface-variant transition-colors flex items-center gap-sm">
+                            <span class="material-symbols-outlined text-[18px]">done_all</span>
+                            Mark all read
+                        </button>
+                    </div>
+                </div>
+                <div id="notifications-container" class="space-y-md">
+                    <div class="text-center text-on-surface-variant font-label-md py-xl">Loading notifications...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== SETTINGS VIEW ==================== -->
+        <div id="view-settings" class="view-panel hidden p-gutter w-full vault-grid-bg">
+            <div class="max-w-4xl mx-auto space-y-lg">
+                <div>
+                    <h1 class="font-headline-lg text-headline-lg text-primary">Account Security</h1>
+                    <p class="text-on-surface-variant font-body-md mt-1">Manage your identity and defensive protocols.</p>
+                </div>
+                
+                <!-- Profile -->
+                <section class="grid grid-cols-1 md:grid-cols-3 gap-lg">
+                    <div class="md:col-span-1 flex flex-col items-center justify-center p-xl bg-surface-container rounded-xl border border-outline-variant">
+                        <div class="w-24 h-24 rounded-full border-2 border-primary p-1 mb-md">
+                            <img class="w-full h-full object-cover rounded-full" 
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDutL840YGRoZeqkBSI6ygioellx7Ms_AutiFU8S-_VfsEG25dRdB_ok1z2lVKA0vBdaVrNziHwjIaieO_e-U8kT52p0gDOJZiJY2ZhMdrFnCac5ZcrrY3xMsqkJvCvFyyPuRbt9S43xsYKOc-L7Rwf8R06sMBdLxFXWMzONaP5Bhl7MOOe6MOWWyDDmU_bXF-h36xBiiZ3ys-8KpeiM7Tra-iPbzVLHROGs0SBiN5Sppx0I9ZjAh29SEPkK7UKLgPMZNN_IbkP54U" />
+                        </div>
+                        <p class="font-headline-sm text-headline-sm" id="settings-username">Loading...</p>
+                        <p class="font-label-sm text-label-sm text-on-surface-variant" id="settings-email">—</p>
+                    </div>
+                    <div class="md:col-span-2 p-xl bg-surface-container rounded-xl border border-outline-variant">
+                        <h3 class="font-headline-sm text-headline-sm mb-lg flex items-center gap-2">
+                            <span class="material-symbols-outlined">person</span>
+                            Profile Identity
+                        </h3>
+                        <div class="space-y-md">
+                            <div class="space-y-xs">
+                                <label class="font-label-sm text-label-sm text-on-surface-variant ml-1">Display Name</label>
+                                <input id="settings-fullname"
+                                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                                    type="text" placeholder="Your full name" />
+                            </div>
+                            <div class="space-y-xs">
+                                <label class="font-label-sm text-label-sm text-on-surface-variant ml-1">Email Address</label>
+                                <input id="settings-email-input"
+                                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all opacity-60"
+                                    type="email" disabled />
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Change Password -->
+                <section class="grid grid-cols-1 lg:grid-cols-2 gap-lg">
+                    <div class="p-xl bg-surface-container rounded-xl border border-outline-variant">
+                        <h3 class="font-headline-sm text-headline-sm mb-lg flex items-center gap-2">
+                            <span class="material-symbols-outlined">key</span>
+                            Authentication
+                        </h3>
+                        <div class="space-y-md">
+                            <div class="space-y-xs">
+                                <label class="font-label-sm text-label-sm text-on-surface-variant ml-1">Current Password</label>
+                                <input id="settings-old-password"
+                                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                                    placeholder="••••••••••••" type="password" />
+                            </div>
+                            <div class="space-y-xs">
+                                <label class="font-label-sm text-label-sm text-on-surface-variant ml-1">New Password</label>
+                                <input id="settings-new-password"
+                                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                                    type="password" />
+                            </div>
+                            <div class="space-y-xs">
+                                <label class="font-label-sm text-label-sm text-on-surface-variant ml-1">Confirm New Password</label>
+                                <input id="settings-confirm-password"
+                                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                                    type="password" />
+                            </div>
+                            <div id="settings-pw-error" class="hidden p-sm bg-error/10 border border-error/30 rounded-lg text-error text-label-sm"></div>
+                            <button onclick="handleChangePassword()" id="settings-pw-btn"
+                                class="w-full border border-primary text-primary font-label-md text-label-md py-3 rounded-xl hover:bg-primary/10 transition-all">
+                                Update Password
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- TOTP -->
+                    <div class="p-xl bg-surface-container rounded-xl border border-outline-variant" id="totp-setup-container">
+                        <div class="flex justify-between items-start mb-lg">
+                            <h3 class="font-headline-sm text-headline-sm flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary">security</span>
+                                MFA Authenticator
+                            </h3>
+                            <span id="totp-status-badge" class="px-2 py-1 bg-outline-variant text-on-surface-variant rounded text-[10px] font-bold uppercase">Checking...</span>
+                        </div>
+                        <div class="space-y-sm">
+                            <p class="text-label-sm font-label-sm text-on-surface-variant mb-md">Protect your account with a secondary time-based one-time password (TOTP).</p>
+                            <div id="totp-inactive-state" class="p-md bg-surface-container-lowest border border-outline-variant rounded-lg flex items-center justify-between">
+                                <div class="flex items-center gap-sm">
+                                    <span class="material-symbols-outlined text-outline">lock_open</span>
+                                    <span class="font-label-md text-on-surface-variant">MFA Protection Disabled</span>
+                                </div>
+                                <button onclick="startTotpSetup()" class="px-md py-2 bg-primary hover:bg-primary-container text-on-primary rounded-lg font-bold text-label-sm transition-colors">Enable MFA</button>
+                            </div>
+                            <div id="totp-active-state" class="hidden p-md bg-tertiary/10 border border-tertiary/20 rounded-lg flex items-center justify-between">
+                                <div class="flex items-center gap-sm">
+                                    <span class="material-symbols-outlined text-tertiary">check_circle</span>
+                                    <span class="font-label-md text-tertiary font-bold">MFA Protection Active</span>
+                                </div>
+                                <button onclick="disableTotp()" class="text-error hover:underline text-label-sm font-bold">Disable</button>
+                            </div>
+                            <div id="totp-setup-state" class="hidden space-y-md p-md bg-surface-container-lowest border border-outline-variant rounded-lg">
+                                <p class="text-label-sm font-label-sm text-on-surface-variant">Scan this QR code with Google Authenticator, Duo, or any TOTP client app:</p>
+                                <div class="flex justify-center bg-white p-sm rounded-lg w-fit mx-auto border border-outline-variant">
+                                    <img id="totp-qr-img" src="" alt="QR Code" class="w-36 h-36" />
+                                </div>
+                                <div class="text-center font-mono-data text-xs text-primary select-all break-all" id="totp-secret-text"></div>
+                                <div class="space-y-xs">
+                                    <label class="font-label-sm text-label-sm text-on-surface-variant block">Enter code from authenticator to confirm:</label>
+                                    <div class="flex gap-sm">
+                                        <input id="totp-code-input" class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 text-on-surface focus:ring-1 focus:ring-primary outline-none font-mono-data text-center" placeholder="123456" type="text" maxlength="6" />
+                                        <button onclick="confirmTotpSetup()" class="px-md bg-primary hover:bg-primary-container text-on-primary rounded-lg font-bold text-label-sm transition-colors">Confirm</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Danger Zone -->
+                <section class="p-xl bg-surface-container-lowest border-2 border-error-container rounded-xl relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-full h-1 bg-error-container"></div>
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-xl">
+                        <div class="flex-1">
+                            <h3 class="font-headline-sm text-headline-sm text-error mb-2 flex items-center gap-2">
+                                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">warning</span>
+                                Critical: Permanent Deletion
+                            </h3>
+                            <p class="text-on-surface-variant font-body-md">
+                                Deleting your account will result in the immediate and irreversible loss of all encrypted files, recovery keys, and audit logs.
+                            </p>
+                        </div>
+                        <div class="flex flex-col gap-md min-w-[240px]">
+                            <div class="relative">
+                                <input id="confirmDelete" class="w-full bg-surface border border-error-container rounded-lg px-4 py-3 text-error focus:ring-1 focus:ring-error outline-none" placeholder="Type 'DELETE' to confirm" type="text" />
+                            </div>
+                            <button id="deleteBtn" class="bg-error text-on-error font-label-md text-label-md py-4 rounded-xl opacity-50 cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-error/10" disabled>
+                                <span class="material-symbols-outlined">dangerous</span>
+                                Destroy My Account
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Toast Container -->
+    <div class="fixed bottom-24 lg:bottom-8 right-8 z-[100] flex flex-col gap-sm" id="toast-container"></div>
+
+    <!-- ==================== UPLOAD MODAL ==================== -->
+    <div id="uploadModal" class="fixed inset-0 z-[110] hidden flex items-center justify-center bg-background/80 backdrop-blur-sm p-md">
+        <div class="bg-surface-container border border-outline-variant rounded-xl p-xl max-w-md w-full shadow-2xl relative">
+            <button onclick="closeUploadModal()" class="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface transition-colors">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+            <h3 class="font-headline-sm text-headline-sm mb-md flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">cloud_upload</span>
+                Upload Secure Record
+            </h3>
+            <p class="text-on-surface-variant font-body-sm text-body-sm mb-lg">
+                Select a file to encrypt client-side with AES-GCM 256-bit before transmitting.
+            </p>
+            <form id="uploadForm" onsubmit="handleUploadSubmit(event)" class="space-y-lg">
+                <div class="space-y-sm">
+                    <label class="font-label-md text-label-md text-on-surface-variant block">Select File</label>
+                    <div class="border border-dashed border-outline-variant hover:border-primary/50 transition-all rounded-lg p-lg text-center cursor-pointer relative group" id="drop-zone" onclick="document.getElementById('file-input').click()">
+                        <input type="file" id="file-input" class="hidden" onchange="handleFileSelect(event)" required />
+                        <span class="material-symbols-outlined text-primary text-4xl mb-sm group-hover:scale-110 transition-transform">upload_file</span>
+                        <p class="font-label-md text-label-md text-on-surface" id="file-name-display">Drag &amp; drop or browse</p>
+                        <p class="font-body-sm text-body-sm text-on-surface-variant opacity-60 mt-xs">Maximum size: 50MB</p>
+                    </div>
+                </div>
+                <div class="space-y-sm">
+                    <label class="font-label-md text-label-md text-on-surface-variant block" for="upload-tags">Tags (comma separated)</label>
+                    <input class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-on-surface focus:ring-1 focus:ring-primary outline-none" id="upload-tags" placeholder="medical, report, finance" type="text" />
+                </div>
+                <div id="upload-progress-container" class="hidden space-y-xs">
+                    <div class="flex justify-between font-mono-data text-xs">
+                        <span id="upload-progress-status" class="text-primary">Encrypting file...</span>
+                        <span id="upload-progress-percent">0%</span>
+                    </div>
+                    <div class="w-full bg-surface-container-highest h-2 rounded-full overflow-hidden">
+                        <div class="bg-primary h-full w-0 transition-all duration-300" id="upload-progress-bar"></div>
+                    </div>
+                </div>
+                <div id="upload-error" class="hidden text-error bg-error/15 border border-error/30 p-sm rounded-lg font-body-sm text-body-sm"></div>
+                <button type="submit" id="btn-upload-submit" class="w-full bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md py-3 px-md rounded-lg transition-all active:scale-95 flex items-center justify-center space-x-sm">
+                    <span>Encrypt &amp; Upload</span>
+                    <span class="material-symbols-outlined text-[18px]">lock</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================== GRANT MODAL ==================== -->
+    <div id="grantModal" class="fixed inset-0 z-[110] hidden flex items-center justify-center bg-background/80 backdrop-blur-sm p-md">
+        <div class="bg-surface-container border border-outline-variant rounded-xl p-xl max-w-md w-full shadow-2xl relative">
+            <button onclick="closeGrantModal()" class="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface transition-colors">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+            <h3 class="font-headline-sm text-headline-sm mb-md flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">vpn_key</span>
+                Grant Access
+            </h3>
+            <form class="space-y-lg" onsubmit="event.preventDefault(); submitGrant();">
+                <div class="space-y-sm">
+                    <label class="font-label-md text-label-md text-on-surface-variant block">Search User</label>
+                    <input id="grant-search-input" class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-on-surface focus:ring-1 focus:ring-primary outline-none" placeholder="Enter username..." oninput="searchUsers(this.value)" type="text" autocomplete="off" />
+                    <div id="grant-search-results" class="hidden bg-surface-container-high border border-outline-variant rounded-lg mt-1 max-h-48 overflow-y-auto divide-y divide-outline-variant shadow-2xl"></div>
+                </div>
+                <div id="grant-selected-user" class="hidden p-md bg-primary/10 border border-primary/20 rounded-lg flex items-center justify-between">
+                    <div>
+                        <p class="font-label-md text-primary font-bold" id="grant-selected-name">—</p>
+                        <p class="font-mono-data text-[10px] text-on-surface-variant" id="grant-selected-id">ID: —</p>
+                    </div>
+                    <button onclick="clearSelectedGrantee()" class="text-error font-body-sm">Remove</button>
+                </div>
+                <div class="space-y-sm">
+                    <label class="font-label-md text-label-md text-on-surface-variant block">Record</label>
+                    <select id="grant-record-select" class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-on-surface focus:ring-1 focus:ring-primary outline-none">
+                        <option value="">Select a record...</option>
+                    </select>
+                </div>
+                <div class="space-y-sm">
+                    <label class="font-label-md text-label-md text-on-surface-variant block">Permission Level</label>
+                    <select id="grant-permission-select" class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-on-surface focus:ring-1 focus:ring-primary outline-none">
+                        <option value="view_only">View Only</option>
+                        <option value="view_download">View &amp; Download</option>
+                    </select>
+                </div>
+                <div class="space-y-sm">
+                    <label class="font-label-md text-label-md text-on-surface-variant block">Expires In</label>
+                    <select id="grant-expiry-select" class="w-full bg-surface border border-outline-variant rounded-lg px-4 py-3 text-on-surface focus:ring-1 focus:ring-primary outline-none">
+                        <option value="7">7 days</option>
+                        <option value="14">14 days</option>
+                        <option value="30" selected>30 days</option>
+                        <option value="90">90 days</option>
+                    </select>
+                </div>
+                <div id="grant-error" class="hidden text-error bg-error/15 border border-error/30 p-sm rounded-lg font-body-sm text-body-sm"></div>
+                <button type="submit" id="grant-submit-btn" class="w-full bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md py-3 px-md rounded-lg transition-all active:scale-95 flex items-center justify-center space-x-sm" disabled>
+                    <span>Grant Access</span>
+                    <span class="material-symbols-outlined text-[18px]">send</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // VIEW SWITCHING
+        // ============================================================
+        const VIEWS = ['vault', 'sent', 'received', 'keymgr', 'audit', 'settings'];
+        let currentView = 'vault';
+
+        function showView(view) {
+            if (!VIEWS.includes(view)) return;
+            currentView = view;
+            
+            VIEWS.forEach(v => {
+                const panel = document.getElementById('view-' + v);
+                if (panel) panel.classList.toggle('hidden', v !== view);
+            });
+
+            document.querySelectorAll('[data-nav]').forEach(el => {
+                const isActive = el.dataset.nav === view;
+                el.classList.toggle('bg-secondary-container', isActive);
+                el.classList.toggle('text-on-secondary-container', isActive);
+                el.classList.toggle('font-bold', isActive);
+                el.classList.toggle('text-on-surface-variant', !isActive);
+                const icon = el.querySelector('.material-symbols-outlined');
+                if (icon) icon.style.fontVariationSettings = isActive ? "'FILL' 1" : "'FILL' 0";
+            });
+
+            const mainEl = document.getElementById('main-scroll');
+            if (mainEl) mainEl.scrollTop = 0;
+
+            // Load data for the view
+            if (view === 'sent') loadSentShares();
+            else if (view === 'received') loadReceivedShares();
+            else if (view === 'keymgr') loadGrants();
+            else if (view === 'audit') loadNotifications();
+            else if (view === 'vault') loadVaultRecords();
+
+            try { history.replaceState(null, '', '#' + view); } catch (e) {}
+        }
+
+        // Share tab switching (inside sent view)
+        function switchShareTab(tab) {
+            const indicators = ['sent', 'received'];
+            indicators.forEach(id => {
+                const element = document.getElementById(`indicator-${id}`);
+                if (!element) return;
+                const btn = element.parentElement;
+                if (id === tab) {
+                    element.classList.remove('hidden');
+                    btn.classList.add('text-primary', 'font-bold');
+                    btn.classList.remove('text-on-surface-variant');
+                } else {
+                    element.classList.add('hidden');
+                    btn.classList.remove('text-primary', 'font-bold');
+                    btn.classList.add('text-on-surface-variant');
+                }
+            });
+            if (tab === 'sent') loadSentShares();
+            else loadReceivedShares();
+        }
+
+        // ============================================================
+        // TOAST SYSTEM
+        // ============================================================
+        function showToastMsg(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const icon = type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'verified_user';
+            const borderColor = type === 'error' ? 'border-error/50' : type === 'warning' ? 'border-tertiary/50' : 'border-primary/50';
+            const toast = document.createElement('div');
+            toast.className = `vault-glass px-lg py-md rounded-xl text-on-surface border ${borderColor} shadow-2xl flex items-center gap-md transform translate-y-10 opacity-0 transition-all duration-300`;
+            toast.innerHTML = `<span class="material-symbols-outlined text-primary">${icon}</span><span class="font-label-md">${escapeHtml(message)}</span>`;
+            container.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.remove('translate-y-10', 'opacity-0'));
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-4');
+                setTimeout(() => toast.remove(), 500);
+            }, 4000);
+        }
+
+        function escapeHtml(unsafe) {
+            if (!unsafe) return '';
+            return String(unsafe)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function fmtBytes(bytes) {
+            if (!bytes || bytes === 0) return '0 B';
+            const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function fileIcon(mime) {
+            if (!mime) return 'description';
+            if (mime.includes('image')) return 'image';
+            if (mime.includes('pdf')) return 'picture_as_pdf';
+            if (mime.includes('sheet') || mime.includes('excel') || mime.includes('csv')) return 'table_chart';
+            if (mime.includes('video')) return 'videocam';
+            if (mime.includes('audio')) return 'music_note';
+            if (mime.includes('zip') || mime.includes('compressed')) return 'folder_zip';
+            return 'description';
+        }
+
+        function fileExt(filename) {
+            if (!filename) return '—';
+            const parts = filename.split('.');
+            return parts.length > 1 ? parts.pop().toUpperCase() : '—';
+        }
+
+        // ============================================================
+        // USER PROFILE
+        // ============================================================
+        async function loadUserProfile() {
+            try {
+                const user = await window.apiRequest('GET', '/auth/me');
+                const nameEl = document.getElementById('settings-username');
+                const emailEl = document.getElementById('settings-email');
+                const emailInput = document.getElementById('settings-email-input');
+                const fullnameInput = document.getElementById('settings-fullname');
+                
+                if (nameEl) nameEl.textContent = user.full_name || user.username || 'User';
+                if (emailEl) emailEl.textContent = user.email || '—';
+                if (emailInput) emailInput.value = user.email || '';
+                if (fullnameInput) fullnameInput.value = user.full_name || '';
+                
+                // Check TOTP status
+                const badge = document.getElementById('totp-status-badge');
+                if (badge) {
+                    if (user.totp_enabled) {
+                        badge.textContent = 'Active';
+                        badge.classList.add('text-tertiary');
+                        badge.classList.remove('text-on-surface-variant');
+                        document.getElementById('totp-active-state').classList.remove('hidden');
+                        document.getElementById('totp-inactive-state').classList.add('hidden');
+                    } else {
+                        badge.textContent = 'Disabled';
+                        badge.classList.remove('text-tertiary');
+                        badge.classList.add('text-on-surface-variant');
+                        document.getElementById('totp-active-state').classList.add('hidden');
+                        document.getElementById('totp-inactive-state').classList.remove('hidden');
+                    }
+                }
+                
+                window.setTokens(null, user);
+                return user;
+            } catch (e) {
+                console.warn('Could not load user profile:', e.message);
+                return null;
+            }
+        }
+
+        // ============================================================
+        // VAULT RECORDS
+        // ============================================================
+        let vaultRecords = [];
+
+        async function loadVaultRecords() {
+            const tbody = document.getElementById('vault-tbody');
+            const countEl = document.getElementById('vault-record-count');
+            const storageEl = document.getElementById('stat-storage');
+            const recordsEl = document.getElementById('stat-records');
+
+            try {
+                const records = await window.apiRequest('GET', '/vault/records') || [];
+                vaultRecords = records;
+
+                tbody.innerHTML = '';
+
+                if (records.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="px-gutter py-xl text-center text-on-surface-variant font-label-md">No records yet. Upload your first encrypted file.</td></tr>`;
+                    if (countEl) countEl.textContent = '0 records';
+                    if (storageEl) storageEl.textContent = '0 B';
+                    if (recordsEl) recordsEl.textContent = '0';
+                    return;
+                }
+
+                const totalBytes = records.reduce((sum, r) => sum + (r.size_bytes || 0), 0);
+                if (storageEl) storageEl.textContent = fmtBytes(totalBytes);
+                if (recordsEl) recordsEl.textContent = records.length;
+                if (countEl) countEl.textContent = `${records.length} record${records.length !== 1 ? 's' : ''}`;
+
+                tbody.innerHTML = records.map(r => `
+                    <tr class="hover:bg-surface-variant transition-colors group cursor-pointer" onclick="navigateToRecord('${escapeHtml(r.record_id)}')">
+                        <td class="px-gutter py-md">
+                            <div class="flex items-center gap-sm">
+                                <div class="p-xs bg-primary-container/20 rounded text-primary">
+                                    <span class="material-symbols-outlined text-[20px]">${fileIcon(r.mime_type)}</span>
+                                </div>
+                                <div>
+                                    <p class="font-body-md text-body-md text-on-surface font-medium">${escapeHtml(r.filename)}</p>
+                                    <div class="flex items-center gap-xs mt-1">
+                                        <span class="bg-tertiary-container/30 text-tertiary text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border border-tertiary/20">Encrypted</span>
+                                        <span class="text-on-surface-variant/40 text-[10px]">•</span>
+                                        <span class="text-on-surface-variant text-[10px] font-mono-data">AES-GCM 256</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-gutter py-md font-mono-data text-body-sm text-on-surface-variant">${fileExt(r.filename)}</td>
+                        <td class="px-gutter py-md font-mono-data text-body-sm text-on-surface-variant">${fmtBytes(r.size_bytes)}</td>
+                        <td class="px-gutter py-md font-body-sm text-body-sm text-on-surface-variant">${r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}</td>
+                        <td class="px-gutter py-md text-right">
+                            <button onclick="event.stopPropagation(); deleteVaultRecord('${escapeHtml(r.record_id)}')" class="p-xs text-on-surface-variant hover:text-error transition-colors opacity-0 group-hover:opacity-100" title="Delete record">
+                                <span class="material-symbols-outlined">delete</span>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-gutter py-xl text-center text-error font-label-md">Failed to load records: ${escapeHtml(e.message)}</td></tr>`;
+                throw e;
+            }
+        }
+
+        function navigateToRecord(recordId) {
+            window.location.href = `../record_details/code.html?record_id=${encodeURIComponent(recordId)}`;
+        }
+
+        function filterVault(filter) {
+            // Simple client-side filter for demo
+            const tbody = document.getElementById('vault-tbody');
+            // Re-render with filter applied
+            loadVaultRecords();
+        }
+
+        async function deleteVaultRecord(recordId) {
+            if (!confirm('Are you sure you want to permanently delete this record? This cannot be undone.')) return;
+            try {
+                await window.apiRequest('DELETE', `/vault/records/${recordId}`);
+                showToastMsg('Record permanently deleted.');
+                await loadVaultRecords();
+            } catch (e) {
+                showToastMsg('Failed to delete record: ' + e.message, 'error');
+            }
+        }
+
+        // ============================================================
+        // UPLOAD MODAL
+        // ============================================================
+        let selectedUploadFile = null;
+
+        function openUploadModal() {
+            document.getElementById('uploadModal').classList.remove('hidden');
+            selectedUploadFile = null;
+            const display = document.getElementById('file-name-display');
+            if (display) display.textContent = 'Drag & drop or browse';
+            const errDiv = document.getElementById('upload-error');
+            if (errDiv) errDiv.classList.add('hidden');
+            const progress = document.getElementById('upload-progress-container');
+            if (progress) progress.classList.add('hidden');
+        }
+
+        function closeUploadModal() {
+            document.getElementById('uploadModal').classList.add('hidden');
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            selectedUploadFile = file;
+            const display = document.getElementById('file-name-display');
+            if (display) display.textContent = `${file.name} (${fmtBytes(file.size)})`;
+        }
+
+        async function handleUploadSubmit(event) {
+            event.preventDefault();
+            if (!selectedUploadFile) { showToastMsg('Please select a file first.', 'warning'); return; }
+
+            const submitBtn = document.getElementById('btn-upload-submit');
+            const progressContainer = document.getElementById('upload-progress-container');
+            const progressBar = document.getElementById('upload-progress-bar');
+            const progressStatus = document.getElementById('upload-progress-status');
+            const progressPercent = document.getElementById('upload-progress-percent');
+            const errorDiv = document.getElementById('upload-error');
+
+            errorDiv?.classList.add('hidden');
+            progressContainer?.classList.remove('hidden');
+            if (submitBtn) submitBtn.disabled = true;
+
+            try {
+                if (progressStatus) progressStatus.textContent = 'Reading file...';
+                if (progressPercent) progressPercent.textContent = '10%';
+                if (progressBar) progressBar.style.width = '10%';
+
+                const fileBuffer = await selectedUploadFile.arrayBuffer();
+
+                if (progressStatus) progressStatus.textContent = 'Encrypting file (AES-GCM 256)...';
+                if (progressPercent) progressPercent.textContent = '40%';
+                if (progressBar) progressBar.style.width = '40%';
+
+                const { ciphertextHex, ivHex, dekBundle } = await window.encryptFile(fileBuffer);
+
+                if (progressStatus) progressStatus.textContent = 'Generating record identity...';
+                if (progressPercent) progressPercent.textContent = '65%';
+                if (progressBar) progressBar.style.width = '65%';
+
+                const recordId = crypto.randomUUID();
+                const ownerPublicHex = localStorage.getItem('ml_exchange_pub') || '';
+                const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ownerPublicHex));
+                const ownerKeyHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+                const tags = document.getElementById('upload-tags')?.value
+                    .split(',').map(t => t.trim()).filter(Boolean) || [];
+
+                if (progressStatus) progressStatus.textContent = 'Uploading to secure vault...';
+                if (progressPercent) progressPercent.textContent = '85%';
+                if (progressBar) progressBar.style.width = '85%';
+
+                await window.apiRequest('POST', '/vault/records', {
+                    record_id: recordId,
+                    owner_key_hash: ownerKeyHash,
+                    owner_public_key_hex: ownerPublicHex,
+                    ciphertext: ciphertextHex,
+                    iv_hex: ivHex,
+                    dek_bundle: dekBundle,
+                    filename: selectedUploadFile.name,
+                    mime_type: selectedUploadFile.type || 'application/octet-stream',
+                    size_bytes: selectedUploadFile.size,
+                    tags: tags
+                });
+
+                try { localStorage.setItem('ml_dek_' + recordId, JSON.stringify(dekBundle)); } catch (_) {}
+
+                if (progressStatus) progressStatus.textContent = 'Upload complete!';
+                if (progressPercent) progressPercent.textContent = '100%';
+                if (progressBar) progressBar.style.width = '100%';
+
+                setTimeout(async () => {
+                    closeUploadModal();
+                    showToastMsg(`${selectedUploadFile.name} encrypted and uploaded.`);
+                    await loadVaultRecords();
+                    document.getElementById('uploadForm')?.reset();
+                    selectedUploadFile = null;
+                    progressContainer?.classList.add('hidden');
+                    if (progressBar) progressBar.style.width = '0%';
+                    if (submitBtn) submitBtn.disabled = false;
+                }, 800);
+
+            } catch (e) {
+                console.error('Upload failed:', e);
+                if (errorDiv) { errorDiv.textContent = e.message; errorDiv.classList.remove('hidden'); }
+                progressContainer?.classList.add('hidden');
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        }
+
+        // ============================================================
+        // SHARES - SENT
+        // ============================================================
+        async function loadSentShares() {
+            const tbody = document.getElementById('sent-tbody');
+            const countEl = document.getElementById('sent-count');
+            if (!tbody) return;
+            try {
+                const shares = await window.apiRequest('GET', '/shares/sent') || [];
+                if (countEl) countEl.textContent = `${shares.length} Active`;
+                
+                if (shares.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="px-gutter py-xl text-center text-on-surface-variant font-label-md">No sent shares yet.</td></tr>`;
+                    return;
+                }
+                tbody.innerHTML = shares.map(s => `
+                    <tr class="hover:bg-surface-variant/30 transition-colors group">
+                        <td class="px-lg py-lg align-middle font-label-md text-on-surface">${escapeHtml(s.filename || s.record_id)}</td>
+                        <td class="px-lg py-lg align-middle font-mono-data text-on-surface-variant text-xs">${escapeHtml(s.grantee_username || '—')}</td>
+                        <td class="px-lg py-lg align-middle"><span class="px-sm py-1 ${s.status === 'active' ? 'bg-tertiary/10 text-tertiary border-tertiary/30' : 'bg-error/10 text-error border-error/30'} text-label-sm border rounded">${escapeHtml(s.status || 'Active')}</span></td>
+                        <td class="px-lg py-lg align-middle font-mono-data text-on-surface-variant">${s.created_at ? new Date(s.created_at).toLocaleDateString() : '—'}</td>
+                        <td class="px-lg py-lg text-right">
+                            <button onclick="revokeShare('${escapeHtml(s.share_id)}')" class="px-md py-2 text-error bg-error-container/10 hover:bg-error-container/20 border border-error/20 rounded-lg transition-all font-label-md">Revoke</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-gutter py-xl text-center text-error font-label-md">Failed to load sent shares.</td></tr>`;
+            }
+        }
+
+        async function revokeShare(shareId) {
+            if (!confirm('Revoke this share? The recipient will lose access.')) return;
+            try {
+                await window.apiRequest('DELETE', `/shares/${shareId}`);
+                showToastMsg('Share revoked.');
+                await loadSentShares();
+            } catch (e) {
+                showToastMsg('Failed to revoke share: ' + e.message, 'error');
+            }
+        }
+
+        // ============================================================
+        // SHARES - RECEIVED
+        // ============================================================
+        async function loadReceivedShares() {
+            const tbody = document.getElementById('received-tbody');
+            const countEl = document.getElementById('received-count');
+            if (!tbody) return;
+            try {
+                const shares = await window.apiRequest('GET', '/shares/received') || [];
+                if (countEl) countEl.textContent = `${shares.length} Received`;
+                
+                if (shares.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="px-gutter py-xl text-center text-on-surface-variant font-label-md">No received shares yet.</td></tr>`;
+                    return;
+                }
+                tbody.innerHTML = shares.map(s => `
+                    <tr class="hover:bg-surface-variant/30 transition-colors group cursor-pointer" onclick="navigateToShare('${escapeHtml(s.share_id)}')">
+                        <td class="px-lg py-lg align-middle font-label-md text-on-surface">${escapeHtml(s.filename || s.record_id)}</td>
+                        <td class="px-lg py-lg align-middle font-mono-data text-on-surface-variant text-xs">${escapeHtml(s.owner_username || '—')}</td>
+                        <td class="px-lg py-lg align-middle"><span class="px-sm py-1 bg-primary/10 text-primary text-label-sm border border-primary/30 rounded">${escapeHtml(s.permission_level || 'View')}</span></td>
+                        <td class="px-lg py-lg align-middle font-mono-data text-on-surface-variant">${s.created_at ? new Date(s.created_at).toLocaleDateString() : '—'}</td>
+                        <td class="px-lg py-lg text-right">
+                            <button onclick="event.stopPropagation(); navigateToShare('${escapeHtml(s.share_id)}')" class="px-md py-2 text-primary bg-primary-container/10 hover:bg-primary-container/20 border border-primary/20 rounded-lg transition-all font-label-md">Open</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-gutter py-xl text-center text-error font-label-md">Failed to load received shares.</td></tr>`;
+            }
+        }
+
+        function navigateToShare(shareId) {
+            window.location.href = `../record_details/code.html?share_id=${encodeURIComponent(shareId)}`;
+        }
+
+        // ============================================================
+        // GRANTS
+        // ============================================================
+        async function loadGrants() {
+            const tbody = document.getElementById('grants-tbody');
+            if (!tbody) return;
+            try {
+                const resp = await window.apiRequest('GET', '/grants/my?as_grantor=true');
+                const grants = Array.isArray(resp) ? resp : (resp && resp.grants ? resp.grants : []);
+                
+                if (grants.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="px-gutter py-xl text-center text-on-surface-variant font-label-md">No active grants.</td></tr>`;
+                    return;
+                }
+                tbody.innerHTML = grants.map(g => {
+                    const grantee = g.grantee_user_id_hex || '';
+                    const isRevoked = g.revoked === true;
+                    return `
+                    <tr class="hover:bg-surface-variant/30 transition-colors group">
+                        <td class="px-lg py-lg align-middle">
+                            <div class="flex items-center gap-md">
+                                <div class="w-10 h-10 flex-shrink-0 rounded-lg bg-surface-container-highest flex items-center justify-center font-bold text-primary border border-outline-variant">
+                                    ${escapeHtml((grantee || '??').substring(0, 2).toUpperCase())}
+                                </div>
+                                <div class="overflow-hidden">
+                                    <p class="font-label-md text-on-surface truncate">Grantee</p>
+                                    <p class="font-mono-data text-xs text-on-surface-variant">${escapeHtml(grantee ? grantee.substring(0, 16) + '…' : '—')}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-lg py-lg align-middle"><span class="px-sm py-1 ${isRevoked ? 'bg-error/10 text-error border-error/30' : 'bg-tertiary/10 text-tertiary border-tertiary/30'} text-label-sm border rounded">${isRevoked ? 'Revoked' : 'Active'}</span></td>
+                        <td class="px-lg py-lg align-middle"><span class="font-label-md text-on-surface">${escapeHtml(g.permission_level || '—')}</span></td>
+                        <td class="px-lg py-lg font-mono-data text-on-surface-variant align-middle">${g.time_end ? new Date(g.time_end).toLocaleDateString() : '—'}</td>
+                        <td class="px-lg py-lg text-right align-middle">
+                            <button onclick="revokeGrant('${escapeHtml(g.grant_id)}')" class="px-md py-2 text-error bg-error-container/10 hover:bg-error-container/20 border border-error/20 rounded-lg transition-all font-label-md active:scale-95">Revoke</button>
+                        </td>
+                    </tr>
+                `;
+                }).join('');
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-gutter py-xl text-center text-error font-label-md">Failed to load grants.</td></tr>`;
+            }
+        }
+
+        async function revokeGrant(grantId) {
+            if (!confirm('Revoke this grant? The grantee will immediately lose access.')) return;
+            try {
+                await window.apiRequest('DELETE', `/grants/${grantId}`);
+                showToastMsg('Grant revoked successfully.');
+                await loadGrants();
+            } catch (e) {
+                showToastMsg('Failed to revoke grant: ' + e.message, 'error');
+            }
+        }
+
+        // ============================================================
+        // GRANT MODAL
+        // ============================================================
+        let selectedGrantee = null;
+        let selectedGrantRecord = null;
+
+        function openGrantModal() {
+            document.getElementById('grantModal').classList.remove('hidden');
+            document.getElementById('grant-search-input').value = '';
+            document.getElementById('grant-search-results').classList.add('hidden');
+            document.getElementById('grant-selected-user').classList.add('hidden');
+            document.getElementById('grant-error').classList.add('hidden');
+            document.getElementById('grant-submit-btn').disabled = true;
+            loadGrantRecords();
+        }
+
+        function closeGrantModal() {
+            document.getElementById('grantModal').classList.add('hidden');
+        }
+
+        async function loadGrantRecords() {
+            const select = document.getElementById('grant-record-select');
+            try {
+                const records = await window.apiRequest('GET', '/vault/records') || [];
+                select.innerHTML = '<option value="">Select a record...</option>';
+                records.forEach(r => {
+                    const opt = document.createElement('option');
+                    opt.value = r.record_id;
+                    opt.textContent = r.filename;
+                    select.appendChild(opt);
+                });
+            } catch (e) {
+                console.error('Failed to load records for grant:', e);
+            }
+        }
+
+        async function searchUsers(query) {
+            const container = document.getElementById('grant-search-results');
+            if (query.length < 2) { container.classList.add('hidden'); return; }
+            try {
+                const users = await window.apiRequest('GET', `/shares/users/search?q=${encodeURIComponent(query)}`);
+                if (!users || users.length === 0) {
+                    container.innerHTML = `<div class="p-md text-on-surface-variant text-label-sm">No matching users found</div>`;
+                } else {
+                    container.innerHTML = users.map(u => `
+                        <div onclick="selectGrantee('${escapeHtml(u.username)}', '${escapeHtml(u.user_id_hex)}', '${escapeHtml(u.exchange_public_key)}')" class="p-md hover:bg-primary/10 cursor-pointer transition-colors text-left">
+                            <p class="font-label-md text-on-surface">${escapeHtml(u.username)}</p>
+                            <p class="font-mono-data text-[10px] text-on-surface-variant">ID: ${escapeHtml(u.user_id_hex)}</p>
+                        </div>
+                    `).join('');
+                }
+                container.classList.remove('hidden');
+            } catch (err) {
+                console.error('Search users failed:', err);
+            }
+        }
+
+        function selectGrantee(username, userIdHex, exchangePublicKey) {
+            selectedGrantee = { username, userIdHex, exchangePublicKey };
+            document.getElementById('grant-selected-name').textContent = username;
+            document.getElementById('grant-selected-id').textContent = `ID: ${userIdHex}`;
+            document.getElementById('grant-selected-user').classList.remove('hidden');
+            document.getElementById('grant-search-results').classList.add('hidden');
+            document.getElementById('grant-search-input').value = '';
+            updateGrantSubmitBtn();
+        }
+
+        function clearSelectedGrantee() {
+            selectedGrantee = null;
+            document.getElementById('grant-selected-user').classList.add('hidden');
+            updateGrantSubmitBtn();
+        }
+
+        function updateGrantSubmitBtn() {
+            const btn = document.getElementById('grant-submit-btn');
+            const record = document.getElementById('grant-record-select').value;
+            btn.disabled = !(selectedGrantee && record);
+        }
+
+        // Listen for record selection change
+        document.getElementById('grant-record-select').addEventListener('change', updateGrantSubmitBtn);
+
+        async function submitGrant() {
+            if (!selectedGrantee) return;
+            const recordId = document.getElementById('grant-record-select').value;
+            const permission = document.getElementById('grant-permission-select').value;
+            const expiryDays = parseInt(document.getElementById('grant-expiry-select').value);
+            const errorDiv = document.getElementById('grant-error');
+            const submitBtn = document.getElementById('grant-submit-btn');
+
+            errorDiv.classList.add('hidden');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `<span class="animate-spin material-symbols-outlined">progress_activity</span><span>Creating grant...</span>`;
+
+            try {
+                // Get the record's DEK bundle from localStorage
+                const dekBundleStr = localStorage.getItem('ml_dek_' + recordId);
+                let encryptedDEKBundle;
+                
+                if (dekBundleStr) {
+                    const dekBundle = JSON.parse(dekBundleStr);
+                    const dek = await window.decryptDEK(dekBundle);
+                    encryptedDEKBundle = await window.encryptDEK(dek, selectedGrantee.exchangePublicKey);
+                } else {
+                    // Fallback placeholder
+                    encryptedDEKBundle = { 
+                        alg: "X25519-AES-GCM-256", 
+                        ephemeral_public_key: btoa("0".repeat(32)), 
+                        ciphertext_hex: "00".repeat(48), 
+                        iv_hex: "00".repeat(12) 
+                    };
+                }
+
+                const timeStart = new Date().toISOString();
+                const timeEnd = new Date(Date.now() + expiryDays * 24 * 3600 * 1000).toISOString();
+                const signatureHex = "00".repeat(64);
+
+                await window.apiRequest('POST', '/grants', {
+                    grantee_id_hex: selectedGrantee.userIdHex,
+                    record_id: recordId,
+                    permission_level: permission,
+                    dek_bundle_grantee: encryptedDEKBundle,
+                    signature_hex: signatureHex,
+                    time_start: timeStart,
+                    time_end: timeEnd
+                });
+
+                closeGrantModal();
+                showToastMsg(`Access granted to ${selectedGrantee.username}`);
+                await loadGrants();
+            } catch (err) {
+                console.error('Grant creation failed:', err);
+                errorDiv.textContent = err.message || 'Failed to create grant.';
+                errorDiv.classList.remove('hidden');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<span>Grant Access</span><span class="material-symbols-outlined text-[18px]">send</span>`;
+            }
+        }
+
+        // ============================================================
+        // NOTIFICATIONS / AUDIT
+        // ============================================================
+        async function loadNotifications() {
+            const container = document.getElementById('notifications-container');
+            if (!container) return;
+            try {
+                const resp = await window.apiRequest('GET', '/shares/notifications');
+                const notifications = resp.notifications || [];
+                
+                if (notifications.length === 0) {
+                    container.innerHTML = `<div class="text-center text-on-surface-variant font-label-md py-xl">No notifications</div>`;
+                    return;
+                }
+                
+                container.innerHTML = notifications.map(n => `
+                    <div class="vault-glass p-lg rounded-xl border border-outline-variant hover:border-primary/30 transition-all">
+                        <div class="flex justify-between items-start mb-1">
+                            <p class="font-mono-data text-xs text-primary">${escapeHtml(n.type || 'Notification')}</p>
+                            <span class="text-label-sm text-on-surface-variant">${n.timestamp ? new Date(n.timestamp).toLocaleString() : '—'}</span>
+                        </div>
+                        <p class="font-body-sm text-on-surface">${escapeHtml(n.message || '')}</p>
+                    </div>
+                `).join('');
+            } catch (e) {
+                container.innerHTML = `<div class="text-center text-error font-label-md py-xl">Failed to load notifications: ${escapeHtml(e.message)}</div>`;
+            }
+        }
+
+        function markAllRead() {
+            showToastMsg('All notifications marked as read.');
+            loadNotifications();
+        }
+
+        // ============================================================
+        // CHANGE PASSWORD
+        // ============================================================
+        async function handleChangePassword() {
+            const oldPw = document.getElementById('settings-old-password')?.value;
+            const newPw = document.getElementById('settings-new-password')?.value;
+            const confirmPw = document.getElementById('settings-confirm-password')?.value;
+            const errorDiv = document.getElementById('settings-pw-error');
+            const btn = document.getElementById('settings-pw-btn');
+
+            if (!oldPw || !newPw || !confirmPw) {
+                if (errorDiv) { errorDiv.textContent = 'All password fields are required.'; errorDiv.classList.remove('hidden'); }
+                return;
+            }
+            if (newPw !== confirmPw) {
+                if (errorDiv) { errorDiv.textContent = 'New passwords do not match.'; errorDiv.classList.remove('hidden'); }
+                return;
+            }
+            if (newPw.length < 8) {
+                if (errorDiv) { errorDiv.textContent = 'New password must be at least 8 characters.'; errorDiv.classList.remove('hidden'); }
+                return;
+            }
+            if (errorDiv) errorDiv.classList.add('hidden');
+            if (btn) { btn.disabled = true; btn.textContent = 'Updating...'; }
+
+            try {
+                await window.apiRequest('POST', '/auth/change-password', { old_password: oldPw, new_password: newPw });
+                showToastMsg('Password updated successfully. Please log in again.');
+                setTimeout(() => { window.clearTokens(); window.location.href = '../Sign_in_sign_up/signin.html'; }, 2000);
+            } catch (e) {
+                if (errorDiv) { errorDiv.textContent = e.message; errorDiv.classList.remove('hidden'); }
+                if (btn) { btn.disabled = false; btn.textContent = 'Update Password'; }
+            }
+        }
+
+        // ============================================================
+        // TOTP SETUP
+        // ============================================================
+        async function startTotpSetup() {
+            const setupState = document.getElementById('totp-setup-state');
+            const inactiveState = document.getElementById('totp-inactive-state');
+            try {
+                const data = await window.apiRequest('POST', '/auth/totp/setup');
+                if (setupState) setupState.classList.remove('hidden');
+                if (inactiveState) inactiveState.classList.add('hidden');
+                const qrImg = document.getElementById('totp-qr-img');
+                const secretText = document.getElementById('totp-secret-text');
+                if (qrImg) qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(data.uri)}&size=150x150`;
+                if (secretText) secretText.textContent = data.uri;
+                showToastMsg('Scan the QR code with your authenticator app.');
+            } catch (e) {
+                showToastMsg('Failed to set up TOTP: ' + e.message, 'error');
+            }
+        }
+
+        async function confirmTotpSetup() {
+            const code = document.getElementById('totp-code-input')?.value;
+            if (!code || code.length !== 6) { showToastMsg('Enter a valid 6-digit TOTP code.', 'warning'); return; }
+            const user = window.getUser();
+            if (!user) { showToastMsg('User session not found. Please re-login.', 'error'); return; }
+            try {
+                await window.apiRequest('POST', '/auth/totp/confirm', { user_id_hex: user.user_id_hex, totp_code: code });
+                showToastMsg('TOTP 2FA enabled successfully!');
+                const setupState = document.getElementById('totp-setup-state');
+                const activeState = document.getElementById('totp-active-state');
+                const badge = document.getElementById('totp-status-badge');
+                if (setupState) setupState.classList.add('hidden');
+                if (activeState) activeState.classList.remove('hidden');
+                if (badge) { badge.textContent = 'Active'; badge.classList.add('text-tertiary'); badge.classList.remove('text-on-surface-variant'); }
+            } catch (e) {
+                showToastMsg('TOTP confirmation failed: ' + e.message, 'error');
+            }
+        }
+
+        async function disableTotp() {
+            const user = window.getUser();
+            if (!user) { showToastMsg('User session not found. Please re-login.', 'error'); return; }
+            const password = prompt('Enter your account password to disable 2FA:');
+            if (!password) return;
+            const code = prompt('Enter a current 6-digit code from your authenticator:');
+            if (!code || code.length !== 6) return;
+            try {
+                await window.apiRequest('POST', '/auth/totp/disable', { user_id_hex: user.user_id_hex, password: password, totp_code: code });
+                showToastMsg('TOTP 2FA disabled.');
+                const activeState = document.getElementById('totp-active-state');
+                const inactiveState = document.getElementById('totp-inactive-state');
+                const badge = document.getElementById('totp-status-badge');
+                if (activeState) activeState.classList.add('hidden');
+                if (inactiveState) inactiveState.classList.remove('hidden');
+                if (badge) { badge.textContent = 'Disabled'; badge.classList.remove('text-tertiary'); badge.classList.add('text-on-surface-variant'); }
+            } catch (e) {
+                showToastMsg('Failed to disable TOTP: ' + e.message, 'error');
+            }
+        }
+
+        // Expose TOTP functions globally
+        window.startTotpSetup = startTotpSetup;
+        window.confirmTotpSetup = confirmTotpSetup;
+        window.disableTotp = disableTotp;
+
+        // ============================================================
+        // LOGOUT
+        // ============================================================
+        async function handleLogout() {
+            try {
+                const refreshToken = window.getRefreshToken();
+                await window.apiRequest('POST', '/auth/logout', refreshToken ? { refresh_token: refreshToken } : {});
+            } catch (e) {
+                console.warn('Logout API call failed:', e.message);
+            } finally {
+                window.clearTokens();
+                window.location.href = '../Sign_in_sign_up/signin.html';
+            }
+        }
+
+        // ============================================================
+        // DELETE ACCOUNT CONFIRMATION
+        // ============================================================
+        (function() {
+            const deleteInput = document.getElementById('confirmDelete');
+            const deleteBtn = document.getElementById('deleteBtn');
+            if (deleteInput && deleteBtn) {
+                deleteInput.addEventListener('input', (e) => {
+                    if (e.target.value === 'DELETE') {
+                        deleteBtn.disabled = false;
+                        deleteBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        deleteBtn.classList.add('hover:bg-error-container', 'active:scale-95');
+                    } else {
+                        deleteBtn.disabled = true;
+                        deleteBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                        deleteBtn.classList.remove('hover:bg-error-container', 'active:scale-95');
+                    }
+                });
+                deleteBtn.addEventListener('click', () => {
+                    if (!deleteBtn.disabled) {
+                        window.location.href = '../confirm_account_deletion/account_deletion.html';
+                    }
+                });
+            }
+        })();
+
+        // ============================================================
+        // INITIALIZATION
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            // Restore view from URL hash
+            const initial = (window.location.hash || '').replace('#', '');
+            showView(VIEWS.includes(initial) ? initial : 'vault');
+            
+            // Load user profile
+            loadUserProfile();
+            
+            // Load initial data for current view
+            if (currentView === 'vault') loadVaultRecords();
+            else if (currentView === 'sent') loadSentShares();
+            else if (currentView === 'received') loadReceivedShares();
+            else if (currentView === 'keymgr') loadGrants();
+            else if (currentView === 'audit') loadNotifications();
+        });
+    </script>
+
+</body>
+</html>

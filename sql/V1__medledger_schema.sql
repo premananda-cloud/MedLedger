@@ -408,9 +408,11 @@ CREATE OR REPLACE FUNCTION generate_user_id_hex()
 RETURNS TRIGGER AS $$
 BEGIN
     IF NEW.signing_public_key IS NOT NULL AND NEW.user_id_hex IS NULL THEN
-        NEW.user_id_hex := encode(
-            sha256(decode(NEW.signing_public_key, 'base64')::bytea),
-            'hex'
+        -- 32-char id: users.user_id_hex and all referencing *_user_id_hex
+        -- columns are VARCHAR(32), so truncate the 64-char hex digest.
+        NEW.user_id_hex := left(
+            encode(sha256(decode(NEW.signing_public_key, 'base64')::bytea), 'hex'),
+            32
         );
     END IF;
     RETURN NEW;
