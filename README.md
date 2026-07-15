@@ -41,27 +41,27 @@ Full design rationale is in [`docs/PHILOSOPHY.md`](docs/PHILOSOPHY.md); the form
 ## Architecture at a Glance
 
 ```
-┌─────────────────────────┐         ┌──────────────────────────┐
-│         BROWSER          │         │           SERVER          │
-│                          │         │                          │
-│  Layer 2 — Vault         │         │  Layer 1 — Gate           │
-│  Ed25519 / X25519        │         │  Auth, PoW, TOTP,         │
-│  keypair, generated      │         │  rate limiting, JWT       │
-│  locally, never sent     │         │                          │
-│         │                │         │         │                │
-│  libsodium.js            │  HTTPS  │  FastAPI + asyncpg        │
-│  encrypt / sign / seal   │◄──────► │  stores only:             │
-│         │                │         │   - public keys           │
+┌──────────────────────────┐         ┌────────────────────────────┐
+│         BROWSER          │         │           SERVER           │
+│                          │         │                            │
+│  Layer 2 — Vault         │         │  Layer 1 — Gate            │
+│  Ed25519 / X25519        │         │  Auth, PoW, TOTP,          │
+│  keypair, generated      │         │  rate limiting, JWT        │
+│  locally, never sent     │         │                            │
+│         │                │         │         │                  │
+│  libsodium.js            │  HTTPS  │  FastAPI + asyncpg         │
+│  encrypt / sign / seal   │◄──────► │  stores only:              │
+│         │                │         │   - public keys            │
 │  plaintext record        │         │   - ciphertext             │
 │  never leaves device     │         │   - sealed DEK bundles     │
-└─────────────────────────┘         │   - audit log              │
-                                     └──────────────────────────┘
+└──────────────────────────┘         │   - audit log              │
+                                     └────────────────────────────┘
                                                  │
-                                          ┌──────────────┐
+                                          ┌───────────────┐
                                           │  PostgreSQL   │
                                           │  (Flyway-     │
                                           │   migrated)   │
-                                          └──────────────┘
+                                          └───────────────┘
 ```
 
 The server never holds a key capable of decrypting a record. See [`docs/01-ARCHITECTURE.md`](docs/01-ARCHITECTURE.md) for the full data-flow diagrams and [`docs/04-CRYPTO_SPEC.md`](docs/04-CRYPTO_SPEC.md) for the exact cryptographic primitives.
@@ -75,7 +75,7 @@ The fastest way to run the full stack — API and database — is Docker Compose
 **Requirements:** Docker and Docker Compose installed.
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/premananda-cloud/MedLedger
 cd medledger
 
 # Copy the Docker environment template and fill in real values
