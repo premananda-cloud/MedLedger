@@ -76,10 +76,10 @@ The fastest way to run the full stack — API and database — is Docker Compose
 
 ```bash
 git clone https://github.com/premananda-cloud/MedLedger
-cd medledger
+cd MedLedger
 
 # Copy the Docker environment template and fill in real values
-cp .env.docker.example .env.docker
+cp .env.docker .env
 
 # Build and start the API and database containers
 docker compose up --build
@@ -116,8 +116,8 @@ flyway -configFiles=flyway.conf migrate
 **Requirements:** Python 3.11, PostgreSQL 14+, `pip`.
 
 ```bash
-git clone <repository-url>
-cd medledger
+git clone https://github.com/premananda-cloud/MedLedger
+cd MedLedger
 
 python3.11 -m venv venv
 source venv/bin/activate
