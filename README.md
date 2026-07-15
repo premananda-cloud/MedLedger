@@ -85,15 +85,17 @@ cp .env.docker .env
 docker compose up --build
 ```
 
-The API will be available at `http://localhost:8000`, with interactive docs at `http://localhost:8000/docs`. The database container is reachable inside the Docker network as `db`; `.env.docker` should point `DB_HOST` there, not at `localhost`.
+That's it. `.env.docker` ships with working defaults for every variable except one — the only thing you need to set yourself is `JWT_SECRET` (generate a fresh 32+ byte random value; don't reuse the one in version control). Everything else — database name, ports, token TTLs, CORS origins — is optional to change and safe to leave as-is for local development.
+
+The API will be available at `http://localhost:8000`, with interactive docs at `http://localhost:8000/docs`. The database container is reachable inside the Docker network as `db`; `.env.docker` already points `DB_HOST` there, not at `localhost`.
 
 **Environment variables (`.env.docker`):**
 
 | Variable | Purpose | Notes |
 |---|---|---|
-| `DB_HOST` | Postgres hostname | `db` inside Docker Compose |
-| `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Postgres credentials | Set your own — do not reuse the values in version control |
-| `JWT_SECRET` | Signs access tokens | Generate a fresh 32+ byte random secret per environment |
+| `JWT_SECRET` | Signs access tokens | **Required — generate your own.** Never reuse a committed value. |
+| `DB_HOST` | Postgres hostname | `db` inside Docker Compose — leave as-is |
+| `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Postgres credentials | Optional to change; defaults work out of the box for local dev |
 | `JWT_ALGORITHM` | Token signing algorithm | `HS256` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token TTL | `30` |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token TTL | `7` |
@@ -172,6 +174,8 @@ All request/response bodies are JSON; protected routes require `Authorization: B
 | Keys | `GET /keys/my`, `GET /keys/{user_id_hex}`, `GET /keys/{user_id_hex}/exchange`, `GET /keys/{user_id_hex}/signing`, `PUT /keys/update` |
 
 Full request/response schemas and the recommended frontend call sequence: [`docs/06-API_REFERENCE.md`](docs/06-API_REFERENCE.md). Live interactive docs: `/docs` on the deployed API.
+
+**Note on account creation:** Registration requires solving a proof-of-work challenge and completing email verification with a real, deliverable code — there is no bypass or test-mode shortcut, including when exercising the API manually or in automated tests. This is deliberate: it's the same anti-spam gate a real deployment relies on (see `docs/02-SECURITY_SPEC.md`, Scenario G), so it is exercised as-is rather than stubbed out. If you're scripting against the API, plan to use an inbox you can read codes from.
 
 ---
 
