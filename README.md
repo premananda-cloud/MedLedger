@@ -1,141 +1,266 @@
 # MedLedger
 
-A low-trust, ephemeral sharing conduit for patient-controlled medical records.
+**Zero-knowledge medical record sharing. We store what we cannot read.**
 
-MedLedger doesn't store your medical history. It gives you a way to encrypt a record in your browser and hand a decryptable copy to a specific doctor, specialist, or family member — without ever putting the server in a position to read it. See **[`PHILOSOPHY.md`](./PHILOSOPHY.md)** for the reasoning behind that design; this README covers what exists and how it fits together.
+MedLedger is a sharing conduit for medical records, not a vault. Files are encrypted client-side before they ever reach the server; the server stores only ciphertext it is mathematically unable to decrypt, for a bounded time, then deletes it. No plaintext record, private key, or data-encryption key ever touches the backend.
 
-> **We are a means, not a vault.** We store ciphertext we cannot read, for a limited time, at the patient's discretion.
+![Python](https://img.shields.io/badge/python-3.11-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.136-009688?logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-async-336791?logo=postgresql&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+![Flyway](https://img.shields.io/badge/migrations-Flyway-CC0200?logo=flyway&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-pytest-0A9EDC?logo=pytest&logoColor=white)
+![Status](https://img.shields.io/badge/status-hackathon%20submission-A6192E)
 
 ---
 
-## How it works, in one paragraph
+## Live API
 
-You register and verify your account through a normal auth flow (proof-of-work → email code → optional TOTP) — that's the **gate**, and it's fully recoverable if you forget a password. Separately, your browser generates an Ed25519/X25519 keypair that never leaves it — that's your **keyset**, and it's *not* recoverable if lost. The two meet exactly once, at registration, when your public keys are sent alongside your account details. From then on, anyone can look up your public keys through the API (that's not a secret — it's how sharing works), but only your browser, holding your private keys, can decrypt anything sealed to you or sign anything on your behalf. When you share a record, your browser encrypts it with a one-time key and seals that key specifically to the recipient's public key — the server just relays the sealed package.
+The backend is deployed and reachable at:
+
+```
+https://medledger-bg04.onrender.com
+```
+
+Interactive API docs (Swagger UI) are available at `/docs` on that base URL. This deployment covers the API only — the frontend is designed (see `FONTEND/frontend/`) and integration is in progress; it is not yet deployed.
 
 ---
 
-## Two-layer access model
+## Why MedLedger
 
-| | **Layer 1 — Gate** | **Layer 2 — Keyset** |
+Most "secure" file-sharing tools ask you to trust the provider. MedLedger is built so that trust is unnecessary:
+
+- **Two independent layers.** Layer 1 (account) is a conventional email/password/TOTP gate that keeps the system usable. Layer 2 (vault) is an Ed25519/X25519 keypair generated in your browser and never transmitted. Losing Layer 1 is recoverable. Losing Layer 2 is not, by design — because if we could recover it, we'd be a key-escrow service.
+- **Structural, not promised, confidentiality.** A database breach, a subpoena, or a fully compromised server yields only public keys, password hashes, and ciphertext — nothing decryptable, because the keys needed to decrypt it were never on our infrastructure.
+- **Ephemeral by default.** Shares expire (30-day default, 90-day maximum), can be set to delete on download, and nothing is designed to accumulate.
+
+Full design rationale is in [`docs/PHILOSOPHY.md`](docs/PHILOSOPHY.md); the formal threat model is in [`docs/02-SECURITY_SPEC.md`](docs/02-SECURITY_SPEC.md).
+
+---
+
+## Architecture at a Glance
+
+```
+┌─────────────────────────┐         ┌──────────────────────────┐
+│         BROWSER          │         │           SERVER          │
+│                          │         │                          │
+│  Layer 2 — Vault         │         │  Layer 1 — Gate           │
+│  Ed25519 / X25519        │         │  Auth, PoW, TOTP,         │
+│  keypair, generated      │         │  rate limiting, JWT       │
+│  locally, never sent     │         │                          │
+│         │                │         │         │                │
+│  libsodium.js            │  HTTPS  │  FastAPI + asyncpg        │
+│  encrypt / sign / seal   │◄──────► │  stores only:             │
+│         │                │         │   - public keys           │
+│  plaintext record        │         │   - ciphertext             │
+│  never leaves device     │         │   - sealed DEK bundles     │
+└─────────────────────────┘         │   - audit log              │
+                                     └──────────────────────────┘
+                                                 │
+                                          ┌──────────────┐
+                                          │  PostgreSQL   │
+                                          │  (Flyway-     │
+                                          │   migrated)   │
+                                          └──────────────┘
+```
+
+The server never holds a key capable of decrypting a record. See [`docs/01-ARCHITECTURE.md`](docs/01-ARCHITECTURE.md) for the full data-flow diagrams and [`docs/04-CRYPTO_SPEC.md`](docs/04-CRYPTO_SPEC.md) for the exact cryptographic primitives.
+
+---
+
+## Quick Start (Docker)
+
+The fastest way to run the full stack — API and database — is Docker Compose.
+
+**Requirements:** Docker and Docker Compose installed.
+
+```bash
+git clone <repository-url>
+cd medledger
+
+# Copy the Docker environment template and fill in real values
+cp .env.docker.example .env.docker
+
+# Build and start the API and database containers
+docker compose up --build
+```
+
+The API will be available at `http://localhost:8000`, with interactive docs at `http://localhost:8000/docs`. The database container is reachable inside the Docker network as `db`; `.env.docker` should point `DB_HOST` there, not at `localhost`.
+
+**Environment variables (`.env.docker`):**
+
+| Variable | Purpose | Notes |
 |---|---|---|
-| What it is | Email + password + PoW + optional TOTP | Ed25519 (signing) + X25519 (encryption) keypair |
-| Where it lives | Server (PostgreSQL) | Browser only |
-| Purpose | Anti-spam, session identity | Cryptographic identity, encryption, signing |
-| Recoverable? | Yes — password reset via email code | **No** — lost keypair = start over |
-| Server ever sees plaintext of it? | Password hash only (Argon2id) | Public keys only, never private keys |
+| `DB_HOST` | Postgres hostname | `db` inside Docker Compose |
+| `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Postgres credentials | Set your own — do not reuse the values in version control |
+| `JWT_SECRET` | Signs access tokens | Generate a fresh 32+ byte random secret per environment |
+| `JWT_ALGORITHM` | Token signing algorithm | `HS256` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token TTL | `30` |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token TTL | `7` |
+| `CORS_ORIGINS` | Allowed frontend origins | JSON array, e.g. `["http://localhost:5173"]` |
+| `COOKIE_SECURE`, `COOKIE_SAMESITE`, `COOKIE_DOMAIN` | Cookie hardening flags | See `docs/03-AUTH_SPEC.md` §9 for the planned cookie migration |
+| `PORT`, `HOST`, `DEBUG` | Server bind settings | `8000`, `0.0.0.0`, `true` for local dev |
 
-These layers are intentionally decoupled: being logged in (Layer 1) does not mean your vault is unlocked (Layer 2). You unlock the vault client-side by loading your `.medledger-key.json` keypair file — no server call involved.
+Run database migrations with Flyway against the same database once the container is up:
+
+```bash
+flyway -configFiles=flyway.conf migrate
+```
+
+`flyway.conf` targets `sql/`, which contains versioned migrations `V1` through `V6`. Update the `flyway.url` port in `flyway.conf` to match whatever host port Docker Compose maps the `db` service to, if it differs from the default.
 
 ---
 
-## Architecture
+## Manual Setup (Without Docker)
 
+**Requirements:** Python 3.11, PostgreSQL 14+, `pip`.
+
+```bash
+git clone <repository-url>
+cd medledger
+
+python3.11 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env — set DATABASE_URL, JWT_SECRET, and CORS_ORIGINS for your local setup
+
+# Run migrations
+flyway -configFiles=flyway.conf migrate
+
+# Start the API
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
-BROWSER                                    SERVER (FastAPI + PostgreSQL)
-┌──────────────────────────┐               ┌──────────────────────────────┐
-│ React SPA (UI)            │  HTTPS +      │ routes/  auth.py, keys.py,   │
-│ Keyset Manager (JS)        │─ Bearer JWT ─▶│           vault.py, grants.py│
-│ libsodium.js (crypto)      │◀──────────────│ services/ auth, key, grant,  │
-└──────────────────────────┘               │           audit, relay        │
-                                             │ auth/    password, pow,       │
-                                             │          email, totp, token   │
-                                             │ database/ repository.py       │
-                                             └──────────────────────────────┘
-```
 
-- **Frontend**: React + Vite. Owns the UI and the Keyset Manager, the only module allowed to touch raw key material. Talks to the backend exclusively over `Authorization: Bearer <token>`.
-- **Backend — Auth domain**: Python/FastAPI + PostgreSQL. Multi-step registration (PoW → email verification → optional TOTP), Argon2id password hashing, JWT + opaque refresh tokens.
-- **Backend — Crypto domain**: doesn't exist server-side. All key generation, encryption, and decryption happens in the browser via libsodium.js. The server's crypto domain is limited to *storing and serving public keys and ciphertext*.
-
-The two domains meet at one point: registration, where the account is created and the freshly-generated public keys are stored in the same request.
+`config.py` loads settings via `pydantic-settings` from `.env` in the project root — see that file for the full list of recognized variables and their defaults.
 
 ---
 
-## Request lifecycle: joining the system
+## Tech Stack
 
-```
-1. GET  /auth/pow/challenge         → solve proof-of-work
-2. POST /auth/pow/verify            → PoW accepted
-3. [browser generates Ed25519 + X25519 keypair — KeysetManager.createUser()]
-4. [user downloads .medledger-key.json — this file is never recoverable if lost]
-5. POST /auth/register              → account + public keys created in one request
-6. [user receives 6-digit email code]
-7. POST /auth/verify-email          → account verified, JWT + refresh token issued
-8. Vault is already unlocked — keypair is still in browser memory from step 3
-```
+| Layer | Technology |
+|---|---|
+| API framework | FastAPI, Uvicorn (with `uvloop`) |
+| Database | PostgreSQL, accessed via SQLAlchemy 2.0 (async) and `asyncpg` |
+| Migrations | Flyway |
+| Authentication | JWT (`PyJWT`), Argon2id password hashing (`argon2-cffi`), TOTP (`pyotp`, QR via `qrcode`) |
+| Client-side cryptography | libsodium.js — Ed25519 signing, X25519 key exchange, XSalsa20-Poly1305 |
+| Validation | Pydantic v2 |
+| Testing | pytest, pytest-asyncio, pytest-cov, pytest-mock |
+| Containerization | Docker, Docker Compose |
+| Deployment | Render (API) |
 
-Returning users log in (Layer 1), then separately re-upload their keypair file to unlock the vault (Layer 2) — the server is not involved in that second step at all.
-
----
-
-## Sharing a record (how the keys get used)
-
-1. Requester looks up the owner's exchange public key: `GET /keys/{user_id_hex}/exchange`.
-2. Owner's browser generates a random one-time key (DEK), encrypts the file with it, and seals the DEK specifically to the requester's exchange public key (`crypto_box_seal`) — the server cannot open a sealed DEK.
-3. Ciphertext + sealed DEK bundle are sent to the server, which stores and relays them without ever holding a usable decryption key.
-4. Requester's browser opens the sealed DEK with *their* private key and decrypts the file locally.
-
-If the owner rotates their exchange key, any DEK bundles sealed to the *old* key are discarded, not migrated — see `PHILOSOPHY.md` for why that's a deliberate trade-off rather than an oversight.
+Full dependency list: [`requirements.txt`](requirements.txt).
 
 ---
 
-## API surface (implemented)
+## API Overview
 
-Full request/response shapes: **[`06-API_REFERENCE.md`](./06-API_REFERENCE.md)**.
+All request/response bodies are JSON; protected routes require `Authorization: Bearer <access_token>`.
 
 | Area | Endpoints |
 |---|---|
-| Proof-of-work | `POST /auth/pow/challenge`, `POST /auth/pow/verify` |
+| Proof of Work | `POST /auth/pow/challenge`, `POST /auth/pow/verify` |
 | Registration & verification | `POST /auth/register`, `POST /auth/verify-email`, `POST /auth/resend-verification` |
-| Login & 2FA | `POST /auth/login`, `POST /auth/verify-totp-login` |
+| Login | `POST /auth/login`, `POST /auth/verify-totp-login` |
 | Tokens | `POST /auth/refresh`, `POST /auth/logout`, `POST /auth/logout-all` |
 | Password | `POST /auth/change-password`, `POST /auth/request-password-reset`, `POST /auth/confirm-password-reset` |
-| TOTP | `POST /auth/totp/setup`, `/confirm`, `/disable` |
+| Two-factor | `POST /auth/totp/setup`, `POST /auth/totp/confirm`, `POST /auth/totp/disable` |
 | Profile | `GET /auth/me` |
 | Keys | `GET /keys/my`, `GET /keys/{user_id_hex}`, `GET /keys/{user_id_hex}/exchange`, `GET /keys/{user_id_hex}/signing`, `PUT /keys/update` |
 
-Vault, grant, and share endpoints (`routes/vault.py`, `routes/grants.py`) are designed at the schema level but not yet documented in the API reference — see that document's closing note.
+Full request/response schemas and the recommended frontend call sequence: [`docs/06-API_REFERENCE.md`](docs/06-API_REFERENCE.md). Live interactive docs: `/docs` on the deployed API.
 
 ---
 
-## Tech stack
+## Project Structure
 
-| Layer | Choice |
+```
+.
+├── config.py               Application settings (pydantic-settings)
+├── docker-compose.yml       API + database container orchestration
+├── Dockerfile               API container build
+├── flyway.conf              Database migration configuration
+├── main.py                  FastAPI application entry point
+├── requirements.txt
+├── docs/                    Architecture, security, auth, crypto, and API specs
+├── FONTEND/frontend/         Frontend screen designs (HTML + mockups), integration in progress
+├── sql/                     Flyway migrations (V1–V6)
+└── src/
+    ├── auth/                Password, PoW, TOTP, email verification, tokens
+    ├── database/             Repository layer, exceptions
+    ├── middleware/           JWT auth middleware
+    ├── models/               Pydantic schemas
+    ├── routes/               auth, keys, vault, grants, shares
+    ├── services/             auth, key, grant, relay, audit services
+    └── tests/                Unit and integration tests (112 files)
+```
+
+---
+
+## Security Posture
+
+MedLedger's threat model (full detail in [`docs/02-SECURITY_SPEC.md`](docs/02-SECURITY_SPEC.md)) is written against named attacker scenarios rather than general claims. Summary for the two most severe:
+
+| Scenario | Attacker gains | Attacker cannot |
+|---|---|---|
+| **Database breach** | Password hashes, public key hashes, ciphertext, sealed DEK bundles, anonymized audit log | Decrypt any medical record; derive private keys from public keys; forge a share; impersonate a user |
+| **Full server compromise** | Everything above, plus code execution and traffic interception | Decrypt past or future uploads (encryption happens in the browser); forge a valid share (signing happens in the browser) |
+
+This is a structural guarantee: the server is never in possession of a key capable of decrypting a record, so there is nothing to compel, leak, or misuse on that front. Non-negotiable design invariants are listed in full in the security spec, §10.
+
+---
+
+## Testing
+
+```bash
+pytest
+```
+
+Coverage report:
+
+```bash
+pytest --cov=src --cov-report=term-missing
+```
+
+The suite covers authentication (`test_auth/`), the database and repository layer (`test_database/`), middleware (`test_middleware/`), and the service layer (`test_services/`), including dedicated coverage for password handling, proof-of-work, TOTP, rate limiting, and token lifecycle.
+
+---
+
+## Status
+
+| Component | Status |
 |---|---|
-| Frontend | React + Vite, libsodium.js |
-| Backend | Python 3.11, FastAPI |
-| Database | PostgreSQL (SQLAlchemy async) |
-| Password hashing | Argon2id (PBKDF2 legacy verify + rehash) |
-| Signing / encryption | Ed25519 / X25519 via libsodium |
-| Symmetric encryption | XSalsa20-Poly1305 |
-| Sessions | JWT access token (15 min) + opaque refresh token (30 days) |
-| Deployment | Frontend on Vercel, backend + Postgres on Railway |
+| Cryptographic core (keyset, sealed boxes, signing) | Complete |
+| Authentication API (register, login, TOTP, password reset, tokens) | Complete, deployed |
+| Vault / grant / share API | In progress |
+| Docker Compose environment | Complete |
+| Frontend | Screens designed, integration in progress |
+| HttpOnly cookie migration | Planned (see `docs/03-AUTH_SPEC.md` §9) |
 
 ---
 
-## Documentation index
+## Documentation
 
-| Doc | Covers |
+| Document | Covers |
 |---|---|
-| **`PHILOSOPHY.md`** | Why the system is shaped this way — the design rationale behind the architecture |
-| `01-ARCHITECTURE.md` | Full system architecture, data flows, database schema, invariants |
-| `02-SECURITY_SPEC.md` | Threat model, cryptographic parameters, known limitations, compliance posture |
-| `03-AUTH_SPEC.md` | Auth flows in detail — what's implemented vs. originally planned |
-| `04-CRYPTO_SPEC.md` | Cryptographic primitives and their usage |
-| `05-KEYSET_MANAGER.md` | Client-side key manager module API |
-| `06-API_REFERENCE.md` | Practical request/response reference for frontend integration |
+| [`docs/PHILOSOPHY.md`](docs/PHILOSOPHY.md) | Why MedLedger is designed the way it is |
+| [`docs/01-ARCHITECTURE.md`](docs/01-ARCHITECTURE.md) | System architecture and data flow |
+| [`docs/02-SECURITY_SPEC.md`](docs/02-SECURITY_SPEC.md) | Threat model, cryptographic specification, compliance posture |
+| [`docs/03-AUTH_SPEC.md`](docs/03-AUTH_SPEC.md) | Authentication implementation, current vs. planned |
+| [`docs/04-CRYPTO_SPEC.md`](docs/04-CRYPTO_SPEC.md) | Cryptographic primitives and parameters |
+| [`docs/05-KEYSET_MANAGER.md`](docs/05-KEYSET_MANAGER.md) | Client-side key management code guide |
+| [`docs/06-API_REFERENCE.md`](docs/06-API_REFERENCE.md) | Full endpoint reference |
+| [`docs/MODULES.md`](docs/MODULES.md) | Module-by-module code map |
 
 ---
 
-## Known limitations (current phase)
+## License
 
-Tracked in detail in `02-SECURITY_SPEC.md §4`. Highlights:
+Hackathon submission — Hack4Humanity 2026, JCTS Cyber Security track. License to be finalized.
 
-- Access tokens are Bearer tokens managed by JS (XSS risk for their 15-minute lifetime) — HttpOnly cookie migration is planned, not yet implemented.
-- Keypair files are unencrypted at rest on the user's disk — password-encryption of the file is planned for v1.1.
-- No CAPTCHA on registration yet; registration and password-reset requests aren't rate-limited (only login is).
-- Refresh token reuse detection needs verification that it's fully wired end-to-end.
+## Team
 
----
-
-*This README summarizes the numbered specs above. Where this document and a numbered spec disagree, the numbered spec is authoritative.*
+Team Praxis
